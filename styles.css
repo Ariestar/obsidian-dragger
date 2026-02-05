@@ -90,7 +90,7 @@ body.dnd-dragging * {
 }
 
 body.dnd-dragging .cm-line:hover {
-    background-color: var(--background-modifier-hover);
+    background-color: transparent;
 }
 
 /* 拖拽时的ghost预览 */
@@ -121,23 +121,13 @@ body.dnd-dragging .cm-line:hover {
     box-shadow: 0 0 6px var(--dnd-drop-indicator-color, var(--interactive-accent));
 }
 
-.dnd-drop-indicator::before,
-.dnd-drop-indicator::after {
-    content: '';
-    position: absolute;
-    width: 6px;
-    height: 6px;
-    background-color: var(--dnd-drop-indicator-color, var(--interactive-accent));
-    border-radius: 50%;
-    top: -2px;
-}
-
-.dnd-drop-indicator::before {
-    left: -3px;
-}
-
-.dnd-drop-indicator::after {
-    right: -3px;
+/* 列表块内落点高亮 */
+.dnd-drop-highlight {
+    pointer-events: none;
+    z-index: 9999;
+    border-radius: 6px;
+    background: rgba(100, 140, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(100, 140, 255, 0.25);
 }
 
 /* 确保编辑器有足够的左边距显示手柄 */

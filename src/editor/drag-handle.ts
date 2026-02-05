@@ -1,4 +1,4 @@
-import { Extension } from '@codemirror/state';
+import { EditorState, Extension } from '@codemirror/state';
 import {
     EditorView,
     ViewPlugin,
@@ -7,7 +7,7 @@ import {
     DecorationSet,
     WidgetType,
 } from '@codemirror/view';
-import { detectBlock, detectBlockType } from './block-detector';
+import { detectBlock, detectBlockType, getListItemOwnRangeForHandle } from './block-detector';
 import { BlockType, BlockInfo, DragState } from '../types';
 import DragNDropPlugin from '../main';
 
@@ -78,14 +78,13 @@ class DragHandleWidget extends WidgetType {
         // 延迟移除ghost元素
         setTimeout(() => ghost.remove(), 0);
 
-        console.log('Drag start:', this.blockInfo);
     }
 
     private onDragEnd(e: DragEvent): void {
         document.body.classList.remove('dnd-dragging');
-        // 清理放置指示器
-        document.querySelectorAll('.dnd-drop-indicator').forEach(el => el.remove());
-        console.log('Drag end');
+        // 清理放置指示器（仅隐藏，保留复用）
+        document.querySelectorAll<HTMLElement>('.dnd-drop-indicator').forEach(el => { el.style.display = 'none'; });
+        document.querySelectorAll<HTMLElement>('.dnd-drop-highlight').forEach(el => { el.style.display = 'none'; });
     }
 
     eq(other: DragHandleWidget): boolean {
@@ -109,6 +108,11 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
             plugin: DragNDropPlugin;
             view: EditorView;
             embedHandles: Map<HTMLElement, EmbedHandleEntry>;
+            indicatorEl: HTMLDivElement;
+            highlightEl: HTMLDivElement;
+            pendingDragInfo: { x: number; y: number; dragSource: BlockInfo | null } | null;
+            rafId: number | null;
+            pendingEmbedScan: boolean;
             onScrollOrResize: () => void;
             onDeactivate: () => void;
             lastDropTargetLineNumber: number | null;
@@ -118,6 +122,21 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 this.plugin = plugin;
                 this.embedHandles = new Map();
                 this.lastDropTargetLineNumber = null;
+                this.indicatorEl = document.createElement('div');
+                this.indicatorEl.className = 'dnd-drop-indicator';
+                this.indicatorEl.style.position = 'fixed';
+                this.indicatorEl.style.display = 'none';
+                document.body.appendChild(this.indicatorEl);
+
+                this.highlightEl = document.createElement('div');
+                this.highlightEl.className = 'dnd-drop-highlight';
+                this.highlightEl.style.position = 'fixed';
+                this.highlightEl.style.display = 'none';
+                document.body.appendChild(this.highlightEl);
+
+                this.pendingDragInfo = null;
+                this.rafId = null;
+                this.pendingEmbedScan = false;
                 this.decorations = this.buildDecorations(view);
                 this.setupDropListeners(view);
                 this.setupEmbedBlockObserver(view);
@@ -168,8 +187,21 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                             );
 
                             // 标记所有属于这个块的行为已处理
-                            for (let i = block.startLine; i <= block.endLine; i++) {
-                                processedLines.add(i + 1);
+                            if (block.type === BlockType.ListItem) {
+                                const ownRange = getListItemOwnRangeForHandle(view.state, lineNumber);
+                                if (ownRange) {
+                                    for (let i = ownRange.startLine; i <= ownRange.endLine; i++) {
+                                        processedLines.add(i);
+                                    }
+                                } else {
+                                    processedLines.add(lineNumber);
+                                }
+                            } else if (block.type === BlockType.Blockquote) {
+                                processedLines.add(lineNumber);
+                            } else {
+                                for (let i = block.startLine; i <= block.endLine; i++) {
+                                    processedLines.add(i + 1);
+                                }
                             }
                         }
 
@@ -181,8 +213,14 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
             }
 
             setupEmbedBlockObserver(view: EditorView) {
-                this.observer = new MutationObserver((mutations) => {
-                    this.addHandlesToEmbedBlocks(view);
+                this.observer = new MutationObserver(() => {
+                    if (this.pendingEmbedScan) return;
+                    this.pendingEmbedScan = true;
+                    requestAnimationFrame(() => {
+                        this.pendingEmbedScan = false;
+                        this.addHandlesToEmbedBlocks(view);
+                        this.updateEmbedHandlePositions();
+                    });
                 });
 
                 this.observer.observe(view.dom, {
@@ -382,13 +420,12 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
 
                     setTimeout(() => ghost.remove(), 0);
 
-                    console.log('Embed Drag start:', blockInfo);
                 });
 
                 handle.addEventListener('dragend', (e) => {
                     document.body.classList.remove('dnd-dragging');
-                    document.querySelectorAll('.dnd-drop-indicator').forEach(el => el.remove());
-                    console.log('Embed Drag end');
+                    document.querySelectorAll<HTMLElement>('.dnd-drop-indicator').forEach(el => { el.style.display = 'none'; });
+                    document.querySelectorAll<HTMLElement>('.dnd-drop-highlight').forEach(el => { el.style.display = 'none'; });
                 });
 
                 return handle;
@@ -419,8 +456,7 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
 
                     e.dataTransfer.dropEffect = 'move';
 
-                    // 显示放置指示器
-                    this.showDropIndicator(view, e);
+                    this.scheduleDropIndicatorUpdate(view, e);
                 }, true);
 
                 editorDom.addEventListener('dragleave', (e: DragEvent) => {
@@ -443,7 +479,11 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                     if (!blockDataStr) return;
 
                     const sourceBlock: BlockInfo = JSON.parse(blockDataStr);
-                    const targetInfo = this.getDropTargetInfo(view, e);
+                    const targetInfo = this.getDropTargetInfo(view, {
+                        clientX: e.clientX,
+                        clientY: e.clientY,
+                        dragSource: sourceBlock,
+                    });
                     const targetLineNumber = targetInfo?.lineNumber ?? null;
                     const targetPos = targetLineNumber
                         ? (targetLineNumber > view.state.doc.lines
@@ -453,39 +493,88 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
 
                     if (targetPos === null) return;
 
-                    this.moveBlock(view, sourceBlock, targetPos, targetLineNumber ?? undefined);
+                    this.moveBlock(
+                        view,
+                        sourceBlock,
+                        targetPos,
+                        targetLineNumber ?? undefined,
+                        targetInfo?.listContextLineNumber,
+                        targetInfo?.listIndentDelta,
+                        targetInfo?.listTargetIndentWidth
+                    );
                     this.hideDropIndicator();
                 }, true);
             }
 
-            showDropIndicator(view: EditorView, e: DragEvent): void {
-                this.hideDropIndicator();
+            scheduleDropIndicatorUpdate(view: EditorView, e: DragEvent): void {
+                const dragSource = this.getDragSourceBlock(e);
+                this.pendingDragInfo = { x: e.clientX, y: e.clientY, dragSource };
+                if (this.rafId !== null) return;
+                this.rafId = requestAnimationFrame(() => {
+                    this.rafId = null;
+                    const pending = this.pendingDragInfo;
+                    if (!pending) return;
+                    this.updateDropIndicatorFromPoint(view, pending);
+                });
+            }
 
-                const targetInfo = this.getDropTargetInfo(view, e);
-                if (!targetInfo) return;
+            updateDropIndicatorFromPoint(view: EditorView, info: { x: number; y: number; dragSource: BlockInfo | null }): void {
+                const targetInfo = this.getDropTargetInfo(view, {
+                    clientX: info.x,
+                    clientY: info.y,
+                    dragSource: info.dragSource,
+                });
+                if (!targetInfo) {
+                    this.hideDropIndicator();
+                    return;
+                }
 
                 this.lastDropTargetLineNumber = targetInfo.lineNumber;
 
                 const editorRect = view.dom.getBoundingClientRect();
                 const indicatorY = targetInfo.indicatorY;
+                const indicatorLeft = targetInfo.lineRect ? targetInfo.lineRect.left : editorRect.left + 35;
+                const contentRect = view.contentDOM.getBoundingClientRect();
+                const contentPaddingRight = parseFloat(getComputedStyle(view.contentDOM).paddingRight) || 0;
+                const indicatorRight = contentRect.right - contentPaddingRight;
+                const indicatorWidth = Math.max(8, indicatorRight - indicatorLeft);
 
-                const indicator = document.createElement('div');
-                indicator.className = 'dnd-drop-indicator';
-                // 使用fixed定位，基于视口坐标
-                indicator.style.position = 'fixed';
-                indicator.style.top = `${indicatorY}px`;
-                indicator.style.left = `${editorRect.left + 35}px`;
-                indicator.style.width = `${editorRect.width - 50}px`;
+                this.indicatorEl.style.top = `${indicatorY}px`;
+                this.indicatorEl.style.left = `${indicatorLeft}px`;
+                this.indicatorEl.style.width = `${indicatorWidth}px`;
+                this.indicatorEl.style.display = '';
 
-                document.body.appendChild(indicator);
+                if (targetInfo.highlightRect) {
+                    this.highlightEl.style.top = `${targetInfo.highlightRect.top}px`;
+                    this.highlightEl.style.left = `${targetInfo.highlightRect.left}px`;
+                    this.highlightEl.style.width = `${targetInfo.highlightRect.width}px`;
+                    this.highlightEl.style.height = `${targetInfo.highlightRect.height}px`;
+                    this.highlightEl.style.display = '';
+                } else {
+                    this.highlightEl.style.display = 'none';
+                }
             }
 
             hideDropIndicator(): void {
-                document.querySelectorAll('.dnd-drop-indicator').forEach(el => el.remove());
+                if (this.rafId !== null) {
+                    cancelAnimationFrame(this.rafId);
+                    this.rafId = null;
+                }
+                this.pendingDragInfo = null;
+                this.indicatorEl.style.display = 'none';
+                this.highlightEl.style.display = 'none';
                 this.lastDropTargetLineNumber = null;
             }
 
-            moveBlock(view: EditorView, sourceBlock: BlockInfo, targetPos: number, targetLineNumberOverride?: number): void {
+            moveBlock(
+                view: EditorView,
+                sourceBlock: BlockInfo,
+                targetPos: number,
+                targetLineNumberOverride?: number,
+                listContextLineNumberOverride?: number,
+                listIndentDeltaOverride?: number,
+                listTargetIndentWidthOverride?: number
+            ): void {
                 const doc = view.state.doc;
                 const targetLine = doc.lineAt(targetPos);
 
@@ -510,8 +599,29 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 // 转换为0-indexed
                 const targetLineIdx = targetLineNumber - 1;
 
-                // 不能移动到自己的位置
-                if (targetLineIdx >= sourceBlock.startLine && targetLineIdx <= sourceBlock.endLine + 1) {
+                const inSelfRange = targetLineIdx >= sourceBlock.startLine && targetLineIdx <= sourceBlock.endLine + 1;
+                let allowInPlaceIndentChange = false;
+                if (inSelfRange && (listTargetIndentWidthOverride !== undefined || listIndentDeltaOverride !== undefined)) {
+                    const sourceLineText = doc.line(sourceBlock.startLine + 1).text;
+                    const sourceParsed = this.parseListLine(this.splitBlockquotePrefix(sourceLineText).rest);
+                    if (sourceParsed.isListItem) {
+                        let targetIndentWidth = listTargetIndentWidthOverride;
+                        if (targetIndentWidth === undefined) {
+                            const listContextLineNumber = listContextLineNumberOverride ?? targetLineNumber;
+                            const targetContext = this.getListContext(doc, listContextLineNumber);
+                            const indentSample = targetContext ? targetContext.indentRaw : sourceParsed.indentRaw;
+                            const indentUnitWidth = this.getIndentUnitWidth(indentSample || sourceParsed.indentRaw);
+                            const indentDeltaBase = (targetContext ? targetContext.indentWidth : 0) - sourceParsed.indentWidth;
+                            targetIndentWidth = sourceParsed.indentWidth + indentDeltaBase + ((listIndentDeltaOverride ?? 0) * indentUnitWidth);
+                        }
+                        if (typeof targetIndentWidth === 'number' && targetIndentWidth < sourceParsed.indentWidth) {
+                            allowInPlaceIndentChange = true;
+                        }
+                    }
+                }
+
+                // 不能移动到自己的位置（除非仅缩进发生变化）
+                if (inSelfRange && !allowInPlaceIndentChange) {
                     return;
                 }
 
@@ -521,7 +631,15 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 const sourceFrom = sourceStartLine.from;
                 const sourceTo = sourceEndLine.to;
                 const sourceContent = doc.sliceString(sourceFrom, sourceTo);
-                const insertText = this.buildInsertText(doc, sourceBlock, targetLineNumber, sourceContent);
+                const insertText = this.buildInsertText(
+                    doc,
+                    sourceBlock,
+                    targetLineNumber,
+                    sourceContent,
+                    listContextLineNumberOverride,
+                    listIndentDeltaOverride,
+                    listTargetIndentWidthOverride
+                );
 
                 // CodeMirror 的 changes 数组位置都是基于原始文档的，不需要手动计算偏移
                 // 但必须按照从后到前的顺序排列 changes（位置大的在前）
@@ -535,6 +653,12 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                     const deleteFrom = sourceFrom;
                     const deleteTo = Math.min(sourceTo + 1, doc.length);
 
+                    if (allowInPlaceIndentChange && insertPos === deleteFrom) {
+                        view.dispatch({
+                            changes: { from: deleteFrom, to: deleteTo, insert: insertText },
+                            scrollIntoView: false,
+                        });
+                    } else {
                     view.dispatch({
                         changes: [
                             // 必须按位置从大到小排序
@@ -543,6 +667,7 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                         ].sort((a, b) => b.from - a.from),
                         scrollIntoView: false,
                     });
+                    }
                 } else {
                     // 向下移动
                     const insertPos = targetLineNumber > doc.lines
@@ -553,6 +678,12 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                     const deleteFrom = sourceFrom;
                     const deleteTo = Math.min(sourceTo + 1, doc.length);
 
+                    if (allowInPlaceIndentChange && insertPos === deleteFrom) {
+                        view.dispatch({
+                            changes: { from: deleteFrom, to: deleteTo, insert: insertText },
+                            scrollIntoView: false,
+                        });
+                    } else {
                     view.dispatch({
                         changes: [
                             // 必须按位置从大到小排序
@@ -561,19 +692,45 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                         ].sort((a, b) => b.from - a.from),
                         scrollIntoView: false,
                     });
+                    }
                 }
 
-                console.log('Block moved');
+                // 有序列表自动重编号（移动前后可能需要修正）
+                const sourceLineNumber = sourceBlock.startLine + 1;
+                setTimeout(() => {
+                    this.renumberOrderedListAround(view, sourceLineNumber);
+                    this.renumberOrderedListAround(view, targetLineNumber);
+                }, 0);
+
             }
 
-            buildInsertText(doc: { line: (n: number) => { text: string }; lines: number }, sourceBlock: BlockInfo, targetLineNumber: number, sourceContent: string): string {
+            buildInsertText(
+                doc: { line: (n: number) => { text: string }; lines: number },
+                sourceBlock: BlockInfo,
+                targetLineNumber: number,
+                sourceContent: string,
+                listContextLineNumberOverride?: number,
+                listIndentDeltaOverride?: number,
+                listTargetIndentWidthOverride?: number
+            ): string {
                 const prevLineNumber = Math.min(Math.max(1, targetLineNumber - 1), doc.lines);
                 const prevText = targetLineNumber > 1 ? doc.line(prevLineNumber).text : null;
                 const nextText = targetLineNumber <= doc.lines ? doc.line(targetLineNumber).text : null;
+
+                let text = sourceContent;
+                text = this.adjustBlockquoteDepth(text, this.getBlockquoteDepthContext(doc, targetLineNumber));
+                text = this.adjustListToTargetContext(
+                    doc,
+                    text,
+                    targetLineNumber,
+                    listContextLineNumberOverride,
+                    listIndentDeltaOverride,
+                    listTargetIndentWidthOverride
+                );
+
                 const needsLeadingBlank = this.shouldSeparateBlock(sourceBlock.type, prevText);
                 const needsTrailingBlank = this.shouldSeparateBlock(sourceBlock.type, nextText);
 
-                let text = sourceContent;
                 if (needsLeadingBlank) text = '\n' + text;
                 const trailingNewlines = 1 + (needsTrailingBlank ? 1 : 0);
                 text += '\n'.repeat(trailingNewlines);
@@ -592,7 +749,7 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
 
                 const trimmed = adjacentLineText.trimStart();
                 if (type === BlockType.Blockquote) {
-                    return trimmed.startsWith('>');
+                    return false;
                 }
                 if (type === BlockType.Table) {
                     return trimmed.startsWith('|');
@@ -601,22 +758,499 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 return false;
             }
 
-            getDropTargetInfo(view: EditorView, e: DragEvent): { lineNumber: number; indicatorY: number } | null {
-                const embedEl = this.getEmbedElementAtPoint(view, e);
+            adjustBlockquoteDepth(sourceContent: string, targetDepth: number): string {
+                const lines = sourceContent.split('\n');
+                let baseDepth = 0;
+                for (const line of lines) {
+                    if (line.trim().length === 0) continue;
+                    baseDepth = this.getBlockquoteDepthFromLine(line);
+                    break;
+                }
+
+                const delta = targetDepth - baseDepth;
+                if (delta === 0) return sourceContent;
+
+                return lines.map((line) => {
+                    if (line.trim().length === 0) {
+                        return delta > 0 ? `${'> '.repeat(delta)}${line}` : this.stripBlockquoteDepth(line, -delta);
+                    }
+                    if (delta > 0) {
+                        return `${'> '.repeat(delta)}${line}`;
+                    }
+                    return this.stripBlockquoteDepth(line, -delta);
+                }).join('\n');
+            }
+
+            stripBlockquoteDepth(line: string, removeDepth: number): string {
+                let remaining = line;
+                let removed = 0;
+                while (removed < removeDepth) {
+                    const match = remaining.match(/^(\s*> ?)/);
+                    if (!match) break;
+                    remaining = remaining.slice(match[0].length);
+                    removed += 1;
+                }
+                return remaining;
+            }
+
+            getBlockquoteDepthContext(doc: { line: (n: number) => { text: string }; lines: number }, lineNumber: number): number {
+                for (let i = lineNumber; i >= 1; i--) {
+                    const text = doc.line(i).text;
+                    if (text.trim().length === 0) continue;
+                    const depth = this.getBlockquoteDepthFromLine(text);
+                    if (depth > 0) return depth;
+                    return 0;
+                }
+                return 0;
+            }
+
+            getBlockquoteDepthFromLine(line: string): number {
+                const match = line.match(/^(\s*> ?)+/);
+                if (!match) return 0;
+                const prefix = match[0];
+                return (prefix.match(/>/g) || []).length;
+            }
+
+            adjustListToTargetContext(
+                doc: { line: (n: number) => { text: string }; lines: number },
+                sourceContent: string,
+                targetLineNumber: number,
+                listContextLineNumberOverride?: number,
+                listIndentDeltaOverride?: number,
+                listTargetIndentWidthOverride?: number
+            ): string {
+                const lines = sourceContent.split('\n');
+                const sourceBase = this.getSourceListBase(lines);
+                if (!sourceBase) return sourceContent;
+
+                const listContextLineNumber = listContextLineNumberOverride ?? targetLineNumber;
+                const targetContext = this.getListContext(doc, listContextLineNumber);
+                const indentSample = targetContext ? targetContext.indentRaw : sourceBase.indentRaw;
+                const indentDeltaBase = (targetContext ? targetContext.indentWidth : 0) - sourceBase.indentWidth;
+                const indentUnitWidth = this.getIndentUnitWidth(indentSample || sourceBase.indentRaw);
+                let indentDelta = indentDeltaBase + ((listIndentDeltaOverride ?? 0) * indentUnitWidth);
+                if (typeof listTargetIndentWidthOverride === 'number') {
+                    indentDelta = listTargetIndentWidthOverride - sourceBase.indentWidth;
+                }
+
+                const quoteAdjustedLines = lines.map((line) => {
+                    if (line.trim().length === 0) return line;
+                    const quoteInfo = this.splitBlockquotePrefix(line);
+                    const rest = quoteInfo.rest;
+                    const parsed = this.parseListLine(rest);
+                    if (!parsed.isListItem) {
+                        if (parsed.indentWidth >= sourceBase.indentWidth) {
+                            const newIndent = this.buildIndentStringFromSample(indentSample, parsed.indentWidth + indentDelta);
+                            return `${quoteInfo.prefix}${newIndent}${rest.slice(parsed.indentRaw.length)}`;
+                        }
+                        return line;
+                    }
+
+                    const newIndent = this.buildIndentStringFromSample(indentSample, parsed.indentWidth + indentDelta);
+                    let marker = parsed.marker;
+                    if (targetContext && parsed.indentWidth === sourceBase.indentWidth) {
+                        marker = this.buildTargetMarker(targetContext, parsed);
+                    }
+                    return `${quoteInfo.prefix}${newIndent}${marker}${parsed.content}`;
+                });
+
+                return quoteAdjustedLines.join('\n');
+            }
+
+            getListContext(doc: { line: (n: number) => { text: string }; lines: number }, lineNumber: number): { indentWidth: number; indentRaw: string; markerType: 'ordered' | 'unordered' | 'task' } | null {
+                const current = lineNumber <= doc.lines ? doc.line(lineNumber).text : '';
+                const currentParsed = this.parseListLine(this.splitBlockquotePrefix(current).rest);
+                if (currentParsed.isListItem) {
+                    return { indentWidth: currentParsed.indentWidth, indentRaw: currentParsed.indentRaw, markerType: currentParsed.markerType };
+                }
+
+                const prevLineNumber = lineNumber - 1;
+                if (prevLineNumber >= 1) {
+                    const prevText = doc.line(prevLineNumber).text;
+                    const prevParsed = this.parseListLine(this.splitBlockquotePrefix(prevText).rest);
+                    if (prevParsed.isListItem) {
+                        return { indentWidth: prevParsed.indentWidth, indentRaw: prevParsed.indentRaw, markerType: prevParsed.markerType };
+                    }
+                }
+
+                return null;
+            }
+
+            getSourceListBase(lines: string[]): { indentWidth: number; indentRaw: string } | null {
+                for (const line of lines) {
+                    const rest = this.splitBlockquotePrefix(line).rest;
+                    const parsed = this.parseListLine(rest);
+                    if (parsed.isListItem) {
+                        return { indentWidth: parsed.indentWidth, indentRaw: parsed.indentRaw };
+                    }
+                }
+                return null;
+            }
+
+            splitBlockquotePrefix(line: string): { prefix: string; rest: string } {
+                const match = line.match(/^(\s*> ?)+/);
+                if (!match) return { prefix: '', rest: line };
+                return { prefix: match[0], rest: line.slice(match[0].length) };
+            }
+
+            parseListLine(line: string): { isListItem: boolean; indentRaw: string; indentWidth: number; marker: string; markerType: 'ordered' | 'unordered' | 'task'; content: string } {
+                const indentMatch = line.match(/^(\s*)/);
+                const indentRaw = indentMatch ? indentMatch[1] : '';
+                const indentWidth = this.getIndentWidthFromIndentRaw(indentRaw);
+                const rest = line.slice(indentRaw.length);
+
+                const taskMatch = rest.match(/^([-*+])\s\[[ xX]\]\s+/);
+                if (taskMatch) {
+                    const marker = taskMatch[0];
+                    return { isListItem: true, indentRaw, indentWidth, marker, markerType: 'task', content: rest.slice(marker.length) };
+                }
+
+                const unorderedMatch = rest.match(/^([-*+])\s+/);
+                if (unorderedMatch) {
+                    const marker = unorderedMatch[0];
+                    return { isListItem: true, indentRaw, indentWidth, marker, markerType: 'unordered', content: rest.slice(marker.length) };
+                }
+
+                const orderedMatch = rest.match(/^(\d+)[.)]\s+/);
+                if (orderedMatch) {
+                    const marker = orderedMatch[0];
+                    return { isListItem: true, indentRaw, indentWidth, marker, markerType: 'ordered', content: rest.slice(marker.length) };
+                }
+
+                return { isListItem: false, indentRaw, indentWidth, marker: '', markerType: 'unordered', content: rest };
+            }
+
+            findParentListLineNumber(doc: { line: (n: number) => { text: string }; lines: number }, lineNumber: number): number | null {
+                if (lineNumber < 1 || lineNumber > doc.lines) return null;
+                const currentText = doc.line(lineNumber).text;
+                const currentParsed = this.parseListLine(this.splitBlockquotePrefix(currentText).rest);
+                if (!currentParsed.isListItem) return null;
+                const currentIndent = currentParsed.indentWidth;
+
+                for (let i = lineNumber - 1; i >= 1; i--) {
+                    const text = doc.line(i).text;
+                    if (text.trim().length === 0) continue;
+                    const parsed = this.parseListLine(this.splitBlockquotePrefix(text).rest);
+                    if (!parsed.isListItem) continue;
+                    if (parsed.indentWidth < currentIndent) return i;
+                }
+
+                return null;
+            }
+
+            getListMarkerX(view: EditorView, lineNumber: number): number | null {
+                if (lineNumber < 1 || lineNumber > view.state.doc.lines) return null;
+                const line = view.state.doc.line(lineNumber);
+                const quoteInfo = this.splitBlockquotePrefix(line.text);
+                const parsed = this.parseListLine(quoteInfo.rest);
+                if (!parsed.isListItem) return null;
+                const markerPos = line.from + quoteInfo.prefix.length + parsed.indentRaw.length;
+                const coords = view.coordsAtPos(markerPos);
+                return coords ? coords.left : null;
+            }
+
+            getListDropTarget(
+                view: EditorView,
+                lineNumber: number,
+                clientX: number,
+                allowChild: boolean
+            ): { lineNumber: number; indentWidth: number; mode: 'child' | 'same' } | null {
+                const doc = view.state.doc;
+                if (lineNumber < 1 || lineNumber > doc.lines) return null;
+                if (!allowChild) {
+                    const bounds = this.getListMarkerBounds(view, lineNumber);
+                    const parentLine = this.findParentListLineNumber(doc, lineNumber);
+                    if (bounds && clientX >= bounds.contentStartX + 2) {
+                        const indentWidth = this.getListIndentWidthAtLine(doc, lineNumber);
+                        if (typeof indentWidth === 'number') {
+                            return { lineNumber, indentWidth, mode: 'same' };
+                        }
+                    }
+                    if (parentLine) {
+                        const indentWidth = this.getListIndentWidthAtLine(doc, parentLine);
+                        if (typeof indentWidth === 'number') {
+                            return { lineNumber: parentLine, indentWidth, mode: 'same' };
+                        }
+                    }
+                    const fallbackIndent = this.getListIndentWidthAtLine(doc, lineNumber);
+                    if (typeof fallbackIndent === 'number') {
+                        return { lineNumber, indentWidth: fallbackIndent, mode: 'same' };
+                    }
+                    return null;
+                }
+                const ancestors = this.getListAncestorLineNumbers(doc, lineNumber);
+                if (ancestors.length === 0) return null;
+
+                for (const ancestorLine of ancestors) {
+                    const bounds = this.getListMarkerBounds(view, ancestorLine);
+                    if (!bounds) continue;
+                    if (clientX >= bounds.contentStartX + 2) {
+                        const indentWidth = this.getListChildIndentWidth(view, ancestorLine);
+                        if (typeof indentWidth === 'number') {
+                            return { lineNumber: ancestorLine, indentWidth, mode: 'child' };
+                        }
+                    }
+                    if (clientX >= bounds.markerStartX - 1) {
+                        const indentWidth = this.getListIndentWidthAtLine(doc, ancestorLine);
+                        if (typeof indentWidth === 'number') {
+                            return { lineNumber: ancestorLine, indentWidth, mode: 'same' };
+                        }
+                    }
+                }
+
+                const outerLine = ancestors[ancestors.length - 1];
+                const outerIndent = this.getListIndentWidthAtLine(doc, outerLine);
+                if (typeof outerIndent === 'number') {
+                    return { lineNumber: outerLine, indentWidth: outerIndent, mode: 'same' };
+                }
+
+                return null;
+            }
+
+            getListMarkerBounds(view: EditorView, lineNumber: number): { markerStartX: number; contentStartX: number } | null {
+                if (lineNumber < 1 || lineNumber > view.state.doc.lines) return null;
+                const line = view.state.doc.line(lineNumber);
+                const quoteInfo = this.splitBlockquotePrefix(line.text);
+                const parsed = this.parseListLine(quoteInfo.rest);
+                if (!parsed.isListItem) return null;
+                const markerStartPos = line.from + quoteInfo.prefix.length + parsed.indentRaw.length;
+                const markerEndPos = markerStartPos + parsed.marker.length;
+                const start = view.coordsAtPos(markerStartPos);
+                const end = view.coordsAtPos(markerEndPos);
+                if (!start || !end) return null;
+                return { markerStartX: start.left, contentStartX: end.left };
+            }
+
+            getListIndentWidthAtLine(doc: { line: (n: number) => { text: string }; lines: number }, lineNumber: number): number | undefined {
+                if (lineNumber < 1 || lineNumber > doc.lines) return undefined;
+                const text = doc.line(lineNumber).text;
+                const parsed = this.parseListLine(this.splitBlockquotePrefix(text).rest);
+                if (!parsed.isListItem) return undefined;
+                return parsed.indentWidth;
+            }
+
+            getListAncestorLineNumbers(doc: { line: (n: number) => { text: string }; lines: number }, lineNumber: number): number[] {
+                const result: number[] = [];
+                let currentIndent: number | null = null;
+
+                for (let i = lineNumber; i >= 1; i--) {
+                    const text = doc.line(i).text;
+                    if (text.trim().length === 0) continue;
+                    const parsed = this.parseListLine(this.splitBlockquotePrefix(text).rest);
+                    if (!parsed.isListItem) {
+                        if (currentIndent !== null) break;
+                        continue;
+                    }
+
+                    if (currentIndent === null) {
+                        currentIndent = parsed.indentWidth;
+                        result.push(i);
+                        continue;
+                    }
+
+                    if (parsed.indentWidth < currentIndent) {
+                        currentIndent = parsed.indentWidth;
+                        result.push(i);
+                    }
+                }
+
+                return result;
+            }
+
+            getListChildIndentWidth(view: EditorView, lineNumber: number): number | undefined {
+                const doc = view.state.doc;
+                if (lineNumber < 1 || lineNumber > doc.lines) return undefined;
+                const text = doc.line(lineNumber).text;
+                const parsed = this.parseListLine(this.splitBlockquotePrefix(text).rest);
+                if (!parsed.isListItem) return undefined;
+                const parentIndent = parsed.indentWidth;
+                for (let i = lineNumber + 1; i <= doc.lines; i++) {
+                    const nextText = doc.line(i).text;
+                    if (nextText.trim().length === 0) continue;
+                    const nextParsed = this.parseListLine(this.splitBlockquotePrefix(nextText).rest);
+                    if (!nextParsed.isListItem) break;
+                    if (nextParsed.indentWidth <= parentIndent) break;
+                    return nextParsed.indentWidth;
+                }
+                const tabSize = view.state.facet(EditorState.tabSize);
+                const indentUnit = tabSize > 0 ? tabSize : 4;
+                return parentIndent + indentUnit;
+            }
+
+            findNearestListAncestorBlock(state: EditorState, blockAtPos: BlockInfo, lineNumber: number): BlockInfo | null {
+                const doc = state.doc;
+                if (lineNumber < 1 || lineNumber > doc.lines) return null;
+
+                const currentLine = doc.line(blockAtPos.startLine + 1).text;
+                const currentParsed = this.parseListLine(this.splitBlockquotePrefix(currentLine).rest);
+                if (!currentParsed.isListItem) return null;
+                const currentIndent = currentParsed.indentWidth;
+
+                for (let i = blockAtPos.startLine + 1; i >= 1; i--) {
+                    const text = doc.line(i).text;
+                    const parsed = this.parseListLine(this.splitBlockquotePrefix(text).rest);
+                    if (!parsed.isListItem) continue;
+                    if (parsed.indentWidth >= currentIndent) continue;
+
+                    const block = detectBlock(state, i);
+                    if (!block || block.type !== BlockType.ListItem) continue;
+                    if (lineNumber - 1 <= block.endLine) return block;
+                }
+
+                return null;
+            }
+
+            getIndentUnitWidthFromDoc(doc: { line: (n: number) => { text: string }; lines: number }, state?: EditorState): number | undefined {
+                let best = Number.POSITIVE_INFINITY;
+                let prevIndent: number | null = null;
+
+                for (let i = 1; i <= doc.lines; i++) {
+                    const text = doc.line(i).text;
+                    const parsed = this.parseListLine(this.splitBlockquotePrefix(text).rest);
+                    if (!parsed.isListItem) continue;
+                    if (prevIndent !== null && parsed.indentWidth > prevIndent) {
+                        const delta = parsed.indentWidth - prevIndent;
+                        if (delta > 0 && delta < best) best = delta;
+                    }
+                    prevIndent = parsed.indentWidth;
+                }
+
+                if (!isFinite(best)) {
+                    if (state) {
+                        const tabSize = state.facet(EditorState.tabSize);
+                        return tabSize > 0 ? tabSize : undefined;
+                    }
+                    return undefined;
+                }
+                return Math.max(2, best);
+            }
+
+
+            buildTargetMarker(target: { markerType: 'ordered' | 'unordered' | 'task' }, source: { markerType: 'ordered' | 'unordered' | 'task' }): string {
+                if (target.markerType === 'ordered') return '1. ';
+                if (target.markerType === 'task') {
+                    if (source.markerType === 'task') return source.marker.replace(/^\s*[-*+]\s\[[ xX]\]\s+/, '- [ ] ');
+                    return '- [ ] ';
+                }
+                return '- ';
+            }
+
+            buildIndentStringFromSample(sample: string, width: number): string {
+                const safeWidth = Math.max(0, width);
+                if (safeWidth === 0) return '';
+                if (sample.includes('\t')) {
+                    const tabSize = this.getTabSize();
+                    const tabs = Math.max(0, Math.round(safeWidth / tabSize));
+                    return '\t'.repeat(tabs);
+                }
+                return ' '.repeat(safeWidth);
+            }
+
+            getIndentUnitWidth(sample: string): number {
+                const tabSize = this.getTabSize();
+                if (sample.includes('\t')) return tabSize;
+                if (sample.length >= tabSize) return tabSize;
+                return sample.length > 0 ? sample.length : tabSize;
+            }
+
+            getTabSize(): number {
+                const tabSize = this.view?.state?.facet(EditorState.tabSize) ?? 4;
+                return tabSize > 0 ? tabSize : 4;
+            }
+
+            getIndentWidthFromIndentRaw(indentRaw: string): number {
+                const tabSize = this.getTabSize();
+                let width = 0;
+                for (const ch of indentRaw) {
+                    width += ch === '\t' ? tabSize : 1;
+                }
+                return width;
+            }
+
+            renumberOrderedListAround(view: EditorView, lineNumber: number) {
+                const doc = view.state.doc;
+                if (lineNumber < 1 || lineNumber > doc.lines) return;
+
+                const findOrderedAt = (n: number) => {
+                    const text = doc.line(n).text;
+                    const quoteInfo = this.splitBlockquotePrefix(text);
+                    const parsed = this.parseListLine(quoteInfo.rest);
+                    if (parsed.isListItem && parsed.markerType === 'ordered') {
+                        return { indentWidth: parsed.indentWidth, quoteDepth: this.getBlockquoteDepthFromLine(text) };
+                    }
+                    return null;
+                };
+
+                let anchor = findOrderedAt(lineNumber);
+                if (!anchor && lineNumber > 1) anchor = findOrderedAt(lineNumber - 1);
+                if (!anchor && lineNumber < doc.lines) anchor = findOrderedAt(lineNumber + 1);
+                if (!anchor) return;
+
+                let start = lineNumber;
+                while (start > 1) {
+                    const info = findOrderedAt(start - 1);
+                    if (!info || info.indentWidth !== anchor.indentWidth || info.quoteDepth !== anchor.quoteDepth) break;
+                    start -= 1;
+                }
+
+                let end = lineNumber;
+                while (end < doc.lines) {
+                    const info = findOrderedAt(end + 1);
+                    if (!info || info.indentWidth !== anchor.indentWidth || info.quoteDepth !== anchor.quoteDepth) break;
+                    end += 1;
+                }
+
+                const changes: { from: number; to: number; insert: string }[] = [];
+                let number = 1;
+                for (let i = start; i <= end; i++) {
+                    const line = doc.line(i);
+                    const quoteInfo = this.splitBlockquotePrefix(line.text);
+                    const parsed = this.parseListLine(quoteInfo.rest);
+                    if (!parsed.isListItem || parsed.markerType !== 'ordered' || parsed.indentWidth !== anchor.indentWidth) continue;
+
+                    const newMarker = `${number}. `;
+                    const markerStart = line.from + quoteInfo.prefix.length + parsed.indentRaw.length;
+                    const markerEnd = markerStart + parsed.marker.length;
+                    changes.push({ from: markerStart, to: markerEnd, insert: newMarker });
+                    number += 1;
+                }
+
+                if (changes.length > 0) {
+                    view.dispatch({ changes });
+                }
+            }
+
+            getDropTargetInfo(
+                view: EditorView,
+                info: { clientX: number; clientY: number; dragSource?: BlockInfo | null }
+            ): {
+                lineNumber: number;
+                indicatorY: number;
+                listContextLineNumber?: number;
+                listIndentDelta?: number;
+                listTargetIndentWidth?: number;
+                lineRect?: { left: number; width: number };
+                highlightRect?: { top: number; left: number; width: number; height: number };
+            } | null {
+                const dragSource = info.dragSource ?? null;
+                const isSingleLineBlockquoteDrag = !!dragSource
+                    && dragSource.type === BlockType.Blockquote
+                    && dragSource.startLine === dragSource.endLine;
+                const embedEl = this.getEmbedElementAtPoint(view, info.clientX, info.clientY);
                 if (embedEl) {
                     const block = this.getBlockInfoForEmbed(view, embedEl);
                     if (block) {
                         const rect = embedEl.getBoundingClientRect();
-                        const showAtBottom = e.clientY > rect.top + rect.height / 2;
+                        const showAtBottom = info.clientY > rect.top + rect.height / 2;
                         const lineNumber = this.clampTargetLineNumber(view.state.doc.lines, showAtBottom ? block.endLine + 2 : block.startLine + 1);
                         const indicatorY = showAtBottom ? rect.bottom : rect.top;
-                        return { lineNumber, indicatorY };
+                        return { lineNumber, indicatorY, lineRect: { left: rect.left, width: rect.width } };
                     }
                 }
 
                 const contentRect = view.contentDOM.getBoundingClientRect();
-                const x = this.clampNumber(e.clientX, contentRect.left + 2, contentRect.right - 2);
-                const pos = view.posAtCoords({ x, y: e.clientY });
+                const x = this.clampNumber(info.clientX, contentRect.left + 2, contentRect.right - 2);
+                const pos = view.posAtCoords({ x, y: info.clientY });
                 if (pos === null) return null;
 
                 let line = view.state.doc.lineAt(pos);
@@ -627,8 +1261,7 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 const blockAtPos = detectBlock(view.state, line.number);
 
                 // 如果在多行块（代码块、引用块、表格）内部，将指示器移到块边界
-                if (blockAtPos && (blockAtPos.type === BlockType.CodeBlock ||
-                    blockAtPos.type === BlockType.Blockquote ||
+                if (blockAtPos && !isSingleLineBlockquoteDrag && (blockAtPos.type === BlockType.CodeBlock ||
                     blockAtPos.type === BlockType.Table ||
                     blockAtPos.type === BlockType.MathBlock)) {
 
@@ -640,7 +1273,7 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                     const endCoords = view.coordsAtPos(blockEndLine.to);
 
                     if (startCoords && endCoords) {
-                        const mouseY = e.clientY;
+                        const mouseY = info.clientY;
                         const midPoint = (startCoords.top + endCoords.bottom) / 2;
 
                         // 根据鼠标位置选择在块的上方或下方显示指示器
@@ -656,6 +1289,55 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                     }
                 }
 
+                if (!forcedLineNumber) {
+                    const lineStart = view.coordsAtPos(line.from);
+                    const lineEnd = view.coordsAtPos(line.to);
+                    if (lineStart && lineEnd) {
+                        const midY = (lineStart.top + lineEnd.bottom) / 2;
+                        showAtBottom = info.clientY > midY;
+                    }
+                }
+
+                let listContextLineNumber: number | undefined = undefined;
+                let listIndentDelta: number | undefined = undefined;
+                let listTargetIndentWidth: number | undefined = undefined;
+                let highlightRect: { top: number; left: number; width: number; height: number } | undefined = undefined;
+                if (blockAtPos && blockAtPos.type === BlockType.ListItem) {
+                    const blockStartLine = view.state.doc.line(blockAtPos.startLine + 1);
+                    const blockEndLine = view.state.doc.line(blockAtPos.endLine + 1);
+                    const startCoords = view.coordsAtPos(blockStartLine.from);
+                    const endCoords = view.coordsAtPos(blockEndLine.to);
+
+                    if (startCoords && endCoords) {
+                        const mouseY = info.clientY;
+                        const midPoint = (startCoords.top + endCoords.bottom) / 2;
+                        if (mouseY < midPoint) {
+                            line = blockStartLine;
+                            showAtBottom = false;
+                            forcedLineNumber = blockAtPos.startLine + 1;
+                        } else {
+                            line = blockEndLine;
+                            showAtBottom = true;
+                            forcedLineNumber = blockAtPos.endLine + 2;
+                        }
+                    }
+
+                    const isSelfTarget = !!dragSource
+                        && dragSource.type === BlockType.ListItem
+                        && blockStartLine.number === dragSource.startLine + 1;
+                    const allowChild = showAtBottom && !isSelfTarget;
+                    const dropTarget = this.getListDropTarget(view, blockStartLine.number, info.clientX, allowChild);
+                    if (dropTarget) {
+                        listContextLineNumber = dropTarget.lineNumber;
+                        listIndentDelta = dropTarget.mode === 'child' ? 1 : 0;
+                        listTargetIndentWidth = dropTarget.indentWidth;
+                        const highlightBlock = detectBlock(view.state, dropTarget.lineNumber);
+                        if (highlightBlock && highlightBlock.type === BlockType.ListItem) {
+                            highlightRect = this.getBlockRect(view, highlightBlock.startLine + 1, highlightBlock.endLine + 1);
+                        }
+                    }
+                }
+
                 const coords = showAtBottom
                     ? view.coordsAtPos(line.to)
                     : view.coordsAtPos(line.from);
@@ -663,11 +1345,32 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
 
                 const indicatorY = showAtBottom ? coords.bottom : coords.top;
                 const lineNumber = forcedLineNumber ?? (showAtBottom ? line.number + 1 : line.number);
-                return { lineNumber: this.clampTargetLineNumber(view.state.doc.lines, lineNumber), indicatorY };
+                let lineRect = this.getLineRect(view, line.number);
+                if (typeof listTargetIndentWidth === 'number') {
+                    const indentPos = this.getLineIndentPosByWidth(view, line.number, listTargetIndentWidth);
+                    if (indentPos !== null) {
+                        const start = view.coordsAtPos(indentPos);
+                        const end = view.coordsAtPos(line.to);
+                        if (start && end) {
+                            const left = start.left;
+                            const width = Math.max(8, (end.right ?? end.left) - left);
+                            lineRect = { left, width };
+                        }
+                    }
+                }
+                return {
+                    lineNumber: this.clampTargetLineNumber(view.state.doc.lines, lineNumber),
+                    indicatorY,
+                    listContextLineNumber,
+                    listIndentDelta,
+                    listTargetIndentWidth,
+                    lineRect,
+                    highlightRect,
+                };
             }
 
-            getEmbedElementAtPoint(view: EditorView, e: DragEvent): HTMLElement | null {
-                const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+            getEmbedElementAtPoint(view: EditorView, clientX: number, clientY: number): HTMLElement | null {
+                const el = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
                 if (el) {
                     const direct = el.closest('.cm-embed-block, .cm-callout, .cm-preview-code-block, .cm-math, .MathJax_Display') as HTMLElement | null;
                     if (direct) {
@@ -676,8 +1379,8 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 }
 
                 const editorRect = view.dom.getBoundingClientRect();
-                if (e.clientY < editorRect.top || e.clientY > editorRect.bottom) return null;
-                if (e.clientX < editorRect.left || e.clientX > editorRect.right) return null;
+                if (clientY < editorRect.top || clientY > editorRect.bottom) return null;
+                if (clientX < editorRect.left || clientX > editorRect.right) return null;
 
                 const embeds = Array.from(
                     view.dom.querySelectorAll('.cm-embed-block, .cm-callout, .cm-preview-code-block, .cm-math, .MathJax_Display')
@@ -688,9 +1391,9 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 for (const raw of embeds) {
                     const embed = (raw.closest('.cm-embed-block') as HTMLElement | null) ?? raw;
                     const rect = embed.getBoundingClientRect();
-                    if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                    if (clientY >= rect.top && clientY <= rect.bottom) {
                         const centerY = (rect.top + rect.bottom) / 2;
-                        const dist = Math.abs(centerY - e.clientY);
+                        const dist = Math.abs(centerY - clientY);
                         if (dist < bestDist) {
                             bestDist = dist;
                             best = embed;
@@ -699,6 +1402,76 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 }
 
                 return best;
+            }
+
+            getDragSourceBlock(e: DragEvent): BlockInfo | null {
+                if (!e.dataTransfer) return null;
+                const data = e.dataTransfer.getData('application/dnd-block');
+                if (!data) return null;
+                try {
+                    return JSON.parse(data) as BlockInfo;
+                } catch {
+                    return null;
+                }
+            }
+
+            getLineRect(view: EditorView, lineNumber: number): { left: number; width: number } | undefined {
+                const doc = view.state.doc;
+                if (lineNumber < 1 || lineNumber > doc.lines) return undefined;
+                const line = doc.line(lineNumber);
+                const start = view.coordsAtPos(line.from);
+                const end = view.coordsAtPos(line.to);
+                if (!start || !end) return undefined;
+                const left = Math.min(start.left, end.left);
+                const right = Math.max(start.left, end.left);
+                return { left, width: Math.max(8, right - left) };
+            }
+
+            getLineIndentPosByWidth(view: EditorView, lineNumber: number, targetIndentWidth: number): number | null {
+                const doc = view.state.doc;
+                if (lineNumber < 1 || lineNumber > doc.lines) return null;
+                const line = doc.line(lineNumber);
+                const text = line.text;
+                const tabSize = this.getTabSize();
+                let width = 0;
+                let idx = 0;
+                while (idx < text.length && width < targetIndentWidth) {
+                    const ch = text[idx];
+                    if (ch === '\t') {
+                        width += tabSize;
+                    } else if (ch === ' ') {
+                        width += 1;
+                    } else {
+                        break;
+                    }
+                    idx += 1;
+                }
+                return line.from + idx;
+            }
+
+            getBlockRect(view: EditorView, startLineNumber: number, endLineNumber: number): { top: number; left: number; width: number; height: number } | undefined {
+                const doc = view.state.doc;
+                if (startLineNumber < 1 || endLineNumber > doc.lines) return undefined;
+                let minLeft = Number.POSITIVE_INFINITY;
+                let maxRight = 0;
+                let top = 0;
+                let bottom = 0;
+
+                for (let i = startLineNumber; i <= endLineNumber; i++) {
+                    const line = doc.line(i);
+                    const start = view.coordsAtPos(line.from);
+                    const end = view.coordsAtPos(line.to);
+                    if (!start || !end) continue;
+                    if (i === startLineNumber) top = start.top;
+                    if (i === endLineNumber) bottom = end.bottom;
+                    const left = Math.min(start.left, end.left);
+                    const right = Math.max(start.left, end.left);
+                    minLeft = Math.min(minLeft, left);
+                    maxRight = Math.max(maxRight, right);
+                }
+
+                if (!isFinite(minLeft) || maxRight === 0 || bottom <= top) return undefined;
+                return { top, left: minLeft, width: Math.max(8, maxRight - minLeft), height: bottom - top };
             }
 
             clampNumber(value: number, min: number, max: number): number {
@@ -710,6 +1483,10 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
             destroy(): void {
                 if (this.observer) {
                     this.observer.disconnect();
+                }
+                if (this.rafId !== null) {
+                    cancelAnimationFrame(this.rafId);
+                    this.rafId = null;
                 }
                 if (this.onScrollOrResize) {
                     this.view.scrollDOM.removeEventListener('scroll', this.onScrollOrResize);
@@ -727,6 +1504,8 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                     entry.handle.remove();
                 }
                 this.embedHandles.clear();
+                this.indicatorEl.remove();
+                this.highlightEl.remove();
             }
         },
         {

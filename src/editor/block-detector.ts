@@ -53,13 +53,143 @@ export function detectBlockType(lineText: string): BlockType {
 /**
  * 获取行的缩进级别
  */
-export function getIndentLevel(lineText: string): number {
+export function getIndentLevel(lineText: string, tabSize = 2): number {
     const match = lineText.match(/^(\s*)/);
     if (!match) return 0;
 
     const spaces = match[1];
-    // 假设2个空格或1个tab为一级缩进
-    return Math.floor(spaces.replace(/\t/g, '  ').length / 2);
+    const width = getIndentWidthWithTabSize(spaces, tabSize);
+    const unit = tabSize > 0 ? tabSize : 2;
+    return Math.floor(width / unit);
+}
+
+function getIndentWidthWithTabSize(indentRaw: string, tabSize: number): number {
+    const unit = tabSize > 0 ? tabSize : 2;
+    let width = 0;
+    for (const ch of indentRaw) {
+        width += ch === '\t' ? unit : 1;
+    }
+    return width;
+}
+
+function getIndentWidth(lineText: string, tabSize: number): number {
+    const match = lineText.match(/^(\s*)/);
+    if (!match) return 0;
+    return getIndentWidthWithTabSize(match[1], tabSize);
+}
+
+function parseListMarker(lineText: string, tabSize: number): { isListItem: boolean; indentWidth: number } {
+    const match = lineText.match(/^(\s*)([-*+])\s\[[ xX]\]\s+/);
+    if (match) {
+        return { isListItem: true, indentWidth: getIndentWidthWithTabSize(match[1], tabSize) };
+    }
+
+    const unorderedMatch = lineText.match(/^(\s*)([-*+])\s+/);
+    if (unorderedMatch) {
+        return { isListItem: true, indentWidth: getIndentWidthWithTabSize(unorderedMatch[1], tabSize) };
+    }
+
+    const orderedMatch = lineText.match(/^(\s*)(\d+)[.)]\s+/);
+    if (orderedMatch) {
+        return { isListItem: true, indentWidth: getIndentWidthWithTabSize(orderedMatch[1], tabSize) };
+    }
+
+    return { isListItem: false, indentWidth: getIndentWidth(lineText, tabSize) };
+}
+
+function getListItemOwnRange(doc: Text, lineNumber: number, tabSize: number): { startLine: number; endLine: number } {
+    const lineText = doc.line(lineNumber).text;
+    const currentInfo = parseListMarker(lineText, tabSize);
+    const currentIndent = currentInfo.indentWidth;
+    let endLine = lineNumber;
+    let sawBlank = false;
+
+    for (let i = lineNumber + 1; i <= doc.lines; i++) {
+        const nextLine = doc.line(i);
+        const nextText = nextLine.text;
+
+        if (nextText.trim().length === 0) {
+            // 空行仅在后续有缩进续行时归属当前项
+            const lookahead = findNextNonEmptyLine(doc, i + 1, tabSize);
+            if (!lookahead || lookahead.indentWidth <= currentIndent || lookahead.isListItem) {
+                break;
+            }
+            endLine = i;
+            sawBlank = true;
+            continue;
+        }
+
+        const nextInfo = parseListMarker(nextText, tabSize);
+        if (nextInfo.isListItem) {
+            break;
+        }
+
+        const nextIndent = getIndentWidth(nextText, tabSize);
+        const nextType = detectBlockType(nextText);
+        if (nextType !== BlockType.Paragraph) {
+            break;
+        }
+        if (!sawBlank || nextIndent > currentIndent) {
+            endLine = i;
+            continue;
+        }
+
+        break;
+    }
+
+    return { startLine: lineNumber, endLine };
+}
+
+function getListItemSubtreeRange(doc: Text, lineNumber: number, tabSize: number): { startLine: number; endLine: number } {
+    const lineText = doc.line(lineNumber).text;
+    const currentInfo = parseListMarker(lineText, tabSize);
+    const currentIndent = currentInfo.indentWidth;
+    let endLine = lineNumber;
+    let sawBlank = false;
+
+    for (let i = lineNumber + 1; i <= doc.lines; i++) {
+        const nextLine = doc.line(i);
+        const nextText = nextLine.text;
+
+        if (nextText.trim().length === 0) {
+            const lookahead = findNextNonEmptyLine(doc, i + 1, tabSize);
+            if (!lookahead || (lookahead.isListItem && lookahead.indentWidth <= currentIndent) || lookahead.indentWidth <= currentIndent) {
+                break;
+            }
+            endLine = i;
+            sawBlank = true;
+            continue;
+        }
+
+        const nextInfo = parseListMarker(nextText, tabSize);
+        if (nextInfo.isListItem && nextInfo.indentWidth <= currentIndent) {
+            break;
+        }
+
+        const nextIndent = getIndentWidth(nextText, tabSize);
+        const nextType = detectBlockType(nextText);
+        if (nextType !== BlockType.Paragraph && !nextInfo.isListItem) {
+            break;
+        }
+        if (nextInfo.isListItem || !sawBlank || nextIndent > currentIndent) {
+            endLine = i;
+            continue;
+        }
+
+        break;
+    }
+
+    return { startLine: lineNumber, endLine };
+}
+
+function findNextNonEmptyLine(doc: Text, fromLine: number, tabSize: number): { isListItem: boolean; indentWidth: number } | null {
+    for (let i = fromLine; i <= doc.lines; i++) {
+        const text = doc.line(i).text;
+        if (text.trim().length === 0) continue;
+        const info = parseListMarker(text, tabSize);
+        return { isListItem: info.isListItem, indentWidth: info.indentWidth };
+    }
+    return null;
 }
 
 function isBlockquoteLine(lineText: string): boolean {
@@ -72,6 +202,28 @@ function isTableLine(lineText: string): boolean {
 
 function isMathFenceLine(lineText: string): boolean {
     return lineText.trimStart().startsWith('$$');
+}
+
+function getBlockquoteDepthFromLine(lineText: string): number {
+    const match = lineText.match(/^(\s*> ?)+/);
+    if (!match) return 0;
+    return (match[0].match(/>/g) || []).length;
+}
+
+function getBlockquoteSubtreeRange(doc: Text, lineNumber: number): { startLine: number; endLine: number } {
+    const lineText = doc.line(lineNumber).text;
+    const currentDepth = getBlockquoteDepthFromLine(lineText);
+    let endLine = lineNumber;
+
+    for (let i = lineNumber + 1; i <= doc.lines; i++) {
+        const nextText = doc.line(i).text;
+        if (!isBlockquoteLine(nextText)) break;
+        const nextDepth = getBlockquoteDepthFromLine(nextText);
+        if (nextDepth <= currentDepth) break;
+        endLine = i;
+    }
+
+    return { startLine: lineNumber, endLine };
 }
 
 function getMathRangeFromStart(doc: Text, startLine: number): { startLine: number; endLine: number } | null {
@@ -110,6 +262,7 @@ function findMathBlockRange(doc: Text, lineNumber: number): { startLine: number;
  */
 export function detectBlock(state: EditorState, lineNumber: number): BlockInfo | null {
     const doc = state.doc;
+    const tabSize = state.facet(EditorState.tabSize) || 2;
 
     if (lineNumber < 1 || lineNumber > doc.lines) {
         return null;
@@ -147,52 +300,15 @@ export function detectBlock(state: EditorState, lineNumber: number): BlockInfo |
         }
     }
 
-    // 引用块：向上合并连续的>行，避免在块中间产生断裂
-    if (blockType === BlockType.Blockquote) {
-        for (let i = lineNumber - 1; i >= 1; i--) {
-            const prevLine = doc.line(i);
-            if (isBlockquoteLine(prevLine.text)) {
-                startLine = i;
-            } else {
-                break;
-            }
-        }
-    }
-
     // 列表项：包含其子项
     if (blockType === BlockType.ListItem) {
-        const currentIndent = getIndentLevel(lineText);
-        for (let i = lineNumber + 1; i <= doc.lines; i++) {
-            const nextLine = doc.line(i);
-            const nextText = nextLine.text;
-
-            // 空行可能是列表的一部分
-            if (nextText.trim().length === 0) {
-                continue;
-            }
-
-            const nextIndent = getIndentLevel(nextText);
-            const nextType = detectBlockType(nextText);
-
-            // 如果下一行缩进更深且是列表项，则属于当前块
-            if (nextIndent > currentIndent && nextType === BlockType.ListItem) {
-                endLine = i;
-            } else {
-                break;
-            }
-        }
+        const range = getListItemSubtreeRange(doc, lineNumber, tabSize);
+        endLine = range.endLine;
     }
 
-    // 引用块：连续的>行
     if (blockType === BlockType.Blockquote) {
-        for (let i = lineNumber + 1; i <= doc.lines; i++) {
-            const nextLine = doc.line(i);
-            if (isBlockquoteLine(nextLine.text)) {
-                endLine = i;
-            } else {
-                break;
-            }
-        }
+        const range = getBlockquoteSubtreeRange(doc, lineNumber);
+        endLine = range.endLine;
     }
 
     // 表格：向上合并连续的|行
@@ -236,9 +352,19 @@ export function detectBlock(state: EditorState, lineNumber: number): BlockInfo |
         endLine: endLine - 1,
         from: startLineObj.from,
         to: endLineObj.to,
-        indentLevel: getIndentLevel(startLineText),
+        indentLevel: getIndentLevel(startLineText, tabSize),
         content,
     };
+}
+
+export function getListItemOwnRangeForHandle(state: EditorState, lineNumber: number): { startLine: number; endLine: number } | null {
+    const doc = state.doc;
+    if (lineNumber < 1 || lineNumber > doc.lines) return null;
+    const lineText = doc.line(lineNumber).text;
+    const blockType = detectBlockType(lineText);
+    if (blockType !== BlockType.ListItem) return null;
+    const tabSize = state.facet(EditorState.tabSize) || 2;
+    return getListItemOwnRange(doc, lineNumber, tabSize);
 }
 
 /**

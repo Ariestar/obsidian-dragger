@@ -6,7 +6,6 @@ export default class DragNDropPlugin extends Plugin {
     settings: DragNDropSettings;
 
     async onload() {
-        console.log('Loading Drag n Drop plugin');
 
         await this.loadSettings();
 
@@ -18,7 +17,6 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     onunload() {
-        console.log('Unloading Drag n Drop plugin');
     }
 
     async loadSettings() {
