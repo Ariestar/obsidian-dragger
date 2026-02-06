@@ -726,7 +726,16 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 const nextText = targetLineNumber <= doc.lines ? doc.line(targetLineNumber).text : null;
 
                 let text = sourceContent;
-                text = this.adjustBlockquoteDepth(text, this.getBlockquoteDepthContext(doc, targetLineNumber));
+                const targetQuoteDepth = this.getBlockquoteDepthContext(doc, targetLineNumber);
+                const sourceQuoteDepth = this.getContentQuoteDepth(sourceContent);
+                const isBlockquoteDrag = sourceBlock.type === BlockType.Blockquote;
+                // Only reduce effective depth if we are moving "OUT" (to a shallower context)
+                // to preserve the block's own structure. If moving "IN" or "SIDEWAYS", 
+                // use standard logic to avoid double-nesting.
+                const effectiveSourceDepth = (isBlockquoteDrag && targetQuoteDepth < sourceQuoteDepth)
+                    ? Math.max(0, sourceQuoteDepth - 1)
+                    : sourceQuoteDepth;
+                text = this.adjustBlockquoteDepth(text, targetQuoteDepth, effectiveSourceDepth);
                 text = this.adjustListToTargetContext(
                     doc,
                     text,
@@ -766,13 +775,17 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 return false;
             }
 
-            adjustBlockquoteDepth(sourceContent: string, targetDepth: number): string {
+            adjustBlockquoteDepth(sourceContent: string, targetDepth: number, baseDepthOverride?: number): string {
                 const lines = sourceContent.split('\n');
                 let baseDepth = 0;
-                for (const line of lines) {
-                    if (line.trim().length === 0) continue;
-                    baseDepth = this.getBlockquoteDepthFromLine(line);
-                    break;
+                if (typeof baseDepthOverride === 'number') {
+                    baseDepth = baseDepthOverride;
+                } else {
+                    for (const line of lines) {
+                        if (line.trim().length === 0) continue;
+                        baseDepth = this.getBlockquoteDepthFromLine(line);
+                        break;
+                    }
                 }
 
                 const delta = targetDepth - baseDepth;
@@ -817,6 +830,15 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 if (!match) return 0;
                 const prefix = match[0];
                 return (prefix.match(/>/g) || []).length;
+            }
+
+            getContentQuoteDepth(sourceContent: string): number {
+                const lines = sourceContent.split('\n');
+                for (const line of lines) {
+                    if (line.trim().length === 0) continue;
+                    return this.getBlockquoteDepthFromLine(line);
+                }
+                return 0;
             }
 
             adjustListToTargetContext(
@@ -1361,6 +1383,32 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 );
                 if (!forcedLineNumber && childIntentOnLine && !showAtBottom) {
                     targetLineNumber = this.clampTargetLineNumber(view.state.doc.lines, line.number + 1);
+                }
+
+                // 禁止在紧凑块（引用/列表）结束行后直接插入非空行，避免 Lazy Continuation
+                const prevLineNumber = targetLineNumber - 1;
+                if (prevLineNumber >= 1) {
+                    const prevBlock = detectBlock(view.state, prevLineNumber);
+                    if (prevBlock) {
+                        const isPrevBlockEnd = prevBlock.endLine + 1 === prevLineNumber;
+                        if (isPrevBlockEnd && (prevBlock.type === BlockType.Blockquote || prevBlock.type === BlockType.Callout || prevBlock.type === BlockType.ListItem)) {
+                            if (targetLineNumber <= view.state.doc.lines) {
+                                const targetText = view.state.doc.line(targetLineNumber).text;
+                                const isTargetBlank = targetText.trim().length === 0;
+                                if (!isTargetBlank) {
+                                    if (prevBlock.type === BlockType.Blockquote || prevBlock.type === BlockType.Callout) {
+                                        return null;
+                                    }
+                                    if (prevBlock.type === BlockType.ListItem) {
+                                        const targetParsed = this.parseLineWithQuote(targetText);
+                                        if (!targetParsed.isListItem) {
+                                            return null;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 return {

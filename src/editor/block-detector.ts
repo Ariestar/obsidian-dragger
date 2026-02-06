@@ -97,6 +97,129 @@ function parseListMarker(lineText: string, tabSize: number): { isListItem: boole
     return { isListItem: false, indentWidth: getIndentWidth(lineText, tabSize) };
 }
 
+function splitBlockquotePrefix(lineText: string): { prefix: string; rest: string; depth: number } {
+    const match = lineText.match(/^(\s*> ?)+/);
+    if (!match) return { prefix: '', rest: lineText, depth: 0 };
+    const prefix = match[0];
+    const depth = (prefix.match(/>/g) || []).length;
+    return { prefix, rest: lineText.slice(prefix.length), depth };
+}
+
+function isCalloutHeader(rest: string): boolean {
+    return rest.trimStart().startsWith('[!');
+}
+
+function isBlockquoteStartLine(doc: Text, lineNumber: number, depth: number): boolean {
+    for (let i = lineNumber - 1; i >= 1; i--) {
+        const text = doc.line(i).text;
+        if (text.trim().length === 0) continue;
+        const info = splitBlockquotePrefix(text);
+        if (info.depth === 0) return true;
+        return info.depth < depth;
+    }
+    return true;
+}
+
+function getBlockquoteContainerRange(doc: Text, lineNumber: number, depth: number): { startLine: number; endLine: number } {
+    let endLine = lineNumber;
+    for (let i = lineNumber + 1; i <= doc.lines; i++) {
+        const nextText = doc.line(i).text;
+        const info = splitBlockquotePrefix(nextText);
+        if (info.depth === 0) break;
+        if (info.depth < depth) break;
+        endLine = i;
+    }
+    return { startLine: lineNumber, endLine };
+}
+
+function getListItemOwnRangeInBlockquote(doc: Text, lineNumber: number, tabSize: number, depth: number): { startLine: number; endLine: number } {
+    const lineText = doc.line(lineNumber).text;
+    const currentInfo = parseListMarker(splitBlockquotePrefix(lineText).rest, tabSize);
+    const currentIndent = currentInfo.indentWidth;
+    let endLine = lineNumber;
+    let sawBlank = false;
+
+    for (let i = lineNumber + 1; i <= doc.lines; i++) {
+        const nextLine = doc.line(i);
+        const nextInfoQuote = splitBlockquotePrefix(nextLine.text);
+        if (nextInfoQuote.depth === 0 || nextInfoQuote.depth < depth) break;
+        const nextText = nextInfoQuote.rest;
+
+        if (nextText.trim().length === 0) {
+            const lookahead = findNextNonEmptyLineInBlockquote(doc, i + 1, tabSize, depth);
+            if (!lookahead || lookahead.indentWidth <= currentIndent || lookahead.isListItem) {
+                break;
+            }
+            endLine = i;
+            sawBlank = true;
+            continue;
+        }
+
+        const nextInfo = parseListMarker(nextText, tabSize);
+        if (nextInfo.isListItem) {
+            break;
+        }
+
+        const nextIndent = getIndentWidth(nextText, tabSize);
+        const nextType = detectBlockType(nextText);
+        if (nextType !== BlockType.Paragraph) {
+            break;
+        }
+        if (!sawBlank || nextIndent > currentIndent) {
+            endLine = i;
+            continue;
+        }
+
+        break;
+    }
+
+    return { startLine: lineNumber, endLine };
+}
+
+function getListItemSubtreeRangeInBlockquote(doc: Text, lineNumber: number, tabSize: number, depth: number): { startLine: number; endLine: number } {
+    const lineText = doc.line(lineNumber).text;
+    const currentInfo = parseListMarker(splitBlockquotePrefix(lineText).rest, tabSize);
+    const currentIndent = currentInfo.indentWidth;
+    let endLine = lineNumber;
+    let sawBlank = false;
+
+    for (let i = lineNumber + 1; i <= doc.lines; i++) {
+        const nextLine = doc.line(i);
+        const nextInfoQuote = splitBlockquotePrefix(nextLine.text);
+        if (nextInfoQuote.depth === 0 || nextInfoQuote.depth < depth) break;
+        const nextText = nextInfoQuote.rest;
+
+        if (nextText.trim().length === 0) {
+            const lookahead = findNextNonEmptyLineInBlockquote(doc, i + 1, tabSize, depth);
+            if (!lookahead || (lookahead.isListItem && lookahead.indentWidth <= currentIndent) || lookahead.indentWidth <= currentIndent) {
+                break;
+            }
+            endLine = i;
+            sawBlank = true;
+            continue;
+        }
+
+        const nextInfo = parseListMarker(nextText, tabSize);
+        if (nextInfo.isListItem && nextInfo.indentWidth <= currentIndent) {
+            break;
+        }
+
+        const nextIndent = getIndentWidth(nextText, tabSize);
+        const nextType = detectBlockType(nextText);
+        if (nextType !== BlockType.Paragraph && !nextInfo.isListItem) {
+            break;
+        }
+        if (nextInfo.isListItem || !sawBlank || nextIndent > currentIndent) {
+            endLine = i;
+            continue;
+        }
+
+        break;
+    }
+
+    return { startLine: lineNumber, endLine };
+}
+
 function getListItemOwnRange(doc: Text, lineNumber: number, tabSize: number): { startLine: number; endLine: number } {
     const lineText = doc.line(lineNumber).text;
     const currentInfo = parseListMarker(lineText, tabSize);
@@ -192,6 +315,23 @@ function findNextNonEmptyLine(doc: Text, fromLine: number, tabSize: number): { i
     return null;
 }
 
+function findNextNonEmptyLineInBlockquote(
+    doc: Text,
+    fromLine: number,
+    tabSize: number,
+    minDepth: number
+): { isListItem: boolean; indentWidth: number } | null {
+    for (let i = fromLine; i <= doc.lines; i++) {
+        const text = doc.line(i).text;
+        const info = splitBlockquotePrefix(text);
+        if (info.depth === 0 || info.depth < minDepth) return null;
+        if (info.rest.trim().length === 0) continue;
+        const parsed = parseListMarker(info.rest, tabSize);
+        return { isListItem: parsed.isListItem, indentWidth: parsed.indentWidth };
+    }
+    return null;
+}
+
 function isBlockquoteLine(lineText: string): boolean {
     return lineText.trimStart().startsWith('>');
 }
@@ -202,6 +342,10 @@ function isTableLine(lineText: string): boolean {
 
 function isMathFenceLine(lineText: string): boolean {
     return lineText.trimStart().startsWith('$$');
+}
+
+function isCodeFenceLine(lineText: string): boolean {
+    return lineText.trimStart().startsWith('```');
 }
 
 function getBlockquoteDepthFromLine(lineText: string): number {
@@ -244,11 +388,38 @@ function getMathRangeFromStart(doc: Text, startLine: number): { startLine: numbe
     return null;
 }
 
+function getCodeBlockRangeFromStart(doc: Text, startLine: number): { startLine: number; endLine: number } | null {
+    const startText = doc.line(startLine).text.trimStart();
+    if (!startText.startsWith('```')) return null;
+
+    for (let i = startLine + 1; i <= doc.lines; i++) {
+        const nextLine = doc.line(i);
+        if (isCodeFenceLine(nextLine.text)) {
+            return { startLine, endLine: i };
+        }
+    }
+
+    return { startLine, endLine: startLine };
+}
+
 function findMathBlockRange(doc: Text, lineNumber: number): { startLine: number; endLine: number } | null {
     for (let i = lineNumber; i >= 1; i--) {
         const line = doc.line(i);
         if (!isMathFenceLine(line.text)) continue;
         const range = getMathRangeFromStart(doc, i);
+        if (!range) return null;
+        if (lineNumber <= range.endLine) return range;
+        return null;
+    }
+
+    return null;
+}
+
+function findCodeBlockRange(doc: Text, lineNumber: number): { startLine: number; endLine: number } | null {
+    for (let i = lineNumber; i >= 1; i--) {
+        const line = doc.line(i);
+        if (!isCodeFenceLine(line.text)) continue;
+        const range = getCodeBlockRangeFromStart(doc, i);
         if (!range) return null;
         if (lineNumber <= range.endLine) return range;
         return null;
@@ -272,7 +443,11 @@ export function detectBlock(state: EditorState, lineNumber: number): BlockInfo |
     const lineText = line.text;
     let blockType = detectBlockType(lineText);
 
+    const codeRange = findCodeBlockRange(doc, lineNumber);
     const mathRange = findMathBlockRange(doc, lineNumber);
+    if (codeRange) {
+        blockType = BlockType.CodeBlock;
+    }
     if (mathRange) {
         blockType = BlockType.MathBlock;
     }
@@ -284,21 +459,18 @@ export function detectBlock(state: EditorState, lineNumber: number): BlockInfo |
     let startLine = lineNumber;
     let endLine = lineNumber;
 
+    if (blockType === BlockType.CodeBlock && codeRange) {
+        startLine = codeRange.startLine;
+        endLine = codeRange.endLine;
+    }
+
     if (blockType === BlockType.MathBlock && mathRange) {
         startLine = mathRange.startLine;
         endLine = mathRange.endLine;
     }
 
     // 代码块：找到结束的```
-    if (blockType === BlockType.CodeBlock && lineText.trimStart().startsWith('```')) {
-        for (let i = lineNumber + 1; i <= doc.lines; i++) {
-            const nextLine = doc.line(i);
-            if (nextLine.text.trimStart().startsWith('```')) {
-                endLine = i;
-                break;
-            }
-        }
-    }
+    // （已由 codeRange 统一处理）
 
     // 列表项：包含其子项
     if (blockType === BlockType.ListItem) {
@@ -307,8 +479,24 @@ export function detectBlock(state: EditorState, lineNumber: number): BlockInfo |
     }
 
     if (blockType === BlockType.Blockquote) {
-        const range = getBlockquoteSubtreeRange(doc, lineNumber);
-        endLine = range.endLine;
+        const quoteInfo = splitBlockquotePrefix(lineText);
+        const restType = detectBlockType(quoteInfo.rest);
+        const isHeader = isCalloutHeader(quoteInfo.rest) || isBlockquoteStartLine(doc, lineNumber, quoteInfo.depth);
+
+        if (isHeader) {
+            const range = getBlockquoteContainerRange(doc, lineNumber, quoteInfo.depth);
+            startLine = range.startLine;
+            endLine = range.endLine;
+        } else if (restType === BlockType.ListItem) {
+            const range = getListItemSubtreeRangeInBlockquote(doc, lineNumber, tabSize, quoteInfo.depth);
+            startLine = range.startLine;
+            endLine = range.endLine;
+            blockType = BlockType.ListItem;
+        } else {
+            startLine = lineNumber;
+            endLine = lineNumber;
+            blockType = BlockType.Paragraph;
+        }
     }
 
     // 表格：向上合并连续的|行
@@ -362,9 +550,17 @@ export function getListItemOwnRangeForHandle(state: EditorState, lineNumber: num
     if (lineNumber < 1 || lineNumber > doc.lines) return null;
     const lineText = doc.line(lineNumber).text;
     const blockType = detectBlockType(lineText);
-    if (blockType !== BlockType.ListItem) return null;
     const tabSize = state.facet(EditorState.tabSize) || 2;
-    return getListItemOwnRange(doc, lineNumber, tabSize);
+    if (blockType === BlockType.ListItem) {
+        return getListItemOwnRange(doc, lineNumber, tabSize);
+    }
+    if (blockType !== BlockType.Blockquote) return null;
+
+    const quoteInfo = splitBlockquotePrefix(lineText);
+    if (quoteInfo.depth === 0) return null;
+    const restType = detectBlockType(quoteInfo.rest);
+    if (restType !== BlockType.ListItem) return null;
+    return getListItemOwnRangeInBlockquote(doc, lineNumber, tabSize, quoteInfo.depth);
 }
 
 /**
