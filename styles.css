@@ -3,7 +3,7 @@
 /* 拖拽手柄 - 使用绝对定位避免挤占空间 */
 .dnd-drag-handle {
     position: absolute;
-    left: -42px;
+    left: -28px;
     top: 50%;
     transform: translateY(-50%);
     width: 16px;
@@ -34,9 +34,10 @@
     opacity: 0.5;
 }
 
-/* 仅主编辑器行参与手柄定位，避免影响表格单元格内嵌编辑器 */
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor > .cm-scroller > .cm-content > .cm-line {
+/* 仅主编辑器行参与手柄定位，避免影响嵌套编辑器（如表格单元格） */
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line {
     position: relative;
+    overflow: visible;
 }
 
 /* 标题行的手柄居中修正 */
@@ -130,7 +131,13 @@ body.dnd-dragging .cm-line:hover {
     box-shadow: inset 0 0 0 1px rgba(100, 140, 255, 0.25);
 }
 
-/* 仅主编辑器内容左侧留出手柄空间，避免误伤表格单元格编辑态 */
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor > .cm-scroller > .cm-content {
+/* 主编辑器内容左侧留出手柄空间（class 命中） */
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content {
     padding-left: 32px;
+}
+
+/* 表格渲染编辑区不保留手柄左边距，避免单元格出现异常缩进 */
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-table-widget .cm-content,
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-table-widget .cm-line {
+    padding-left: 0 !important;
 }

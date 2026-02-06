@@ -12,33 +12,65 @@ import { BlockType, BlockInfo, DragState } from '../types';
 import DragNDropPlugin from '../main';
 import {
     ROOT_EDITOR_CLASS,
+    MAIN_EDITOR_CONTENT_CLASS,
     EMBED_BLOCK_SELECTOR,
+} from './dnd/selectors';
+import {
     setActiveDragSourceBlock,
     getActiveDragSourceBlock,
     clearActiveDragSourceBlock,
     hideDropVisuals,
+} from './dnd/session';
+import {
     isPosInsideRenderedTableCell,
     isPointInsideRenderedTableCell,
-} from './drag-handle-shared';
+} from './dnd/table-guard';
+import {
+    parseLineWithQuote as parseLineWithQuoteByTabSize,
+    parseListLine as parseListLineByTabSize,
+    splitBlockquotePrefix as splitBlockquotePrefixText,
+    getBlockquoteDepthFromLine as getBlockquoteDepthFromLineText,
+    getIndentWidthFromIndentRaw as getIndentWidthFromIndentRawByTabSize,
+} from './dnd/line-parser';
+import { ParsedLine } from './dnd/types';
+import {
+    getPreviousNonEmptyLineNumber as getPreviousNonEmptyLineNumberInDoc,
+    getNextNonEmptyLineNumber as getNextNonEmptyLineNumberInDoc,
+    getContainerTypeForBlock as getContainerTypeForBlockInfo,
+    getSourceContainerType as getSourceContainerTypeOfBlock,
+    buildSyntheticLineBlock as buildSyntheticLineBlockInfo,
+    findEnclosingListBlock as findEnclosingListBlockAtLine,
+    getContainerInfoAtLine as getContainerInfoAtLineNumber,
+    getContainerContextAtInsertion as getContainerContextAtLine,
+    shouldPreventDropIntoDifferentContainer as shouldPreventDropIntoContainer,
+} from './dnd/container-policy';
+import {
+    stripBlockquoteDepth as stripBlockquoteDepthText,
+    adjustBlockquoteDepth as adjustBlockquoteDepthText,
+    getBlockquoteDepthContext as getBlockquoteDepthContextFromDoc,
+    getContentQuoteDepth as getContentQuoteDepthFromContent,
+    adjustListToTargetContext as adjustListToTargetContextText,
+    getListContext as getListContextFromDoc,
+    getSourceListBase as getSourceListBaseFromLines,
+    buildTargetMarker as buildTargetMarkerText,
+    buildIndentStringFromSample as buildIndentStringFromSampleText,
+    getIndentUnitWidth as getIndentUnitWidthFromSample,
+    shouldSeparateBlock as shouldSeparateBlockByType,
+    buildInsertText as buildInsertTextByPolicy,
+} from './dnd/block-mutation';
+import {
+    clampNumber as clampNumberValue,
+    getLineRect as getLineRectByLineNumber,
+    getInsertionAnchorY as getInsertionAnchorYByLineNumber,
+    getLineIndentPosByWidth as getLineIndentPosByWidthWithTabSize,
+    getBlockRect as getBlockRectByRange,
+} from './dnd/drop-target';
 
 type EmbedHandleEntry = {
     handle: HTMLElement;
     show: () => void;
     hide: (e: MouseEvent) => void;
 };
-
-interface ParsedLine {
-    text: string;
-    quotePrefix: string;
-    quoteDepth: number;
-    rest: string;
-    isListItem: boolean;
-    indentRaw: string;
-    indentWidth: number;
-    marker: string;
-    markerType: 'ordered' | 'unordered' | 'task';
-    content: string;
-}
 
 function startDragWithBlockInfo(e: DragEvent, blockInfo: BlockInfo, handle?: HTMLElement | null): void {
     if (!e.dataTransfer) return;
@@ -102,7 +134,7 @@ class DragHandleWidget extends WidgetType {
     }
 
     private onDragStart(e: DragEvent): void {
-        if (isPosInsideRenderedTableCell(this.view, this.blockInfo.from)) {
+        if (isPosInsideRenderedTableCell(this.view, this.blockInfo.from, { skipLayoutRead: true })) {
             e.preventDefault();
             return;
         }
@@ -147,6 +179,7 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
             constructor(view: EditorView) {
                 this.view = view;
                 this.view.dom.classList.add(ROOT_EDITOR_CLASS);
+                this.view.contentDOM.classList.add(MAIN_EDITOR_CONTENT_CLASS);
                 this.embedHandles = new Map();
                 this.lastDropTargetLineNumber = null;
                 this.indicatorEl = document.createElement('div');
@@ -178,72 +211,76 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
             update(update: ViewUpdate) {
                 if (update.docChanged || update.viewportChanged) {
                     this.decorations = this.buildDecorations(update.view);
-                    // 文档变化后重新扫描渲染块
-                    this.addHandlesToEmbedBlocks(update.view);
-                    this.updateEmbedHandlePositions();
+                    // 文档变化后延迟扫描渲染块，避免在 update 周期读取布局
+                    if (!this.pendingEmbedScan) {
+                        this.pendingEmbedScan = true;
+                        requestAnimationFrame(() => {
+                            this.pendingEmbedScan = false;
+                            this.addHandlesToEmbedBlocks(update.view);
+                            this.updateEmbedHandlePositions();
+                        });
+                    }
                 }
             }
 
             buildDecorations(view: EditorView): DecorationSet {
-                const decorations: any[] = [];
-                const doc = view.state.doc;
-                const processedLines = new Set<number>();
+                try {
+                    const decorations: any[] = [];
+                    const doc = view.state.doc;
+                    const processedLines = new Set<number>();
 
-                // 遍历可见范围内的行
-                for (const { from, to } of view.visibleRanges) {
-                    let pos = from;
-                    while (pos <= to) {
-                        const line = doc.lineAt(pos);
-                        const lineNumber = line.number;
+                    // 遍历可见范围内的行
+                    for (const { from, to } of view.visibleRanges) {
+                        let pos = from;
+                        while (pos <= to) {
+                            const line = doc.lineAt(pos);
+                            const lineNumber = line.number;
 
-                        // 跳过已处理的行
-                        if (processedLines.has(lineNumber)) {
-                            pos = line.to + 1;
-                            continue;
-                        }
-
-                        const block = detectBlock(view.state, lineNumber);
-                        if (block) {
-                            if (isPosInsideRenderedTableCell(view, line.from)) {
-                                for (let i = block.startLine; i <= block.endLine; i++) {
-                                    processedLines.add(i + 1);
-                                }
+                            // 跳过已处理的行
+                            if (processedLines.has(lineNumber)) {
                                 pos = line.to + 1;
                                 continue;
                             }
-                            // 在块的起始行添加拖拽手柄
-                            const widget = new DragHandleWidget(block, view);
-                            decorations.push(
-                                Decoration.widget({
-                                    widget,
-                                    side: -1, // 在行内容之前
-                                }).range(line.from)
-                            );
 
-                            // 标记所有属于这个块的行为已处理
-                            if (block.type === BlockType.ListItem) {
-                                const ownRange = getListItemOwnRangeForHandle(view.state, lineNumber);
-                                if (ownRange) {
-                                    for (let i = ownRange.startLine; i <= ownRange.endLine; i++) {
-                                        processedLines.add(i);
+                            const block = detectBlock(view.state, lineNumber);
+                            if (block) {
+                                // 在块的起始行添加拖拽手柄
+                                const widget = new DragHandleWidget(block, view);
+                                decorations.push(
+                                    Decoration.widget({
+                                        widget,
+                                        side: -1, // 在行内容之前
+                                    }).range(line.from)
+                                );
+
+                                // 标记所有属于这个块的行为已处理
+                                if (block.type === BlockType.ListItem) {
+                                    const ownRange = getListItemOwnRangeForHandle(view.state, lineNumber);
+                                    if (ownRange) {
+                                        for (let i = ownRange.startLine; i <= ownRange.endLine; i++) {
+                                            processedLines.add(i);
+                                        }
+                                    } else {
+                                        processedLines.add(lineNumber);
                                     }
-                                } else {
+                                } else if (block.type === BlockType.Blockquote) {
                                     processedLines.add(lineNumber);
-                                }
-                            } else if (block.type === BlockType.Blockquote) {
-                                processedLines.add(lineNumber);
-                            } else {
-                                for (let i = block.startLine; i <= block.endLine; i++) {
-                                    processedLines.add(i + 1);
+                                } else {
+                                    for (let i = block.startLine; i <= block.endLine; i++) {
+                                        processedLines.add(i + 1);
+                                    }
                                 }
                             }
+
+                            pos = line.to + 1;
                         }
-
-                        pos = line.to + 1;
                     }
-                }
 
-                return Decoration.set(decorations, true);
+                    return Decoration.set(decorations, true);
+                } catch (error) {
+                    console.error('[Dragger] buildDecorations failed:', error);
+                    return Decoration.none;
+                }
             }
 
             setupEmbedBlockObserver(view: EditorView) {
@@ -436,7 +473,7 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                         e.preventDefault();
                         return;
                     }
-                    if (isPosInsideRenderedTableCell(view, blockInfo.from)) {
+                    if (isPosInsideRenderedTableCell(view, blockInfo.from, { skipLayoutRead: true })) {
                         e.preventDefault();
                         return;
                     }
@@ -747,42 +784,23 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 listIndentDeltaOverride?: number,
                 listTargetIndentWidthOverride?: number
             ): string {
-                const prevLineNumber = Math.min(Math.max(1, targetLineNumber - 1), doc.lines);
-                const prevText = targetLineNumber > 1 ? doc.line(prevLineNumber).text : null;
-                const nextText = targetLineNumber <= doc.lines ? doc.line(targetLineNumber).text : null;
-
-                let text = sourceContent;
-                const shouldLockQuoteDepth = sourceBlock.type === BlockType.CodeBlock
-                    || sourceBlock.type === BlockType.Table
-                    || sourceBlock.type === BlockType.MathBlock;
-                if (!shouldLockQuoteDepth) {
-                    const targetQuoteDepth = this.getBlockquoteDepthContext(doc, targetLineNumber);
-                    const sourceQuoteDepth = this.getContentQuoteDepth(sourceContent);
-                    const isBlockquoteDrag = sourceBlock.type === BlockType.Blockquote;
-                    // Only reduce effective depth if we are moving "OUT" (to a shallower context)
-                    // to preserve the block's own structure. If moving "IN" or "SIDEWAYS",
-                    // use standard logic to avoid double-nesting.
-                    const effectiveSourceDepth = (isBlockquoteDrag && targetQuoteDepth < sourceQuoteDepth)
-                        ? Math.max(0, sourceQuoteDepth - 1)
-                        : sourceQuoteDepth;
-                    text = this.adjustBlockquoteDepth(text, targetQuoteDepth, effectiveSourceDepth);
-                }
-                text = this.adjustListToTargetContext(
+                return buildInsertTextByPolicy({
                     doc,
-                    text,
+                    sourceBlockType: sourceBlock.type,
+                    sourceContent,
                     targetLineNumber,
-                    listContextLineNumberOverride,
-                    listIndentDeltaOverride,
-                    listTargetIndentWidthOverride
-                );
-
-                const needsLeadingBlank = this.shouldSeparateBlock(sourceBlock.type, prevText);
-                const needsTrailingBlank = this.shouldSeparateBlock(sourceBlock.type, nextText);
-
-                if (needsLeadingBlank) text = '\n' + text;
-                const trailingNewlines = 1 + (needsTrailingBlank ? 1 : 0);
-                text += '\n'.repeat(trailingNewlines);
-                return text;
+                    getBlockquoteDepthContext: (innerDoc, lineNumber) => this.getBlockquoteDepthContext(innerDoc, lineNumber),
+                    getContentQuoteDepth: (content) => this.getContentQuoteDepth(content),
+                    adjustBlockquoteDepth: (content, targetDepth, baseDepth) => this.adjustBlockquoteDepth(content, targetDepth, baseDepth),
+                    adjustListToTargetContext: (content) => this.adjustListToTargetContext(
+                        doc,
+                        content,
+                        targetLineNumber,
+                        listContextLineNumberOverride,
+                        listIndentDeltaOverride,
+                        listTargetIndentWidthOverride
+                    ),
+                });
             }
 
             clampTargetLineNumber(totalLines: number, lineNumber: number): number {
@@ -792,84 +810,32 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
             }
 
             shouldSeparateBlock(type: BlockType, adjacentLineText: string | null): boolean {
-                if (!adjacentLineText) return false;
-                if (adjacentLineText.trim().length === 0) return false;
-
-                const trimmed = adjacentLineText.trimStart();
-                if (type === BlockType.Blockquote) {
-                    return false;
-                }
-                if (type === BlockType.Table) {
-                    return trimmed.startsWith('|');
-                }
-
-                return false;
+                return shouldSeparateBlockByType(type, adjacentLineText);
             }
 
             adjustBlockquoteDepth(sourceContent: string, targetDepth: number, baseDepthOverride?: number): string {
-                const lines = sourceContent.split('\n');
-                let baseDepth = 0;
-                if (typeof baseDepthOverride === 'number') {
-                    baseDepth = baseDepthOverride;
-                } else {
-                    for (const line of lines) {
-                        if (line.trim().length === 0) continue;
-                        baseDepth = this.getBlockquoteDepthFromLine(line);
-                        break;
-                    }
-                }
-
-                const delta = targetDepth - baseDepth;
-                if (delta === 0) return sourceContent;
-
-                return lines.map((line) => {
-                    if (line.trim().length === 0) {
-                        return delta > 0 ? `${'> '.repeat(delta)}${line}` : this.stripBlockquoteDepth(line, -delta);
-                    }
-                    if (delta > 0) {
-                        return `${'> '.repeat(delta)}${line}`;
-                    }
-                    return this.stripBlockquoteDepth(line, -delta);
-                }).join('\n');
+                return adjustBlockquoteDepthText(
+                    sourceContent,
+                    targetDepth,
+                    this.getBlockquoteDepthFromLine.bind(this),
+                    baseDepthOverride
+                );
             }
 
             stripBlockquoteDepth(line: string, removeDepth: number): string {
-                let remaining = line;
-                let removed = 0;
-                while (removed < removeDepth) {
-                    const match = remaining.match(/^(\s*> ?)/);
-                    if (!match) break;
-                    remaining = remaining.slice(match[0].length);
-                    removed += 1;
-                }
-                return remaining;
+                return stripBlockquoteDepthText(line, removeDepth);
             }
 
             getBlockquoteDepthContext(doc: { line: (n: number) => { text: string }; lines: number }, lineNumber: number): number {
-                for (let i = lineNumber; i >= 1; i--) {
-                    const text = doc.line(i).text;
-                    if (text.trim().length === 0) continue;
-                    const depth = this.getBlockquoteDepthFromLine(text);
-                    if (depth > 0) return depth;
-                    return 0;
-                }
-                return 0;
+                return getBlockquoteDepthContextFromDoc(doc, lineNumber, this.getBlockquoteDepthFromLine.bind(this));
             }
 
             getBlockquoteDepthFromLine(line: string): number {
-                const match = line.match(/^(\s*> ?)+/);
-                if (!match) return 0;
-                const prefix = match[0];
-                return (prefix.match(/>/g) || []).length;
+                return getBlockquoteDepthFromLineText(line);
             }
 
             getContentQuoteDepth(sourceContent: string): number {
-                const lines = sourceContent.split('\n');
-                for (const line of lines) {
-                    if (line.trim().length === 0) continue;
-                    return this.getBlockquoteDepthFromLine(line);
-                }
-                return 0;
+                return getContentQuoteDepthFromContent(sourceContent, this.getBlockquoteDepthFromLine.bind(this));
             }
 
             adjustListToTargetContext(
@@ -880,120 +846,38 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 listIndentDeltaOverride?: number,
                 listTargetIndentWidthOverride?: number
             ): string {
-                const lines = sourceContent.split('\n');
-                const sourceBase = this.getSourceListBase(lines);
-                if (!sourceBase) return sourceContent;
-
-                const listContextLineNumber = listContextLineNumberOverride ?? targetLineNumber;
-                const targetContext = this.getListContext(doc, listContextLineNumber);
-                const indentSample = targetContext ? targetContext.indentRaw : sourceBase.indentRaw;
-                const indentDeltaBase = (targetContext ? targetContext.indentWidth : 0) - sourceBase.indentWidth;
-                const indentUnitWidth = this.getIndentUnitWidth(indentSample || sourceBase.indentRaw);
-                let indentDelta = indentDeltaBase + ((listIndentDeltaOverride ?? 0) * indentUnitWidth);
-                if (typeof listTargetIndentWidthOverride === 'number') {
-                    indentDelta = listTargetIndentWidthOverride - sourceBase.indentWidth;
-                }
-
-                const quoteAdjustedLines = lines.map((line) => {
-                    if (line.trim().length === 0) return line;
-                    const parsed = this.parseLineWithQuote(line);
-                    const rest = parsed.rest;
-                    if (!parsed.isListItem) {
-                        if (parsed.indentWidth >= sourceBase.indentWidth) {
-                            const newIndent = this.buildIndentStringFromSample(indentSample, parsed.indentWidth + indentDelta);
-                            return `${parsed.quotePrefix}${newIndent}${rest.slice(parsed.indentRaw.length)}`;
-                        }
-                        return line;
-                    }
-
-                    const newIndent = this.buildIndentStringFromSample(indentSample, parsed.indentWidth + indentDelta);
-                    let marker = parsed.marker;
-                    if (targetContext && parsed.indentWidth === sourceBase.indentWidth) {
-                        marker = this.buildTargetMarker(targetContext, parsed);
-                    }
-                    return `${parsed.quotePrefix}${newIndent}${marker}${parsed.content}`;
+                return adjustListToTargetContextText({
+                    doc,
+                    sourceContent,
+                    targetLineNumber,
+                    parseLineWithQuote: this.parseLineWithQuote.bind(this),
+                    getIndentUnitWidth: this.getIndentUnitWidth.bind(this),
+                    buildIndentStringFromSample: this.buildIndentStringFromSample.bind(this),
+                    buildTargetMarker: this.buildTargetMarker.bind(this),
+                    listContextLineNumberOverride,
+                    listIndentDeltaOverride,
+                    listTargetIndentWidthOverride,
                 });
-
-                return quoteAdjustedLines.join('\n');
             }
 
             getListContext(doc: { line: (n: number) => { text: string }; lines: number }, lineNumber: number): { indentWidth: number; indentRaw: string; markerType: 'ordered' | 'unordered' | 'task' } | null {
-                const current = lineNumber <= doc.lines ? doc.line(lineNumber).text : '';
-                const currentParsed = this.parseLineWithQuote(current);
-                if (currentParsed.isListItem) {
-                    return { indentWidth: currentParsed.indentWidth, indentRaw: currentParsed.indentRaw, markerType: currentParsed.markerType };
-                }
-
-                const prevLineNumber = lineNumber - 1;
-                if (prevLineNumber >= 1) {
-                    const prevText = doc.line(prevLineNumber).text;
-                    const prevParsed = this.parseLineWithQuote(prevText);
-                    if (prevParsed.isListItem) {
-                        return { indentWidth: prevParsed.indentWidth, indentRaw: prevParsed.indentRaw, markerType: prevParsed.markerType };
-                    }
-                }
-
-                return null;
+                return getListContextFromDoc(doc, lineNumber, this.parseLineWithQuote.bind(this));
             }
 
             getSourceListBase(lines: string[]): { indentWidth: number; indentRaw: string } | null {
-                for (const line of lines) {
-                    const parsed = this.parseLineWithQuote(line);
-                    if (parsed.isListItem) {
-                        return { indentWidth: parsed.indentWidth, indentRaw: parsed.indentRaw };
-                    }
-                }
-                return null;
+                return getSourceListBaseFromLines(lines, this.parseLineWithQuote.bind(this));
             }
 
             splitBlockquotePrefix(line: string): { prefix: string; rest: string } {
-                const match = line.match(/^(\s*> ?)+/);
-                if (!match) return { prefix: '', rest: line };
-                return { prefix: match[0], rest: line.slice(match[0].length) };
+                return splitBlockquotePrefixText(line);
             }
 
             parseLineWithQuote(line: string): ParsedLine {
-                const quoteInfo = this.splitBlockquotePrefix(line);
-                const parsed = this.parseListLine(quoteInfo.rest);
-                return {
-                    text: line,
-                    quotePrefix: quoteInfo.prefix,
-                    quoteDepth: this.getBlockquoteDepthFromLine(line),
-                    rest: quoteInfo.rest,
-                    isListItem: parsed.isListItem,
-                    indentRaw: parsed.indentRaw,
-                    indentWidth: parsed.indentWidth,
-                    marker: parsed.marker,
-                    markerType: parsed.markerType,
-                    content: parsed.content,
-                };
+                return parseLineWithQuoteByTabSize(line, this.getTabSize());
             }
 
             parseListLine(line: string): { isListItem: boolean; indentRaw: string; indentWidth: number; marker: string; markerType: 'ordered' | 'unordered' | 'task'; content: string } {
-                const indentMatch = line.match(/^(\s*)/);
-                const indentRaw = indentMatch ? indentMatch[1] : '';
-                const indentWidth = this.getIndentWidthFromIndentRaw(indentRaw);
-                const rest = line.slice(indentRaw.length);
-
-                const taskMatch = rest.match(/^([-*+])\s\[[ xX]\]\s+/);
-                if (taskMatch) {
-                    const marker = taskMatch[0];
-                    return { isListItem: true, indentRaw, indentWidth, marker, markerType: 'task', content: rest.slice(marker.length) };
-                }
-
-                const unorderedMatch = rest.match(/^([-*+])\s+/);
-                if (unorderedMatch) {
-                    const marker = unorderedMatch[0];
-                    return { isListItem: true, indentRaw, indentWidth, marker, markerType: 'unordered', content: rest.slice(marker.length) };
-                }
-
-                const orderedMatch = rest.match(/^(\d+)[.)]\s+/);
-                if (orderedMatch) {
-                    const marker = orderedMatch[0];
-                    return { isListItem: true, indentRaw, indentWidth, marker, markerType: 'ordered', content: rest.slice(marker.length) };
-                }
-
-                return { isListItem: false, indentRaw, indentWidth, marker: '', markerType: 'unordered', content: rest };
+                return parseListLineByTabSize(line, this.getTabSize());
             }
 
             findParentListLineNumber(doc: { line: (n: number) => { text: string }; lines: number }, lineNumber: number): number | null {
@@ -1134,166 +1018,41 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
             }
 
             getPreviousNonEmptyLineNumber(doc: { line: (n: number) => { text: string }; lines: number }, lineNumber: number): number | null {
-                for (let i = lineNumber; i >= 1; i--) {
-                    const text = doc.line(i).text;
-                    if (text.trim().length === 0) continue;
-                    return i;
-                }
-                return null;
+                return getPreviousNonEmptyLineNumberInDoc(doc, lineNumber);
             }
 
             getNextNonEmptyLineNumber(doc: { line: (n: number) => { text: string }; lines: number }, lineNumber: number): number | null {
-                for (let i = lineNumber; i <= doc.lines; i++) {
-                    const text = doc.line(i).text;
-                    if (text.trim().length === 0) continue;
-                    return i;
-                }
-                return null;
+                return getNextNonEmptyLineNumberInDoc(doc, lineNumber);
             }
 
             getContainerTypeForBlock(view: EditorView, block: BlockInfo): BlockType.ListItem | BlockType.Blockquote | BlockType.Callout | null {
-                if (block.type === BlockType.ListItem) return BlockType.ListItem;
-                if (block.type === BlockType.Callout) return BlockType.Callout;
-                if (block.type !== BlockType.Blockquote) return null;
-
-                const startLineText = view.state.doc.line(block.startLine + 1).text.trimStart();
-                if (/^(\s*> ?)+\s*\[!/.test(startLineText)) return BlockType.Callout;
-                return BlockType.Blockquote;
+                return getContainerTypeForBlockInfo(view.state.doc, block);
             }
 
             getSourceContainerType(sourceBlock: BlockInfo): BlockType.ListItem | BlockType.Blockquote | BlockType.Callout | null {
-                if (sourceBlock.type === BlockType.ListItem) return BlockType.ListItem;
-                if (sourceBlock.type === BlockType.Callout) return BlockType.Callout;
-                if (sourceBlock.type !== BlockType.Blockquote) return null;
-
-                const firstLine = sourceBlock.content.split('\n', 1)[0]?.trimStart() ?? '';
-                if (/^(\s*> ?)+\s*\[!/.test(firstLine)) return BlockType.Callout;
-                return BlockType.Blockquote;
+                return getSourceContainerTypeOfBlock(sourceBlock);
             }
 
             buildSyntheticLineBlock(view: EditorView, lineNumber: number, type: BlockType): BlockInfo {
-                const lineObj = view.state.doc.line(lineNumber);
-                return {
-                    type,
-                    startLine: lineNumber - 1,
-                    endLine: lineNumber - 1,
-                    from: lineObj.from,
-                    to: lineObj.to,
-                    indentLevel: 0,
-                    content: lineObj.text,
-                };
+                return buildSyntheticLineBlockInfo(view.state.doc, lineNumber, type);
             }
 
             findEnclosingListBlock(view: EditorView, lineNumber: number): BlockInfo | null {
-                const doc = view.state.doc;
-                if (lineNumber < 1 || lineNumber > doc.lines) return null;
-
-                const radius = 8;
-                const minLine = Math.max(1, lineNumber - radius);
-                const maxLine = Math.min(doc.lines, lineNumber + radius);
-                let best: BlockInfo | null = null;
-
-                for (let ln = minLine; ln <= maxLine; ln++) {
-                    const block = detectBlock(view.state, ln);
-                    if (!block || block.type !== BlockType.ListItem) continue;
-                    const blockStart = block.startLine + 1;
-                    const blockEnd = block.endLine + 1;
-                    if (lineNumber < blockStart || lineNumber > blockEnd) continue;
-
-                    if (!best || (block.endLine - block.startLine) > (best.endLine - best.startLine)) {
-                        best = block;
-                    }
-                }
-
-                return best;
+                return findEnclosingListBlockAtLine(view.state, lineNumber, detectBlock as any);
             }
 
             getContainerInfoAtLine(
                 view: EditorView,
                 lineNumber: number
             ): { type: BlockType.ListItem | BlockType.Blockquote | BlockType.Callout; block: BlockInfo } | null {
-                const doc = view.state.doc;
-                if (lineNumber < 1 || lineNumber > doc.lines) return null;
-
-                const directBlock = detectBlock(view.state, lineNumber);
-                if (directBlock) {
-                    const directType = this.getContainerTypeForBlock(view, directBlock);
-                    if (directType) {
-                        return { type: directType, block: directBlock };
-                    }
-                }
-
-                const enclosingListBlock = this.findEnclosingListBlock(view, lineNumber);
-                if (enclosingListBlock) {
-                    return { type: BlockType.ListItem, block: enclosingListBlock };
-                }
-
-                const lineText = doc.line(lineNumber).text;
-                const quoteDepth = this.getBlockquoteDepthFromLine(lineText);
-                if (quoteDepth > 0) {
-                    let isCallout = false;
-                    for (let i = lineNumber; i >= 1; i--) {
-                        const text = doc.line(i).text;
-                        if (this.getBlockquoteDepthFromLine(text) === 0) break;
-                        if (/^(\s*> ?)+\s*\[!/.test(text)) {
-                            isCallout = true;
-                            break;
-                        }
-                    }
-                    const type = isCallout ? BlockType.Callout : BlockType.Blockquote;
-                    return { type, block: this.buildSyntheticLineBlock(view, lineNumber, type) };
-                }
-
-                return null;
+                return getContainerInfoAtLineNumber(view.state, lineNumber, detectBlock as any);
             }
 
             getContainerContextAtInsertion(
                 view: EditorView,
                 targetLineNumber: number
             ): { type: BlockType.ListItem | BlockType.Blockquote | BlockType.Callout; block: BlockInfo } | null {
-                const doc = view.state.doc;
-                const prevLineNumber = this.getPreviousNonEmptyLineNumber(doc, targetLineNumber - 1);
-                const nextLineNumber = this.getNextNonEmptyLineNumber(doc, targetLineNumber);
-                const strictCandidates = [
-                    targetLineNumber - 1,
-                    targetLineNumber,
-                    targetLineNumber + 1,
-                    prevLineNumber,
-                    nextLineNumber,
-                ].filter((v): v is number => typeof v === 'number' && v >= 1 && v <= doc.lines);
-                const seen = new Set<number>();
-
-                // 1) 严格命中：目标线位于某个容器块内部
-                for (const lineNumber of strictCandidates) {
-                    if (seen.has(lineNumber)) continue;
-                    seen.add(lineNumber);
-
-                    const infoAtLine = this.getContainerInfoAtLine(view, lineNumber);
-                    if (!infoAtLine) continue;
-
-                    const blockTopBoundary = infoAtLine.block.startLine + 1;
-                    const blockBottomBoundary = infoAtLine.block.endLine + 2;
-                    const isInsideContainer = targetLineNumber > blockTopBoundary
-                        && targetLineNumber < blockBottomBoundary;
-                    if (!isInsideContainer) continue;
-
-                    return infoAtLine;
-                }
-
-                // 2) 边界命中：目标线夹在同类容器上下文之间（常见于列表项之间/引用行之间）
-                const prevInfo = typeof prevLineNumber === 'number'
-                    ? this.getContainerInfoAtLine(view, prevLineNumber)
-                    : null;
-                const nextInfo = typeof nextLineNumber === 'number'
-                    ? this.getContainerInfoAtLine(view, nextLineNumber)
-                    : null;
-                const targetLineText = targetLineNumber <= doc.lines ? doc.line(targetLineNumber).text : '';
-                const targetLineIsBlank = targetLineText.trim().length === 0;
-                if (!targetLineIsBlank && prevInfo && nextInfo && prevInfo.type === nextInfo.type) {
-                    return prevInfo;
-                }
-
-                return null;
+                return getContainerContextAtLine(view.state, targetLineNumber, detectBlock as any);
             }
 
             shouldPreventDropIntoDifferentContainer(
@@ -1301,13 +1060,7 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 sourceBlock: BlockInfo,
                 targetLineNumber: number
             ): boolean {
-                const targetContainer = this.getContainerContextAtInsertion(view, targetLineNumber);
-                if (!targetContainer) return false;
-
-                const sourceContainerType = this.getSourceContainerType(sourceBlock);
-                if (sourceContainerType === targetContainer.type) return false;
-
-                return true;
+                return shouldPreventDropIntoContainer(view.state, sourceBlock, targetLineNumber, detectBlock as any);
             }
 
             findParentLineNumberByIndent(
@@ -1444,30 +1197,15 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
                 target: { markerType: 'ordered' | 'unordered' | 'task' },
                 source: { markerType: 'ordered' | 'unordered' | 'task'; marker: string }
             ): string {
-                if (target.markerType === 'ordered') return '1. ';
-                if (target.markerType === 'task') {
-                    if (source.markerType === 'task') return source.marker.replace(/^\s*[-*+]\s\[[ xX]\]\s+/, '- [ ] ');
-                    return '- [ ] ';
-                }
-                return '- ';
+                return buildTargetMarkerText(target, source);
             }
 
             buildIndentStringFromSample(sample: string, width: number): string {
-                const safeWidth = Math.max(0, width);
-                if (safeWidth === 0) return '';
-                if (sample.includes('\t')) {
-                    const tabSize = this.getTabSize();
-                    const tabs = Math.max(0, Math.round(safeWidth / tabSize));
-                    return '\t'.repeat(tabs);
-                }
-                return ' '.repeat(safeWidth);
+                return buildIndentStringFromSampleText(sample, width, this.getTabSize());
             }
 
             getIndentUnitWidth(sample: string): number {
-                const tabSize = this.getTabSize();
-                if (sample.includes('\t')) return tabSize;
-                if (sample.length >= tabSize) return tabSize;
-                return sample.length > 0 ? sample.length : tabSize;
+                return getIndentUnitWidthFromSample(sample, this.getTabSize());
             }
 
             getTabSize(): number {
@@ -1476,12 +1214,7 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
             }
 
             getIndentWidthFromIndentRaw(indentRaw: string): number {
-                const tabSize = this.getTabSize();
-                let width = 0;
-                for (const ch of indentRaw) {
-                    width += ch === '\t' ? tabSize : 1;
-                }
-                return width;
+                return getIndentWidthFromIndentRawByTabSize(indentRaw, this.getTabSize());
             }
 
             renumberOrderedListAround(view: EditorView, lineNumber: number) {
@@ -1874,85 +1607,28 @@ function createDragHandleViewPlugin(plugin: DragNDropPlugin) {
             }
 
             getLineRect(view: EditorView, lineNumber: number): { left: number; width: number } | undefined {
-                const doc = view.state.doc;
-                if (lineNumber < 1 || lineNumber > doc.lines) return undefined;
-                const line = doc.line(lineNumber);
-                const start = view.coordsAtPos(line.from);
-                const end = view.coordsAtPos(line.to);
-                if (!start || !end) return undefined;
-                const left = Math.min(start.left, end.left);
-                const right = Math.max(start.left, end.left);
-                return { left, width: Math.max(8, right - left) };
+                return getLineRectByLineNumber(view, lineNumber);
             }
 
             getInsertionAnchorY(view: EditorView, lineNumber: number): number | null {
-                const doc = view.state.doc;
-                if (lineNumber <= 1) {
-                    const first = doc.line(1);
-                    const coords = view.coordsAtPos(first.from);
-                    return coords ? coords.top : null;
-                }
-                const anchorLineNumber = Math.min(lineNumber - 1, doc.lines);
-                const anchorLine = doc.line(anchorLineNumber);
-                const coords = view.coordsAtPos(anchorLine.to);
-                return coords ? coords.bottom : null;
+                return getInsertionAnchorYByLineNumber(view, lineNumber);
             }
 
             getLineIndentPosByWidth(view: EditorView, lineNumber: number, targetIndentWidth: number): number | null {
-                const doc = view.state.doc;
-                if (lineNumber < 1 || lineNumber > doc.lines) return null;
-                const line = doc.line(lineNumber);
-                const text = line.text;
-                const tabSize = this.getTabSize();
-                let width = 0;
-                let idx = 0;
-                while (idx < text.length && width < targetIndentWidth) {
-                    const ch = text[idx];
-                    if (ch === '\t') {
-                        width += tabSize;
-                    } else if (ch === ' ') {
-                        width += 1;
-                    } else {
-                        break;
-                    }
-                    idx += 1;
-                }
-                return line.from + idx;
+                return getLineIndentPosByWidthWithTabSize(view, lineNumber, targetIndentWidth, this.getTabSize());
             }
 
             getBlockRect(view: EditorView, startLineNumber: number, endLineNumber: number): { top: number; left: number; width: number; height: number } | undefined {
-                const doc = view.state.doc;
-                if (startLineNumber < 1 || endLineNumber > doc.lines) return undefined;
-                let minLeft = Number.POSITIVE_INFINITY;
-                let maxRight = 0;
-                let top = 0;
-                let bottom = 0;
-
-                for (let i = startLineNumber; i <= endLineNumber; i++) {
-                    const line = doc.line(i);
-                    const start = view.coordsAtPos(line.from);
-                    const end = view.coordsAtPos(line.to);
-                    if (!start || !end) continue;
-                    if (i === startLineNumber) top = start.top;
-                    if (i === endLineNumber) bottom = end.bottom;
-                    const left = Math.min(start.left, end.left);
-                    const right = Math.max(start.left, end.left);
-                    minLeft = Math.min(minLeft, left);
-                    maxRight = Math.max(maxRight, right);
-                }
-
-                if (!isFinite(minLeft) || maxRight === 0 || bottom <= top) return undefined;
-                return { top, left: minLeft, width: Math.max(8, maxRight - minLeft), height: bottom - top };
+                return getBlockRectByRange(view, startLineNumber, endLineNumber);
             }
 
             clampNumber(value: number, min: number, max: number): number {
-                if (value < min) return min;
-                if (value > max) return max;
-                return value;
+                return clampNumberValue(value, min, max);
             }
 
             destroy(): void {
                 this.view.dom.classList.remove(ROOT_EDITOR_CLASS);
+                this.view.contentDOM.classList.remove(MAIN_EDITOR_CONTENT_CLASS);
                 if (this.observer) {
                     this.observer.disconnect();
                 }

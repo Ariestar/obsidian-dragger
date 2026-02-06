@@ -1,0 +1,9 @@
+views:
+  - type: cards
+    name: View
+    cardSize: 280
+    image: note.cssclasses
+    imageFit: contain
+    imageAspectRatio: 0.75
+  - type: table
+    name: Table

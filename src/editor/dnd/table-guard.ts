@@ -1,33 +1,4 @@
 import { EditorView } from '@codemirror/view';
-import { BlockInfo } from '../types';
-
-export const ROOT_EDITOR_CLASS = 'dnd-root-editor';
-export const EMBED_BLOCK_SELECTOR = '.cm-embed-block, .cm-callout, .cm-preview-code-block, .cm-math, .MathJax_Display';
-const DROP_INDICATOR_SELECTOR = '.dnd-drop-indicator';
-const DROP_HIGHLIGHT_SELECTOR = '.dnd-drop-highlight';
-
-let activeDragSourceBlock: BlockInfo | null = null;
-
-export function setActiveDragSourceBlock(block: BlockInfo | null): void {
-    activeDragSourceBlock = block;
-}
-
-export function getActiveDragSourceBlock(): BlockInfo | null {
-    return activeDragSourceBlock;
-}
-
-export function clearActiveDragSourceBlock(): void {
-    activeDragSourceBlock = null;
-}
-
-export function hideDropVisuals(scope: ParentNode = document): void {
-    scope.querySelectorAll<HTMLElement>(DROP_INDICATOR_SELECTOR).forEach((el) => {
-        el.style.display = 'none';
-    });
-    scope.querySelectorAll<HTMLElement>(DROP_HIGHLIGHT_SELECTOR).forEach((el) => {
-        el.style.display = 'none';
-    });
-}
 
 export function isElementInsideRenderedTableCell(view: EditorView, el: HTMLElement | null): boolean {
     if (!el) return false;
@@ -46,7 +17,11 @@ export function isPointInsideRenderedTableCell(view: EditorView, x: number, y: n
     return isElementInsideRenderedTableCell(view, el);
 }
 
-export function isPosInsideRenderedTableCell(view: EditorView, pos: number): boolean {
+export function isPosInsideRenderedTableCell(
+    view: EditorView,
+    pos: number,
+    options?: { skipLayoutRead?: boolean }
+): boolean {
     const doc = view.state.doc;
     const safePos = Math.max(0, Math.min(pos, doc.length));
 
@@ -60,7 +35,14 @@ export function isPosInsideRenderedTableCell(view: EditorView, pos: number): boo
         // ignore dom mapping failures
     }
 
-    const coords = view.coordsAtPos(safePos);
+    if (options?.skipLayoutRead) return false;
+
+    let coords: ReturnType<EditorView['coordsAtPos']> | null = null;
+    try {
+        coords = view.coordsAtPos(safePos);
+    } catch {
+        return false;
+    }
     if (!coords) return false;
     const editorRect = view.dom.getBoundingClientRect();
     const probeX = Math.min(Math.max(coords.left + 6, editorRect.left + 2), editorRect.right - 2);

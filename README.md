@@ -55,6 +55,36 @@ Then enable the plugin in Obsidian.
 
 ---
 
+## Internal Architecture (for contributors)
+- `src/editor/drag-handle.ts`: plugin wiring, view lifecycle, event orchestration
+- `src/editor/dnd/session.ts`: drag session state and shared visual cleanup
+- `src/editor/dnd/selectors.ts`: shared selectors/classes constants
+- `src/editor/dnd/table-guard.ts`: rendered table-cell interaction guard
+- `src/editor/dnd/line-parser.ts`: quote/list/indent parsing utilities
+- `src/editor/dnd/container-policy.ts`: container isolation policy (list/quote/callout)
+- `src/editor/dnd/drop-target.ts`: insertion anchor and geometry helpers
+- `src/editor/dnd/block-mutation.ts`: block text rewrite and insertion text building
+
+The main rule is: visual decisions and behavioral decisions should come from the same policy path, to avoid “indicator shown but drop blocked” mismatches.
+
+---
+
+## Regression Strategy
+- Unit tests (Vitest) live under `src/**/*.spec.ts`
+- High-risk policy modules are covered:
+  - `line-parser.spec.ts`
+  - `table-guard.spec.ts`
+  - `container-policy.spec.ts`
+  - `block-mutation.spec.ts`
+- Recommended local gate before PR:
+`
+npm run test
+npm run typecheck
+npm run build
+`
+
+---
+
 ## Development
 `
 npm install
