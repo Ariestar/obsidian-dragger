@@ -30,7 +30,6 @@ export class DragSourceResolver {
 
     getDraggableBlockAtPoint(clientX: number, clientY: number): BlockInfo | null {
         const contentRect = this.view.contentDOM.getBoundingClientRect();
-        if (clientX < contentRect.left || clientX > contentRect.right) return null;
         if (clientY < contentRect.top || clientY > contentRect.bottom) return null;
 
         const x = Math.min(Math.max(clientX, contentRect.left + 2), contentRect.right - 2);

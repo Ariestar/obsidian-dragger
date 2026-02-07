@@ -18,6 +18,7 @@ type RectLike = {
 };
 
 const originalMatchMedia = window.matchMedia;
+const originalVibrate = (navigator as Navigator & { vibrate?: (pattern: number | number[]) => boolean }).vibrate;
 
 function createRect(left: number, top: number, width: number, height: number): RectLike {
     return {
@@ -115,6 +116,11 @@ afterEach(() => {
         writable: true,
         value: originalMatchMedia,
     });
+    Object.defineProperty(window.navigator, 'vibrate', {
+        configurable: true,
+        writable: true,
+        value: originalVibrate,
+    });
 });
 
 describe('DragEventHandler', () => {
@@ -209,6 +215,64 @@ describe('DragEventHandler', () => {
 
         expect(beginPointerDragSession).not.toHaveBeenCalled();
         expect(performDropAtPoint).not.toHaveBeenCalled();
+        handler.destroy();
+    });
+
+    it('requires long-press before starting drag from handle on mobile and triggers vibration once drag starts', () => {
+        const view = createViewStub();
+        const handle = document.createElement('div');
+        handle.className = 'dnd-drag-handle';
+        view.dom.appendChild(handle);
+
+        const sourceBlock = createBlock();
+        const beginPointerDragSession = vi.fn();
+        const scheduleDropIndicatorUpdate = vi.fn();
+        const vibrate = vi.fn();
+        Object.defineProperty(window.navigator, 'vibrate', {
+            configurable: true,
+            writable: true,
+            value: vibrate,
+        });
+
+        const handler = new DragEventHandler(view, {
+            getDragSourceBlock: () => null,
+            getBlockInfoForHandle: () => sourceBlock,
+            getBlockInfoAtPoint: () => null,
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            scheduleDropIndicatorUpdate,
+            hideDropIndicator: vi.fn(),
+            performDropAtPoint: vi.fn(),
+        });
+
+        handler.attach();
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 2,
+            pointerType: 'touch',
+            clientX: 32,
+            clientY: 12,
+        });
+
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 2,
+            pointerType: 'touch',
+            clientX: 42,
+            clientY: 12,
+        });
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+
+        vi.advanceTimersByTime(220);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 2,
+            pointerType: 'touch',
+            clientX: 45,
+            clientY: 12,
+        });
+
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(45, 12, sourceBlock);
+        expect(vibrate).toHaveBeenCalledTimes(1);
         handler.destroy();
     });
 });

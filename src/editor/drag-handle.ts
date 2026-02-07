@@ -124,8 +124,14 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                     getBlockInfoAtPoint: (clientX, clientY) => this.dragSourceResolver.getDraggableBlockAtPoint(clientX, clientY),
                     isBlockInsideRenderedTableCell: (blockInfo) =>
                         isPosInsideRenderedTableCell(this.view, blockInfo.from, { skipLayoutRead: true }),
-                    beginPointerDragSession: (blockInfo) => beginDragSession(blockInfo, this.view),
-                    finishDragSession,
+                    beginPointerDragSession: (blockInfo) => {
+                        this.setActiveVisibleHandle(null);
+                        beginDragSession(blockInfo, this.view);
+                    },
+                    finishDragSession: () => {
+                        this.setActiveVisibleHandle(null);
+                        finishDragSession();
+                    },
                     scheduleDropIndicatorUpdate: (clientX, clientY, dragSource) =>
                         this.dropIndicator.scheduleFromPoint(clientX, clientY, dragSource),
                     hideDropIndicator: () => this.dropIndicator.hide(),
@@ -154,7 +160,10 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                         this.setActiveVisibleHandle(el);
                         startDragFromHandle(e, this.view, getBlockInfo, el);
                     },
-                    onDragEnd: () => finishDragSession(),
+                    onDragEnd: () => {
+                        this.setActiveVisibleHandle(null);
+                        finishDragSession();
+                    },
                 });
                 handle.addEventListener('pointerdown', (e: PointerEvent) => {
                     this.setActiveVisibleHandle(handle);
