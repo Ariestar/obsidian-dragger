@@ -1,13 +1,12 @@
 import { Decoration, DecorationSet, EditorView, WidgetType } from '@codemirror/view';
 import { detectBlock, getListItemOwnRangeForHandle } from '../block-detector';
 import { BlockInfo, BlockType } from '../../types';
-import { createDragHandleElement } from '../core/handle-dom';
+import { alignInlineHandleToHandleColumn } from '../core/handle-position';
 
 export interface DecorationManagerDeps {
     view: EditorView;
+    createHandleElement: (getBlockInfo: () => BlockInfo | null) => HTMLElement;
     getDraggableBlockAtLine: (lineNumber: number) => BlockInfo | null;
-    startDragFromHandle: (e: DragEvent, resolveBlockInfo: () => BlockInfo | null, handle?: HTMLElement | null) => void;
-    finishDragSession: () => void;
     shouldRenderInlineHandles?: () => boolean;
 }
 
@@ -20,15 +19,13 @@ class DragHandleWidget extends WidgetType {
     }
 
     toDOM(): HTMLElement {
-        const handle = createDragHandleElement({
-            onDragStart: (e, el) => {
-                this.deps.startDragFromHandle(
-                    e,
-                    () => this.deps.getDraggableBlockAtLine(this.blockInfo.startLine + 1) ?? this.blockInfo,
-                    el
-                );
-            },
-            onDragEnd: () => this.deps.finishDragSession(),
+        const lineNumber = this.blockInfo.startLine + 1;
+        const handle = this.deps.createHandleElement(
+            () => this.deps.getDraggableBlockAtLine(lineNumber) ?? this.blockInfo
+        );
+        requestAnimationFrame(() => {
+            if (!handle.isConnected) return;
+            alignInlineHandleToHandleColumn(this.deps.view, handle, lineNumber);
         });
         handle.setAttribute('data-block-start', String(this.blockInfo.startLine));
         handle.setAttribute('data-block-end', String(this.blockInfo.endLine));

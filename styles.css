@@ -4,8 +4,8 @@
 .dnd-drag-handle {
     position: absolute;
     left: -28px;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 0;
+    transform: none;
     width: 16px;
     height: 16px;
     display: flex;
@@ -13,36 +13,34 @@
     justify-content: center;
     cursor: grab;
     opacity: 0;
-    transition: opacity 0.15s ease;
-    color: var(--dnd-handle-color, var(--text-muted));
-    border-radius: 3px;
+    transition: none;
+    color: var(--dnd-handle-color, var(--interactive-accent));
+    border-radius: 999px;
     z-index: 1;
 }
 
 .dnd-drag-handle:hover {
     opacity: 1 !important;
     color: var(--dnd-handle-color-hover, var(--dnd-handle-color, var(--text-accent)));
-    background-color: var(--background-modifier-hover);
+    filter: brightness(1.08);
 }
 
 .dnd-drag-handle:active {
     cursor: grabbing;
 }
 
-/* 移动端无手柄模式：隐藏所有手柄，改为左侧热区长按触发 */
-@media (hover: none) and (pointer: coarse) {
-    .dnd-drag-handle,
-    .dnd-embed-handle {
-        display: none !important;
-    }
-
-    .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content {
-        padding-left: 24px;
-    }
+.dnd-handle-core {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.18),
+        0 0 8px var(--dnd-handle-color, var(--interactive-accent));
 }
 
-/* 当鼠标悬停在行上时显示手柄 */
-.cm-line:hover .dnd-drag-handle {
+/* 所有块共用同一显示态：由统一事件链添加 is-visible */
+.dnd-drag-handle.is-visible {
     opacity: 0.5;
 }
 
@@ -52,28 +50,19 @@
     overflow: visible;
 }
 
-/* 标题行的手柄居中修正 */
-.cm-line.HyperMD-header .dnd-drag-handle {
-    top: 0;
-    transform: none;
-    height: 100%;
-}
-
 /* 嵌入块的手柄样式修正（固定定位，避免被裁剪） */
 .dnd-embed-handle {
     position: fixed;
     left: 0;
     top: 0;
     transform: none;
-    z-index: 1000;
-    opacity: 0;
-    transition: opacity 0.15s ease;
 }
 
-.dnd-embed-handle.is-visible {
-    opacity: 1;
-    color: var(--dnd-handle-color-hover, var(--dnd-handle-color, var(--text-accent)));
-    background-color: var(--background-modifier-hover);
+.dnd-line-number-hover-hidden,
+.dnd-drag-source-line-number {
+    color: transparent !important;
+    opacity: 0 !important;
+    text-shadow: none !important;
 }
 
 /* 常态显示拖拽手柄 */
@@ -81,15 +70,7 @@ body.dnd-handles-always .dnd-drag-handle {
     opacity: 0.6;
 }
 
-body.dnd-handles-always .cm-line:hover .dnd-drag-handle {
-    opacity: 0.9;
-}
-
-body.dnd-handles-always .dnd-embed-handle {
-    opacity: 0.6;
-}
-
-body.dnd-handles-always .dnd-embed-handle.is-visible {
+body.dnd-handles-always .dnd-drag-handle.is-visible {
     opacity: 1;
 }
 
@@ -104,6 +85,22 @@ body.dnd-dragging * {
 
 body.dnd-dragging .cm-line:hover {
     background-color: transparent;
+}
+
+/* 移动端手势锁：拖拽期间禁用页面滚动与触摸平移 */
+body.dnd-mobile-gesture-lock {
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.markdown-source-view.mod-cm6 .cm-editor.dnd-mobile-gesture-lock,
+.markdown-source-view.mod-cm6 .cm-editor.dnd-mobile-gesture-lock .cm-scroller,
+.markdown-source-view.mod-cm6 .cm-editor.dnd-mobile-gesture-lock .cm-content {
+    touch-action: none !important;
+    overscroll-behavior: none;
 }
 
 /* 拖拽时的ghost预览 */
@@ -139,8 +136,8 @@ body.dnd-dragging .cm-line:hover {
     pointer-events: none;
     z-index: 9999;
     border-radius: 6px;
-    background: rgba(100, 140, 255, 0.08);
-    box-shadow: inset 0 0 0 1px rgba(100, 140, 255, 0.25);
+    background: color-mix(in srgb, var(--dnd-drop-highlight-color, var(--interactive-accent)) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dnd-drop-highlight-color, var(--interactive-accent)) 36%, transparent);
 }
 
 /* 主编辑器内容左侧留出手柄空间（class 命中） */

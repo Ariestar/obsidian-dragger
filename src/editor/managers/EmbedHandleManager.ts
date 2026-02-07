@@ -1,12 +1,13 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../types';
 import { EMBED_BLOCK_SELECTOR } from '../core/selectors';
+import { getHandleColumnLeftPx, getHandleLeftPxForLine, getHandleTopPxForLine } from '../core/handle-position';
 
 type EmbedHandleEntry = {
     handle: HTMLElement;
-    show: () => void;
-    hide: (e: MouseEvent) => void;
 };
+
+const HANDLE_SIZE_PX = 16;
 
 export interface EmbedHandleManagerDeps {
     createHandleElement: (getBlockInfo: () => BlockInfo | null) => HTMLElement;
@@ -19,7 +20,6 @@ export class EmbedHandleManager {
     private observer: MutationObserver | null = null;
     private pendingScan = false;
     private readonly onScrollOrResize = () => this.updateHandlePositions();
-    private readonly onDeactivate = () => this.hideAllHandles();
 
     constructor(
         private readonly view: EditorView,
@@ -43,8 +43,6 @@ export class EmbedHandleManager {
 
         this.view.scrollDOM.addEventListener('scroll', this.onScrollOrResize, { passive: true });
         window.addEventListener('resize', this.onScrollOrResize);
-        this.view.dom.addEventListener('mouseleave', this.onDeactivate);
-        window.addEventListener('blur', this.onDeactivate);
 
         this.rescan();
     }
@@ -87,23 +85,7 @@ export class EmbedHandleManager {
                 handle.style.position = 'fixed';
                 document.body.appendChild(handle);
 
-                const show = () => {
-                    if (!this.isEmbedVisible(embedEl)) return;
-                    handle.style.display = '';
-                    handle.classList.add('is-visible');
-                };
-                const hide = (e: MouseEvent) => {
-                    const related = e.relatedTarget as Node | null;
-                    if (related && (related === handle || handle.contains(related))) return;
-                    handle.classList.remove('is-visible');
-                };
-
-                embedEl.addEventListener('mouseenter', show);
-                embedEl.addEventListener('mouseleave', hide);
-                handle.addEventListener('mouseenter', show);
-                handle.addEventListener('mouseleave', hide);
-
-                entry = { handle, show, hide };
+                entry = { handle };
                 this.embedHandles.set(embedEl, entry);
             }
 
@@ -128,14 +110,6 @@ export class EmbedHandleManager {
         }
     }
 
-    hideAllHandles(): void {
-        if (!this.shouldRenderEmbedHandles()) return;
-        for (const entry of this.embedHandles.values()) {
-            entry.handle.classList.remove('is-visible');
-            entry.handle.style.display = 'none';
-        }
-    }
-
     destroy(): void {
         this.pendingScan = false;
         if (this.observer) {
@@ -144,8 +118,6 @@ export class EmbedHandleManager {
         }
         this.view.scrollDOM.removeEventListener('scroll', this.onScrollOrResize);
         window.removeEventListener('resize', this.onScrollOrResize);
-        this.view.dom.removeEventListener('mouseleave', this.onDeactivate);
-        window.removeEventListener('blur', this.onDeactivate);
 
         for (const [embedEl, entry] of this.embedHandles.entries()) {
             this.cleanupHandle(embedEl, entry);
@@ -153,12 +125,15 @@ export class EmbedHandleManager {
         this.embedHandles.clear();
     }
 
-    private cleanupHandle(embedEl: HTMLElement, entry: EmbedHandleEntry): void {
-        embedEl.removeEventListener('mouseenter', entry.show);
-        embedEl.removeEventListener('mouseleave', entry.hide);
-        entry.handle.removeEventListener('mouseenter', entry.show);
-        entry.handle.removeEventListener('mouseleave', entry.hide);
+    private cleanupHandle(_embedEl: HTMLElement, entry: EmbedHandleEntry): void {
         entry.handle.remove();
+    }
+
+    isManagedHandle(handle: HTMLElement): boolean {
+        for (const entry of this.embedHandles.values()) {
+            if (entry.handle === handle) return true;
+        }
+        return false;
     }
 
     private positionHandle(embedEl: HTMLElement, handle: HTMLElement): void {
@@ -169,13 +144,31 @@ export class EmbedHandleManager {
         }
 
         handle.style.display = '';
-        const contentRect = this.view.contentDOM.getBoundingClientRect();
-        const embedRect = embedEl.getBoundingClientRect();
-        const contentPaddingLeft = parseFloat(getComputedStyle(this.view.contentDOM).paddingLeft) || 0;
-        const left = Math.round(contentRect.left + contentPaddingLeft - 42);
-        const top = Math.round(embedRect.top + 8);
+        const lineNumber = this.resolveHandleLineNumber(handle);
+        const left = lineNumber
+            ? (getHandleLeftPxForLine(this.view, lineNumber) ?? getHandleColumnLeftPx(this.view))
+            : getHandleColumnLeftPx(this.view);
+        const top = lineNumber
+            ? (getHandleTopPxForLine(this.view, lineNumber) ?? this.getEmbedFallbackTop(embedEl))
+            : this.getEmbedFallbackTop(embedEl);
         handle.style.left = `${left}px`;
         handle.style.top = `${top}px`;
+    }
+
+    private resolveHandleLineNumber(handle: HTMLElement): number | null {
+        const startAttr = handle.getAttribute('data-block-start');
+        if (startAttr === null) return null;
+        const lineNumber = Number(startAttr) + 1;
+        if (!Number.isInteger(lineNumber) || lineNumber < 1 || lineNumber > this.view.state.doc.lines) {
+            return null;
+        }
+        return lineNumber;
+    }
+
+    private getEmbedFallbackTop(embedEl: HTMLElement): number {
+        const embedRect = embedEl.getBoundingClientRect();
+        const lineCenterOffset = Math.max(0, (this.view.defaultLineHeight || 20) / 2 - HANDLE_SIZE_PX / 2);
+        return Math.round(embedRect.top + lineCenterOffset);
     }
 
     private isEmbedVisible(embedEl: HTMLElement): boolean {
