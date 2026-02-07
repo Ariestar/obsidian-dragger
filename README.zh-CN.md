@@ -39,7 +39,7 @@
 ## 使用
 - 悬停在块左侧出现拖拽手柄（可设置为常驻显示）
 - 拖动手柄到目标位置，看到定位线/高亮后松开
-- 嵌套列表/引用：横向位置决定嵌套深度
+- 嵌套列表：横向位置决定嵌套深度
 
 ---
 
@@ -53,7 +53,7 @@
 
 ## 兼容性
 - 需要 Obsidian >= 1.0.0
-- 仅桌面端（isDesktopOnly: true）
+- 桌面端与移动端（目前仅测试安卓）
 
 ---
 
@@ -71,6 +71,12 @@
 
 ---
 
+TOOD
+- [ ] 跨文件拖拽
+- [ ] 自定义样式
+
+---
+
 ## 回归策略
 - 使用 Vitest，测试文件位于 `src/**/*.spec.ts`
 - 高风险策略模块已覆盖：
@@ -79,19 +85,15 @@
   - `container-policy.spec.ts`
   - `block-mutation.spec.ts`
 - 建议每次提交前运行：
-`
-npm run test
-npm run typecheck
-npm run build
-`
+`npm run test`
+`npm run typecheck`
+`npm run build`
 
 ---
 
 ## 开发
-`
-npm install
-npm run dev
-`
+`npm install`
+`npm run dev`
 
 构建 Release：
 `
