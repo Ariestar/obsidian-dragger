@@ -1,8 +1,13 @@
 import { BlockInfo } from '../../types';
+import {
+    resolveInsertionRule,
+    RulePosition,
+    RuleTargetContainerType,
+} from './insertion-rule-matrix';
 import { computeListIndentPlan } from './mutations/list-mutation';
 import { DocLike, ListContext, ParsedLine } from './protocol-types';
 
-export type InPlaceDropRejectReason = 'self_range_blocked' | 'self_embedding';
+export type InPlaceDropRejectReason = 'self_range_blocked' | 'self_embedding' | 'container_policy';
 
 export type InPlaceDropValidationResult = {
     inSelfRange: boolean;
@@ -19,6 +24,8 @@ export function validateInPlaceDrop(params: {
     parseLineWithQuote: (line: string) => ParsedLine;
     getListContext: (doc: DocLike, lineNumber: number) => ListContext;
     getIndentUnitWidth: (sample: string) => number;
+    targetContainerType?: RuleTargetContainerType;
+    containerPosition?: RulePosition;
     listContextLineNumberOverride?: number;
     listIndentDeltaOverride?: number;
     listTargetIndentWidthOverride?: number;
@@ -30,10 +37,27 @@ export function validateInPlaceDrop(params: {
         parseLineWithQuote,
         getListContext,
         getIndentUnitWidth,
+        targetContainerType,
+        containerPosition,
         listContextLineNumberOverride,
         listIndentDeltaOverride,
         listTargetIndentWidthOverride,
     } = params;
+
+    if (typeof containerPosition === 'string') {
+        const containerRule = resolveInsertionRule({
+            sourceType: sourceBlock.type,
+            targetContainerType: targetContainerType ?? null,
+            position: containerPosition,
+        });
+        if (!containerRule.allowDrop) {
+            return {
+                inSelfRange: false,
+                allowInPlaceIndentChange: false,
+                rejectReason: 'container_policy',
+            };
+        }
+    }
 
     const targetLineIdx = targetLineNumber - 1;
     const inSelfRange = targetLineIdx >= sourceBlock.startLine && targetLineIdx <= sourceBlock.endLine + 1;

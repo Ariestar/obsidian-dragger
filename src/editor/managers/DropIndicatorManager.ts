@@ -8,12 +8,17 @@ type DropTargetInfo = {
     highlightRect?: { top: number; left: number; width: number; height: number };
 };
 
-type DropTargetResolver = (info: { clientX: number; clientY: number; dragSource: BlockInfo | null }) => DropTargetInfo | null;
+type DropTargetResolver = (info: {
+    clientX: number;
+    clientY: number;
+    dragSource: BlockInfo | null;
+    pointerType: string | null;
+}) => DropTargetInfo | null;
 
 export class DropIndicatorManager {
     private readonly indicatorEl: HTMLDivElement;
     private readonly highlightEl: HTMLDivElement;
-    private pendingDragInfo: { x: number; y: number; dragSource: BlockInfo | null } | null = null;
+    private pendingDragInfo: { x: number; y: number; dragSource: BlockInfo | null; pointerType: string | null } | null = null;
     private rafId: number | null = null;
 
     constructor(
@@ -33,8 +38,8 @@ export class DropIndicatorManager {
         document.body.appendChild(this.highlightEl);
     }
 
-    scheduleFromPoint(clientX: number, clientY: number, dragSource: BlockInfo | null): void {
-        this.pendingDragInfo = { x: clientX, y: clientY, dragSource };
+    scheduleFromPoint(clientX: number, clientY: number, dragSource: BlockInfo | null, pointerType: string | null): void {
+        this.pendingDragInfo = { x: clientX, y: clientY, dragSource, pointerType };
         if (this.rafId !== null) return;
         this.rafId = requestAnimationFrame(() => {
             this.rafId = null;
@@ -60,11 +65,12 @@ export class DropIndicatorManager {
         this.highlightEl.remove();
     }
 
-    private updateFromPoint(info: { x: number; y: number; dragSource: BlockInfo | null }): void {
+    private updateFromPoint(info: { x: number; y: number; dragSource: BlockInfo | null; pointerType: string | null }): void {
         const targetInfo = this.resolveDropTarget({
             clientX: info.x,
             clientY: info.y,
             dragSource: info.dragSource,
+            pointerType: info.pointerType,
         });
         if (!targetInfo) {
             this.hide();

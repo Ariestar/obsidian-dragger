@@ -161,7 +161,7 @@ describe('DragEventHandler', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(45, 10, sourceBlock);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(45, 10, sourceBlock, 'touch');
 
         dispatchPointer(window, 'pointerup', {
             pointerId: 1,
@@ -271,7 +271,7 @@ describe('DragEventHandler', () => {
         });
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(45, 12, sourceBlock);
+        expect(scheduleDropIndicatorUpdate).toHaveBeenCalledWith(45, 12, sourceBlock, 'touch');
         expect(vibrate).toHaveBeenCalledTimes(1);
         handler.destroy();
     });

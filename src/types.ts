@@ -47,3 +47,27 @@ export interface DragState {
     /** 放置位置（before/after） */
     dropPosition: 'before' | 'after' | null;
 }
+
+export type DragLifecycleState =
+    | 'idle'
+    | 'press_pending'
+    | 'drag_active'
+    | 'drop_commit'
+    | 'cancelled';
+
+export interface DragListIntent {
+    listContextLineNumber?: number;
+    listIndentDelta?: number;
+    listTargetIndentWidth?: number;
+}
+
+export interface DragLifecycleEvent {
+    state: DragLifecycleState;
+    sourceBlock: BlockInfo | null;
+    targetLine: number | null;
+    listIntent: DragListIntent | null;
+    rejectReason: string | null;
+    pointerType: string | null;
+}
+
+export type DragLifecycleListener = (event: DragLifecycleEvent) => void;

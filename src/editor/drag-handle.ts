@@ -5,7 +5,7 @@ import {
     ViewUpdate,
     DecorationSet,
 } from '@codemirror/view';
-import { BlockInfo } from '../types';
+import { BlockInfo, DragLifecycleEvent, DragListIntent } from '../types';
 import DragNDropPlugin from '../main';
 import {
     ROOT_EDITOR_CLASS,
@@ -63,6 +63,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
             private hiddenHoveredLineNumberEl: HTMLElement | null = null;
             private currentHoveredLineNumber: number | null = null;
             private activeVisibleHandle: HTMLElement | null = null;
+            private lastLifecycleSignature: string | null = null;
             private readonly onDocumentPointerMove = (e: PointerEvent) => this.handleDocumentPointerMove(e);
 
             constructor(view: EditorView) {
@@ -79,8 +80,8 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                     getAdjustedTargetLocation: this.geometryCalculator.getAdjustedTargetLocation.bind(this.geometryCalculator),
                     clampTargetLineNumber,
                     getPreviousNonEmptyLineNumber: getPreviousNonEmptyLineNumberInDoc,
-                    shouldPreventDropIntoDifferentContainer:
-                        this.containerPolicyService.shouldPreventDropIntoDifferentContainer.bind(this.containerPolicyService),
+                    resolveDropRuleAtInsertion:
+                        this.containerPolicyService.resolveDropRuleAtInsertion.bind(this.containerPolicyService),
                     getListContext: this.textMutationPolicy.getListContext.bind(this.textMutationPolicy),
                     getIndentUnitWidth: this.textMutationPolicy.getIndentUnitWidth.bind(this.textMutationPolicy),
                     getBlockInfoForEmbed: (embedEl) => this.dragSourceResolver.getBlockInfoForEmbed(embedEl),
@@ -90,20 +91,36 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                     getLineIndentPosByWidth: this.geometryCalculator.getLineIndentPosByWidth.bind(this.geometryCalculator),
                     getBlockRect: this.geometryCalculator.getBlockRect.bind(this.geometryCalculator),
                     clampNumber,
+                    onDragTargetEvaluated: ({ sourceBlock, pointerType, validation }) => {
+                        if (!sourceBlock) return;
+                        this.emitDragLifecycle({
+                            state: 'drag_active',
+                            sourceBlock,
+                            targetLine: validation.targetLineNumber ?? null,
+                            listIntent: this.buildListIntent({
+                                listContextLineNumber: validation.listContextLineNumber,
+                                listIndentDelta: validation.listIndentDelta,
+                                listTargetIndentWidth: validation.listTargetIndentWidth,
+                            }),
+                            rejectReason: validation.allowed ? null : (validation.reason ?? null),
+                            pointerType: pointerType ?? null,
+                        });
+                    },
                 });
                 this.dropIndicator = new DropIndicatorManager(view, (info) =>
                     this.dropTargetCalculator.getDropTargetInfo({
                         clientX: info.clientX,
                         clientY: info.clientY,
                         dragSource: info.dragSource ?? getActiveDragSourceBlock(this.view) ?? null,
+                        pointerType: info.pointerType ?? null,
                     })
                 );
                 this.blockMover = new BlockMover({
                     view: this.view,
                     clampTargetLineNumber,
                     getAdjustedTargetLocation: this.geometryCalculator.getAdjustedTargetLocation.bind(this.geometryCalculator),
-                    shouldPreventDropIntoDifferentContainer:
-                        this.containerPolicyService.shouldPreventDropIntoDifferentContainer.bind(this.containerPolicyService),
+                    resolveDropRuleAtInsertion:
+                        this.containerPolicyService.resolveDropRuleAtInsertion.bind(this.containerPolicyService),
                     parseLineWithQuote: this.textMutationPolicy.parseLineWithQuote.bind(this.textMutationPolicy),
                     getListContext: this.textMutationPolicy.getListContext.bind(this.textMutationPolicy),
                     getIndentUnitWidth: this.textMutationPolicy.getIndentUnitWidth.bind(this.textMutationPolicy),
@@ -138,11 +155,12 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                         this.setActiveVisibleHandle(null);
                         finishDragSession(this.view);
                     },
-                    scheduleDropIndicatorUpdate: (clientX, clientY, dragSource) =>
-                        this.dropIndicator.scheduleFromPoint(clientX, clientY, dragSource),
+                    scheduleDropIndicatorUpdate: (clientX, clientY, dragSource, pointerType) =>
+                        this.dropIndicator.scheduleFromPoint(clientX, clientY, dragSource, pointerType ?? null),
                     hideDropIndicator: () => this.dropIndicator.hide(),
-                    performDropAtPoint: (sourceBlock, clientX, clientY) =>
-                        this.performDropAtPoint(sourceBlock, clientX, clientY),
+                    performDropAtPoint: (sourceBlock, clientX, clientY, pointerType) =>
+                        this.performDropAtPoint(sourceBlock, clientX, clientY, pointerType ?? null),
+                    onDragLifecycleEvent: (event) => this.emitDragLifecycle(event),
                 });
 
                 this.decorations = this.decorationManager.buildDecorations();
@@ -164,15 +182,49 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                 const handle = createDragHandleElement({
                     onDragStart: (e, el) => {
                         this.setActiveVisibleHandle(el);
-                        const started = startDragFromHandle(e, this.view, getBlockInfo, el);
+                        const sourceBlock = getBlockInfo();
+                        const started = startDragFromHandle(e, this.view, () => sourceBlock ?? getBlockInfo(), el);
                         if (!started) {
                             this.setActiveVisibleHandle(null);
                             finishDragSession(this.view);
+                            this.emitDragLifecycle({
+                                state: 'cancelled',
+                                sourceBlock: sourceBlock ?? null,
+                                targetLine: null,
+                                listIntent: null,
+                                rejectReason: 'drag_start_failed',
+                                pointerType: 'mouse',
+                            });
+                            this.emitDragLifecycle({
+                                state: 'idle',
+                                sourceBlock: null,
+                                targetLine: null,
+                                listIntent: null,
+                                rejectReason: null,
+                                pointerType: null,
+                            });
+                            return;
                         }
+                        this.emitDragLifecycle({
+                            state: 'drag_active',
+                            sourceBlock: sourceBlock ?? null,
+                            targetLine: null,
+                            listIntent: null,
+                            rejectReason: null,
+                            pointerType: 'mouse',
+                        });
                     },
                     onDragEnd: () => {
                         this.setActiveVisibleHandle(null);
                         finishDragSession(this.view);
+                        this.emitDragLifecycle({
+                            state: 'idle',
+                            sourceBlock: null,
+                            targetLine: null,
+                            listIntent: null,
+                            rejectReason: null,
+                            pointerType: null,
+                        });
                     },
                 });
                 handle.addEventListener('pointerdown', (e: PointerEvent) => {
@@ -189,14 +241,27 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                 return handle;
             }
 
-            performDropAtPoint(sourceBlock: BlockInfo, clientX: number, clientY: number): void {
+            performDropAtPoint(sourceBlock: BlockInfo, clientX: number, clientY: number, pointerType: string | null): void {
                 const view = this.view;
                 const validation = this.dropTargetCalculator.resolveValidatedDropTarget({
                     clientX,
                     clientY,
                     dragSource: sourceBlock,
+                    pointerType,
                 });
                 if (!validation.allowed || typeof validation.targetLineNumber !== 'number') {
+                    this.emitDragLifecycle({
+                        state: 'cancelled',
+                        sourceBlock,
+                        targetLine: validation.targetLineNumber ?? null,
+                        listIntent: this.buildListIntent({
+                            listContextLineNumber: validation.listContextLineNumber,
+                            listIndentDelta: validation.listIndentDelta,
+                            listTargetIndentWidth: validation.listTargetIndentWidth,
+                        }),
+                        rejectReason: validation.reason ?? 'no_target',
+                        pointerType,
+                    });
                     return;
                 }
 
@@ -213,6 +278,18 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                     listIndentDeltaOverride: validation.listIndentDelta,
                     listTargetIndentWidthOverride: validation.listTargetIndentWidth,
                 });
+                this.emitDragLifecycle({
+                    state: 'drop_commit',
+                    sourceBlock,
+                    targetLine: targetLineNumber,
+                    listIntent: this.buildListIntent({
+                        listContextLineNumber: validation.listContextLineNumber,
+                        listIndentDelta: validation.listIndentDelta,
+                        listTargetIndentWidth: validation.listTargetIndentWidth,
+                    }),
+                    rejectReason: null,
+                    pointerType,
+                });
             }
 
             destroy(): void {
@@ -224,6 +301,14 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                 this.view.contentDOM.classList.remove(MAIN_EDITOR_CONTENT_CLASS);
                 this.embedHandleManager.destroy();
                 this.dropIndicator.destroy();
+                this.emitDragLifecycle({
+                    state: 'idle',
+                    sourceBlock: null,
+                    targetLine: null,
+                    listIntent: null,
+                    rejectReason: null,
+                    pointerType: null,
+                });
             }
 
             private handleDocumentPointerMove(e: PointerEvent): void {
@@ -307,6 +392,48 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                     return;
                 }
                 this.setHoveredLineNumber(lineNumber);
+            }
+
+            private buildListIntent(raw: {
+                listContextLineNumber?: number;
+                listIndentDelta?: number;
+                listTargetIndentWidth?: number;
+            }): DragListIntent | null {
+                if (
+                    typeof raw.listContextLineNumber !== 'number'
+                    && typeof raw.listIndentDelta !== 'number'
+                    && typeof raw.listTargetIndentWidth !== 'number'
+                ) {
+                    return null;
+                }
+                return {
+                    listContextLineNumber: raw.listContextLineNumber,
+                    listIndentDelta: raw.listIndentDelta,
+                    listTargetIndentWidth: raw.listTargetIndentWidth,
+                };
+            }
+
+            private emitDragLifecycle(event: DragLifecycleEvent): void {
+                const payload: DragLifecycleEvent = {
+                    state: event.state,
+                    sourceBlock: event.sourceBlock ?? null,
+                    targetLine: typeof event.targetLine === 'number' ? event.targetLine : null,
+                    listIntent: event.listIntent ?? null,
+                    rejectReason: event.rejectReason ?? null,
+                    pointerType: event.pointerType ?? null,
+                };
+                const signature = JSON.stringify({
+                    state: payload.state,
+                    sourceStart: payload.sourceBlock?.startLine ?? null,
+                    sourceEnd: payload.sourceBlock?.endLine ?? null,
+                    targetLine: payload.targetLine,
+                    listIntent: payload.listIntent,
+                    rejectReason: payload.rejectReason,
+                    pointerType: payload.pointerType,
+                });
+                if (signature === this.lastLifecycleSignature) return;
+                this.lastLifecycleSignature = signature;
+                _plugin.emitDragLifecycleEvent(payload);
             }
 
             private resolveVisibleHandleFromTarget(target: EventTarget | null): HTMLElement | null {

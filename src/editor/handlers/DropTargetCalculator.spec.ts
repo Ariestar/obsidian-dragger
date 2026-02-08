@@ -43,7 +43,11 @@ function createDeps(overrides?: Partial<DropTargetCalculatorDeps>): DropTargetCa
         getAdjustedTargetLocation: (lineNumber) => ({ lineNumber, blockAdjusted: false }),
         clampTargetLineNumber: (_total, lineNumber) => lineNumber,
         getPreviousNonEmptyLineNumber: (_doc, lineNumber) => (lineNumber >= 1 ? lineNumber : null),
-        shouldPreventDropIntoDifferentContainer: () => false,
+        resolveDropRuleAtInsertion: () => ({
+            targetContainerType: null,
+            position: 'outside',
+            decision: { allowDrop: true },
+        }),
         getListContext: () => ({ indentWidth: 0, indentRaw: '', markerType: 'unordered' }),
         getIndentUnitWidth: () => 2,
         getBlockInfoForEmbed: () => null,
@@ -53,6 +57,7 @@ function createDeps(overrides?: Partial<DropTargetCalculatorDeps>): DropTargetCa
         getLineIndentPosByWidth: () => null,
         getBlockRect: () => ({ top: 0, left: 0, width: 100, height: 20 }),
         clampNumber: (value, min, max) => Math.max(min, Math.min(max, value)),
+        onDragTargetEvaluated: () => { },
         ...overrides,
     };
 }
@@ -108,7 +113,11 @@ describe('DropTargetCalculator', () => {
         mockElementFromPoint(null);
         const view = createViewStub('plain line');
         const calculator = new DropTargetCalculator(view, createDeps({
-            shouldPreventDropIntoDifferentContainer: () => true,
+            resolveDropRuleAtInsertion: () => ({
+                targetContainerType: null,
+                position: 'outside',
+                decision: { allowDrop: false },
+            }),
         }));
 
         const target = calculator.getDropTargetInfo({

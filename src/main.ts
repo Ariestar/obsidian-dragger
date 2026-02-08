@@ -1,9 +1,11 @@
 import { Plugin } from 'obsidian';
 import { dragHandleExtension } from './editor/drag-handle';
 import { DragNDropSettings, DEFAULT_SETTINGS, DragNDropSettingTab } from './settings';
+import { DragLifecycleEvent, DragLifecycleListener } from './types';
 
 export default class DragNDropPlugin extends Plugin {
     settings: DragNDropSettings;
+    private readonly dragLifecycleListeners = new Set<DragLifecycleListener>();
 
     async onload() {
 
@@ -17,6 +19,7 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     onunload() {
+        this.dragLifecycleListeners.clear();
     }
 
     async loadSettings() {
@@ -63,6 +66,23 @@ export default class DragNDropPlugin extends Plugin {
             body.style.setProperty('--dnd-drop-indicator-color', indicatorColorValue);
         } else {
             body.style.removeProperty('--dnd-drop-indicator-color');
+        }
+    }
+
+    onDragLifecycleEvent(listener: DragLifecycleListener): () => void {
+        this.dragLifecycleListeners.add(listener);
+        return () => {
+            this.dragLifecycleListeners.delete(listener);
+        };
+    }
+
+    emitDragLifecycleEvent(event: DragLifecycleEvent): void {
+        for (const listener of Array.from(this.dragLifecycleListeners)) {
+            try {
+                listener(event);
+            } catch (error) {
+                console.error('[Dragger] drag lifecycle listener failed:', error);
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../types';
 import { validateInPlaceDrop } from '../core/drop-validation';
+import { RulePosition, RuleTargetContainerType } from '../core/insertion-rule-matrix';
 import { DocLike, DocLikeWithRange, ListContext, ParsedLine } from '../core/protocol-types';
 import { ListRenumberer } from './ListRenumberer';
 
@@ -8,7 +9,14 @@ export interface BlockMoverDeps {
     view: EditorView;
     clampTargetLineNumber: (totalLines: number, lineNumber: number) => number;
     getAdjustedTargetLocation: (lineNumber: number, options?: { clientY?: number }) => { lineNumber: number; blockAdjusted: boolean };
-    shouldPreventDropIntoDifferentContainer: (sourceBlock: BlockInfo, targetLineNumber: number) => boolean;
+    resolveDropRuleAtInsertion: (
+        sourceBlock: BlockInfo,
+        targetLineNumber: number
+    ) => {
+        targetContainerType: RuleTargetContainerType;
+        position: RulePosition;
+        decision: { allowDrop: boolean };
+    };
     parseLineWithQuote: (line: string) => ParsedLine;
     getListContext: (doc: DocLike, lineNumber: number) => ListContext;
     getIndentUnitWidth: (sample: string) => number;
@@ -64,7 +72,8 @@ export class BlockMover {
         }
 
         targetLineNumber = this.deps.clampTargetLineNumber(doc.lines, targetLineNumber);
-        if (this.deps.shouldPreventDropIntoDifferentContainer(sourceBlock, targetLineNumber)) {
+        const containerRule = this.deps.resolveDropRuleAtInsertion(sourceBlock, targetLineNumber);
+        if (!containerRule.decision.allowDrop) {
             return;
         }
 
@@ -75,6 +84,8 @@ export class BlockMover {
             parseLineWithQuote: this.deps.parseLineWithQuote,
             getListContext: this.deps.getListContext,
             getIndentUnitWidth: this.deps.getIndentUnitWidth,
+            targetContainerType: containerRule.targetContainerType,
+            containerPosition: containerRule.position,
             listContextLineNumberOverride,
             listIndentDeltaOverride,
             listTargetIndentWidthOverride,

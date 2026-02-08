@@ -1,10 +1,22 @@
 import { BlockInfo, BlockType } from '../../types';
 import { detectBlock } from '../block-detector';
+import {
+    InsertionRuleDecision,
+    resolveInsertionRule,
+    RulePosition,
+    RuleTargetContainerType,
+} from './insertion-rule-matrix';
 import { getBlockquoteDepthFromLine } from './line-parsing';
 import { DocLike, StateWithDoc } from './protocol-types';
 
 type ContainerType = BlockType.ListItem | BlockType.Blockquote | BlockType.Callout;
 export type DetectBlockFn = (state: StateWithDoc, lineNumber: number) => BlockInfo | null;
+
+export interface DropRuleContext {
+    targetContainerType: RuleTargetContainerType;
+    position: RulePosition;
+    decision: InsertionRuleDecision;
+}
 
 function isCalloutLine(text: string): boolean {
     return /^(\s*> ?)+\s*\[!/.test(text.trimStart());
@@ -186,11 +198,32 @@ export function shouldPreventDropIntoDifferentContainer(
     targetLineNumber: number,
     detectBlockFn: DetectBlockFn = detectBlock as unknown as DetectBlockFn
 ): boolean {
+    const ruleContext = resolveDropRuleContextAtInsertion(
+        state,
+        sourceBlock,
+        targetLineNumber,
+        detectBlockFn
+    );
+    return !ruleContext.decision.allowDrop;
+}
+
+export function resolveDropRuleContextAtInsertion(
+    state: StateWithDoc,
+    sourceBlock: BlockInfo,
+    targetLineNumber: number,
+    detectBlockFn: DetectBlockFn = detectBlock as unknown as DetectBlockFn
+): DropRuleContext {
     const targetContainer = getContainerContextAtInsertion(state, targetLineNumber, detectBlockFn);
-    if (!targetContainer) return false;
-
-    const sourceContainerType = getSourceContainerType(sourceBlock);
-    if (sourceContainerType === targetContainer.type) return false;
-
-    return true;
+    const targetContainerType: RuleTargetContainerType = targetContainer ? targetContainer.type : null;
+    const position: RulePosition = targetContainer ? 'inside' : 'outside';
+    const decision = resolveInsertionRule({
+        sourceType: sourceBlock.type,
+        targetContainerType,
+        position,
+    });
+    return {
+        targetContainerType,
+        position,
+        decision,
+    };
 }

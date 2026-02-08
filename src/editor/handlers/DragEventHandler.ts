@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { BlockInfo } from '../../types';
+import { BlockInfo, DragLifecycleEvent } from '../../types';
 
 const MOBILE_DRAG_LONG_PRESS_MS = 200;
 const MOBILE_DRAG_START_MOVE_THRESHOLD_PX = 8;
@@ -34,9 +34,10 @@ export interface DragEventHandlerDeps {
     isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
     beginPointerDragSession: (blockInfo: BlockInfo) => void;
     finishDragSession: () => void;
-    scheduleDropIndicatorUpdate: (clientX: number, clientY: number, dragSource: BlockInfo | null) => void;
+    scheduleDropIndicatorUpdate: (clientX: number, clientY: number, dragSource: BlockInfo | null, pointerType: string | null) => void;
     hideDropIndicator: () => void;
-    performDropAtPoint: (sourceBlock: BlockInfo, clientX: number, clientY: number) => void;
+    performDropAtPoint: (sourceBlock: BlockInfo, clientX: number, clientY: number, pointerType: string | null) => void;
+    onDragLifecycleEvent?: (event: DragLifecycleEvent) => void;
 }
 
 export class DragEventHandler {
@@ -90,7 +91,7 @@ export class DragEventHandler {
         e.stopPropagation();
         if (!e.dataTransfer) return;
         e.dataTransfer.dropEffect = 'move';
-        this.deps.scheduleDropIndicatorUpdate(e.clientX, e.clientY, this.deps.getDragSourceBlock(e));
+        this.deps.scheduleDropIndicatorUpdate(e.clientX, e.clientY, this.deps.getDragSourceBlock(e), 'mouse');
     };
 
     private readonly onEditorDragLeave = (e: DragEvent) => {
@@ -109,7 +110,7 @@ export class DragEventHandler {
         if (!e.dataTransfer) return;
         const sourceBlock = this.deps.getDragSourceBlock(e);
         if (!sourceBlock) return;
-        this.deps.performDropAtPoint(sourceBlock, e.clientX, e.clientY);
+        this.deps.performDropAtPoint(sourceBlock, e.clientX, e.clientY, 'mouse');
         this.deps.hideDropIndicator();
         this.deps.finishDragSession();
     };
@@ -165,7 +166,7 @@ export class DragEventHandler {
         e.preventDefault();
         e.stopPropagation();
         this.tryCapturePointer(e);
-        this.beginPointerDrag(blockInfo, e.pointerId, e.clientX, e.clientY);
+        this.beginPointerDrag(blockInfo, e.pointerId, e.clientX, e.clientY, e.pointerType || null);
     }
 
     destroy(): void {
@@ -254,6 +255,14 @@ export class DragEventHandler {
             timeoutId,
         };
         this.attachPointerListeners();
+        this.emitLifecycle({
+            state: 'press_pending',
+            sourceBlock: blockInfo,
+            targetLine: null,
+            listIntent: null,
+            rejectReason: null,
+            pointerType: e.pointerType || null,
+        });
     }
 
     private clearPointerPressState(): void {
@@ -265,7 +274,13 @@ export class DragEventHandler {
         this.pointerPressState = null;
     }
 
-    private beginPointerDrag(sourceBlock: BlockInfo, pointerId: number, clientX: number, clientY: number): void {
+    private beginPointerDrag(
+        sourceBlock: BlockInfo,
+        pointerId: number,
+        clientX: number,
+        clientY: number,
+        pointerType: string | null
+    ): void {
         if (this.isMobileEnvironment()) {
             this.lockMobileInteraction();
             this.attachFocusGuard();
@@ -276,7 +291,15 @@ export class DragEventHandler {
         this.attachPointerListeners();
         this.pointerDragState = { sourceBlock, pointerId };
         this.deps.beginPointerDragSession(sourceBlock);
-        this.deps.scheduleDropIndicatorUpdate(clientX, clientY, sourceBlock);
+        this.deps.scheduleDropIndicatorUpdate(clientX, clientY, sourceBlock, pointerType);
+        this.emitLifecycle({
+            state: 'drag_active',
+            sourceBlock,
+            targetLine: null,
+            listIntent: null,
+            rejectReason: null,
+            pointerType,
+        });
     }
 
     private attachPointerListeners(): void {
@@ -312,7 +335,7 @@ export class DragEventHandler {
         if (dragState && e.pointerId === dragState.pointerId) {
             e.preventDefault();
             e.stopPropagation();
-            this.deps.scheduleDropIndicatorUpdate(e.clientX, e.clientY, dragState.sourceBlock);
+            this.deps.scheduleDropIndicatorUpdate(e.clientX, e.clientY, dragState.sourceBlock, e.pointerType || null);
             return;
         }
 
@@ -331,6 +354,8 @@ export class DragEventHandler {
                 this.abortPointerSession({
                     shouldFinishDragSession: false,
                     shouldHideDropIndicator: false,
+                    cancelReason: 'press_cancelled',
+                    pointerType: e.pointerType || null,
                 });
             }
             return;
@@ -343,7 +368,7 @@ export class DragEventHandler {
         const sourceBlock = pressState.sourceBlock;
         const pointerId = pressState.pointerId;
         this.clearPointerPressState();
-        this.beginPointerDrag(sourceBlock, pointerId, e.clientX, e.clientY);
+        this.beginPointerDrag(sourceBlock, pointerId, e.clientX, e.clientY, e.pointerType || null);
     }
 
     private finishPointerDrag(e: PointerEvent, shouldDrop: boolean): void {
@@ -352,11 +377,13 @@ export class DragEventHandler {
         e.preventDefault();
         e.stopPropagation();
         if (shouldDrop) {
-            this.deps.performDropAtPoint(state.sourceBlock, e.clientX, e.clientY);
+            this.deps.performDropAtPoint(state.sourceBlock, e.clientX, e.clientY, e.pointerType || null);
         }
         this.abortPointerSession({
             shouldFinishDragSession: true,
             shouldHideDropIndicator: true,
+            cancelReason: shouldDrop ? null : 'pointer_cancelled',
+            pointerType: e.pointerType || null,
         });
     }
 
@@ -371,6 +398,8 @@ export class DragEventHandler {
         this.abortPointerSession({
             shouldFinishDragSession: false,
             shouldHideDropIndicator: false,
+            cancelReason: 'press_cancelled',
+            pointerType: e.pointerType || null,
         });
     }
 
@@ -385,6 +414,8 @@ export class DragEventHandler {
         this.abortPointerSession({
             shouldFinishDragSession: false,
             shouldHideDropIndicator: false,
+            cancelReason: 'pointer_cancelled',
+            pointerType: e.pointerType || null,
         });
     }
 
@@ -400,6 +431,8 @@ export class DragEventHandler {
         this.abortPointerSession({
             shouldFinishDragSession: true,
             shouldHideDropIndicator: true,
+            cancelReason: 'session_interrupted',
+            pointerType: e.pointerType || null,
         });
     }
 
@@ -408,6 +441,8 @@ export class DragEventHandler {
         this.abortPointerSession({
             shouldFinishDragSession: true,
             shouldHideDropIndicator: true,
+            cancelReason: 'session_interrupted',
+            pointerType: null,
         });
     }
 
@@ -417,6 +452,8 @@ export class DragEventHandler {
         this.abortPointerSession({
             shouldFinishDragSession: true,
             shouldHideDropIndicator: true,
+            cancelReason: 'session_interrupted',
+            pointerType: null,
         });
     }
 
@@ -491,10 +528,15 @@ export class DragEventHandler {
     private abortPointerSession(options?: {
         shouldFinishDragSession?: boolean;
         shouldHideDropIndicator?: boolean;
+        cancelReason?: string | null;
+        pointerType?: string | null;
     }): void {
+        const sourceBlock = this.pointerDragState?.sourceBlock ?? this.pointerPressState?.sourceBlock ?? null;
         const hadDrag = !!this.pointerDragState;
         const shouldFinishDragSession = options?.shouldFinishDragSession ?? hadDrag;
         const shouldHideDropIndicator = options?.shouldHideDropIndicator ?? hadDrag;
+        const cancelReason = options?.cancelReason ?? null;
+        const pointerType = options?.pointerType ?? null;
 
         this.pointerDragState = null;
         this.clearPointerPressState();
@@ -509,6 +551,24 @@ export class DragEventHandler {
         if (hadDrag && shouldFinishDragSession) {
             this.deps.finishDragSession();
         }
+        if (cancelReason && sourceBlock) {
+            this.emitLifecycle({
+                state: 'cancelled',
+                sourceBlock,
+                targetLine: null,
+                listIntent: null,
+                rejectReason: cancelReason,
+                pointerType,
+            });
+        }
+        this.emitLifecycle({
+            state: 'idle',
+            sourceBlock: null,
+            targetLine: null,
+            listIntent: null,
+            rejectReason: null,
+            pointerType: null,
+        });
     }
 
     private lockMobileInteraction(): void {
@@ -598,5 +658,9 @@ export class DragEventHandler {
         } catch {
             // ignore unsupported vibration errors
         }
+    }
+
+    private emitLifecycle(event: DragLifecycleEvent): void {
+        this.deps.onDragLifecycleEvent?.(event);
     }
 }
