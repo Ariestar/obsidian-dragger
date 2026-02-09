@@ -26,7 +26,15 @@ export const HANDLE_INTERACTION_ZONE_PX = 64;
 /**
  * Handle visual constants
  */
-export const HANDLE_SIZE_PX = 16;
+let handleSizePx = 16;
+
+export function getHandleSizePx(): number {
+    return handleSizePx;
+}
+
+export function setHandleSizePx(size: number): void {
+    handleSizePx = Math.max(12, Math.min(28, size));
+}
 
 /**
  * CSS class names

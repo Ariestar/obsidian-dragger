@@ -9,7 +9,7 @@ import {
     viewportYToEditorLocalY,
 } from '../core/handle-position';
 import {
-    HANDLE_SIZE_PX,
+    getHandleSizePx,
     EMBED_SCAN_DEBOUNCE_SMALL_MS,
     EMBED_SCAN_DEBOUNCE_MEDIUM_MS,
     EMBED_SCAN_DEBOUNCE_LARGE_MS,
@@ -243,7 +243,7 @@ export class EmbedHandleManager {
 
     private getEmbedFallbackTop(embedEl: HTMLElement): number {
         const embedRect = embedEl.getBoundingClientRect();
-        const lineCenterOffset = Math.max(0, (this.view.defaultLineHeight || 20) / 2 - HANDLE_SIZE_PX / 2);
+        const lineCenterOffset = Math.max(0, (this.view.defaultLineHeight || 20) / 2 - getHandleSizePx() / 2);
         return Math.round(embedRect.top + lineCenterOffset);
     }
 

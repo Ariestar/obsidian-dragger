@@ -1,7 +1,8 @@
 import { Plugin } from 'obsidian';
 import { dragHandleExtension } from './editor/drag-handle';
 import { setHandleHorizontalOffsetPx } from './editor/core/handle-position';
-import { DragNDropSettings, DEFAULT_SETTINGS, DragNDropSettingTab } from './settings';
+import { setHandleSizePx } from './editor/core/constants';
+import { DragNDropSettings, DEFAULT_SETTINGS, DragNDropSettingTab, HandleVisibilityMode } from './settings';
 import { DragLifecycleEvent, DragLifecycleListener } from './types';
 
 export default class DragNDropPlugin extends Plugin {
@@ -24,11 +25,16 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        const saved = await this.loadData() ?? {};
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+        // Migrate legacy alwaysShowHandles boolean
+        if ('alwaysShowHandles' in saved && !('handleVisibility' in saved)) {
+            this.settings.handleVisibility = (saved as { alwaysShowHandles?: boolean }).alwaysShowHandles ? 'always' : 'hover';
+        }
         if (this.settings.enableCrossFileDrag) {
             this.settings.enableCrossFileDrag = false;
-            await this.saveData(this.settings);
         }
+        await this.saveData(this.settings);
         this.applySettings();
     }
 
@@ -39,7 +45,9 @@ export default class DragNDropPlugin extends Plugin {
 
     applySettings() {
         const body = document.body;
-        body.classList.toggle('dnd-handles-always', this.settings.alwaysShowHandles);
+        const visibility: HandleVisibilityMode = this.settings.handleVisibility ?? 'hover';
+        body.classList.toggle('dnd-handles-always', visibility === 'always');
+        body.classList.toggle('dnd-handles-hidden', visibility === 'hidden');
         const rawHandleOffset = Number(this.settings.handleHorizontalOffsetPx);
         const handleOffset = Number.isFinite(rawHandleOffset)
             ? Math.max(-80, Math.min(80, Math.round(rawHandleOffset)))
@@ -75,6 +83,12 @@ export default class DragNDropPlugin extends Plugin {
         } else {
             body.style.removeProperty('--dnd-drop-indicator-color');
         }
+
+        const handleSize = Math.max(12, Math.min(28, this.settings.handleSize ?? 16));
+        setHandleSizePx(handleSize);
+        body.style.setProperty('--dnd-handle-size', `${handleSize}px`);
+        body.style.setProperty('--dnd-handle-core-size', `${Math.round(handleSize * 0.5)}px`);
+        body.setAttribute('data-dnd-handle-icon', this.settings.handleIcon ?? 'dot');
 
         window.dispatchEvent(new Event('dnd:settings-updated'));
     }

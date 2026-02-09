@@ -72,6 +72,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                 this.view = view;
                 this.view.dom.classList.add(ROOT_EDITOR_CLASS);
                 this.view.contentDOM.classList.add(MAIN_EDITOR_CONTENT_CLASS);
+                this.syncGutterClass();
                 this.services = new ServiceContainer(this.view);
                 this.handleVisibility = new HandleVisibilityController(this.view, {
                     getBlockInfoForHandle: (handle) => this.services.dragSource.getBlockInfoForHandle(handle),
@@ -168,6 +169,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                         this.handleVisibility.setActiveVisibleHandle(null);
                         finishDragSession(this.view);
                         this.flushDragPerfSession('finish_drag_session');
+                        this.refreshDecorationsAndEmbeds();
                     },
                     scheduleDropIndicatorUpdate: (clientX, clientY, dragSource, pointerType) =>
                         this.dropIndicator.scheduleFromPoint(clientX, clientY, dragSource, pointerType ?? null),
@@ -207,6 +209,8 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                 if (update.viewportChanged) {
                     this.refreshDecorationsAndEmbeds();
                     this.dragEventHandler.refreshSelectionVisual();
+                    // Deferred rescan to catch layout shifts after viewport/file switch
+                    this.lineHandleManager.scheduleScan();
                     // Still schedule line-map prewarm if doc changed
                     if (update.docChanged) {
                         this.lineMapPrewarmer.schedule(update);
@@ -293,6 +297,7 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
                         this.handleVisibility.setActiveVisibleHandle(null);
                         finishDragSession(this.view);
                         this.flushDragPerfSession('drag_end');
+                        this.refreshDecorationsAndEmbeds();
                         this.emitDragLifecycle({
                             state: 'idle',
                             sourceBlock: null,
@@ -458,7 +463,13 @@ function createDragHandleViewPlugin(_plugin: DragNDropPlugin) {
             }
 
 
+            private syncGutterClass(): void {
+                const hasGutter = hasVisibleLineNumberGutter(this.view);
+                this.view.dom.classList.toggle('dnd-no-gutter', !hasGutter);
+            }
+
             private refreshDecorationsAndEmbeds(): void {
+                this.syncGutterClass();
                 this.semanticRefreshScheduler.clearPendingSemanticRefresh();
                 this.lineHandleManager.scheduleScan({ urgent: true });
                 this.embedHandleManager.scheduleScan({ urgent: true });

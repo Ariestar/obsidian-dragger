@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { HANDLE_SIZE_PX } from './constants';
+import { getHandleSizePx } from './constants';
 
 const GUTTER_FALLBACK_WIDTH_PX = 32;
 let handleHorizontalOffsetPx = 0;
@@ -206,13 +206,13 @@ export function getHandleColumnCenterX(view: EditorView): number {
 }
 
 export function getHandleColumnLeftPx(view: EditorView): number {
-    return Math.round(getHandleColumnCenterX(view) - HANDLE_SIZE_PX / 2);
+    return Math.round(getHandleColumnCenterX(view) - getHandleSizePx() / 2);
 }
 
 export function getHandleLeftPxForLine(view: EditorView, lineNumber: number): number | null {
     const center = getHandleCenterForLine(view, lineNumber);
     if (!center) return null;
-    return Math.round(center.x - HANDLE_SIZE_PX / 2);
+    return Math.round(center.x - getHandleSizePx() / 2);
 }
 
 export function getInlineHandleLeftPx(view: EditorView, lineLeftPx: number, lineNumber?: number): number {
@@ -247,7 +247,7 @@ export function alignInlineHandleToHandleColumn(view: EditorView, handle: HTMLEl
 export function getHandleTopPxForLine(view: EditorView, lineNumber: number): number | null {
     const center = getHandleCenterForLine(view, lineNumber);
     if (!center) return null;
-    return Math.round(center.y - HANDLE_SIZE_PX / 2);
+    return Math.round(center.y - getHandleSizePx() / 2);
 }
 
 function getEditorAxisScale(rectSize: number, offsetSize: number): number {

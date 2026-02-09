@@ -1,13 +1,20 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import DragNDropPlugin from './main';
 
+export type HandleVisibilityMode = 'always' | 'hover' | 'hidden';
+export type HandleIconStyle = 'dot' | 'grip-dots' | 'grip-lines' | 'square';
+
 export interface DragNDropSettings {
     // 抓取手柄颜色模式
     handleColorMode: 'theme' | 'custom';
     // 抓取手柄颜色（自定义时生效）
     handleColor: string;
-    // 是否常态显示手柄
-    alwaysShowHandles: boolean;
+    // 手柄显示模式
+    handleVisibility: HandleVisibilityMode;
+    // 手柄图标样式
+    handleIcon: HandleIconStyle;
+    // 手柄大小（像素）
+    handleSize: number;
     // 定位栏颜色模式
     indicatorColorMode: 'theme' | 'custom';
     // 定位栏颜色（自定义时生效）
@@ -23,7 +30,9 @@ export interface DragNDropSettings {
 export const DEFAULT_SETTINGS: DragNDropSettings = {
     handleColorMode: 'theme',
     handleColor: '#8a8a8a',
-    alwaysShowHandles: false,
+    handleVisibility: 'hover',
+    handleIcon: 'dot',
+    handleSize: 16,
     indicatorColorMode: 'theme',
     indicatorColor: '#7a7a7a',
     enableCrossFileDrag: false,
@@ -68,12 +77,41 @@ export class DragNDropSettingTab extends PluginSettingTab {
             }));
 
         new Setting(containerEl)
-            .setName('始终显示拖拽手柄')
-            .setDesc('开启后不需要悬停也能看到手柄')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.alwaysShowHandles)
+            .setName('手柄显示模式')
+            .setDesc('控制拖拽手柄的显示方式')
+            .addDropdown(dropdown => dropdown
+                .addOption('hover', '悬停显示')
+                .addOption('always', '一直显示')
+                .addOption('hidden', '一直隐藏')
+                .setValue(this.plugin.settings.handleVisibility)
+                .onChange(async (value: HandleVisibilityMode) => {
+                    this.plugin.settings.handleVisibility = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('手柄图标')
+            .setDesc('选择拖拽手柄的图标样式')
+            .addDropdown(dropdown => dropdown
+                .addOption('dot', '● 圆点')
+                .addOption('grip-dots', '⠿ 六点抓手')
+                .addOption('grip-lines', '☰ 三横线')
+                .addOption('square', '■ 方块')
+                .setValue(this.plugin.settings.handleIcon)
+                .onChange(async (value: HandleIconStyle) => {
+                    this.plugin.settings.handleIcon = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('手柄大小')
+            .setDesc('调整拖拽手柄的大小（像素）')
+            .addSlider((slider) => slider
+                .setLimits(12, 28, 2)
+                .setDynamicTooltip()
+                .setValue(this.plugin.settings.handleSize)
                 .onChange(async (value) => {
-                    this.plugin.settings.alwaysShowHandles = value;
+                    this.plugin.settings.handleSize = value;
                     await this.plugin.saveSettings();
                 }));
 
