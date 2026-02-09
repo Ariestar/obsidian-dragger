@@ -1,4 +1,4 @@
-import { DocLike, ListContext, ListContextValue, MarkerType, ParsedLine } from '../protocol-types';
+import { DocLike, ListContext, ListContextValue, MarkerType, ParsedLine } from './protocol-types';
 
 export type MarkerConversionScope = 'root' | 'all';
 

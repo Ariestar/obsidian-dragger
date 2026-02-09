@@ -1,12 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../types';
-
-type DropTargetInfo = {
-    lineNumber: number;
-    indicatorY: number;
-    lineRect?: { left: number; width: number };
-    highlightRect?: { top: number; left: number; width: number; height: number };
-};
+import { DropTargetInfo } from '../core/protocol-types';
+import { DROP_INDICATOR_CLASS, DROP_HIGHLIGHT_CLASS } from '../core/selectors';
 
 type DropTargetResolver = (info: {
     clientX: number;
@@ -39,13 +34,13 @@ export class DropIndicatorManager {
         private readonly options?: DropIndicatorManagerOptions
     ) {
         this.indicatorEl = document.createElement('div');
-        this.indicatorEl.className = 'dnd-drop-indicator';
+        this.indicatorEl.className = DROP_INDICATOR_CLASS;
         this.indicatorEl.style.position = 'fixed';
         this.indicatorEl.style.display = 'none';
         document.body.appendChild(this.indicatorEl);
 
         this.highlightEl = document.createElement('div');
-        this.highlightEl.className = 'dnd-drop-highlight';
+        this.highlightEl.className = DROP_HIGHLIGHT_CLASS;
         this.highlightEl.style.position = 'fixed';
         this.highlightEl.style.display = 'none';
         document.body.appendChild(this.highlightEl);

@@ -8,20 +8,10 @@ import {
     GeometryFrameCache,
     getCoordsAtPos,
 } from '../core/drop-target';
-import { DocLike, ListContext, ParsedLine } from '../core/protocol-types';
+import { DocLike, DropTargetInfo, ListContext, ParsedLine } from '../core/protocol-types';
 import { EMBED_BLOCK_SELECTOR } from '../core/selectors';
 import { isPointInsideRenderedTableCell } from '../core/table-guard';
 import { ListDropTargetCalculator } from './ListDropTargetCalculator';
-
-type DropTargetInfo = {
-    lineNumber: number;
-    indicatorY: number;
-    listContextLineNumber?: number;
-    listIndentDelta?: number;
-    listTargetIndentWidth?: number;
-    lineRect?: { left: number; width: number };
-    highlightRect?: { top: number; left: number; width: number; height: number };
-};
 
 type PerfDurationKey =
     | 'resolve_total'

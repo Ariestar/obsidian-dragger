@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { detectBlock } from '../block-detector';
+import { detectBlock } from './block-detector';
 import { BlockType } from '../../types';
 import {
     GeometryFrameCache,
@@ -8,7 +8,7 @@ import {
     getInsertionAnchorY as getInsertionAnchorYByLineNumber,
     getLineIndentPosByWidth as getLineIndentPosByWidthWithTabSize,
     getBlockRect as getBlockRectByRange,
-} from '../core/drop-target';
+} from './drop-target';
 import { clampTargetLineNumber } from '../utils/coordinate-utils';
 import { LineParsingService } from './LineParsingService';
 

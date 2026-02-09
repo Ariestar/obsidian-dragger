@@ -193,7 +193,7 @@ describe('DragEventHandler', () => {
             clientX: 32,
             clientY: 10,
         });
-        vi.advanceTimersByTime(560);
+        vi.advanceTimersByTime(940);
         dispatchPointer(window, 'pointermove', {
             pointerId: 1,
             pointerType: 'touch',
@@ -521,7 +521,7 @@ describe('DragEventHandler', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(560);
+        vi.advanceTimersByTime(940);
         dispatchPointer(window, 'pointermove', {
             pointerId: 18,
             pointerType: 'touch',
@@ -544,7 +544,7 @@ describe('DragEventHandler', () => {
             clientX: 12,
             clientY: 80,
         });
-        vi.advanceTimersByTime(220);
+        vi.advanceTimersByTime(120);
         dispatchPointer(window, 'pointermove', {
             pointerId: 19,
             pointerType: 'touch',
@@ -660,7 +660,7 @@ describe('DragEventHandler', () => {
             clientX: 32,
             clientY: 30,
         });
-        vi.advanceTimersByTime(560);
+        vi.advanceTimersByTime(940);
         dispatchPointer(window, 'pointermove', {
             pointerId: 61,
             pointerType: 'touch',
@@ -1183,7 +1183,7 @@ describe('DragEventHandler', () => {
             clientX: 32,
             clientY: 12,
         });
-        vi.advanceTimersByTime(560);
+        vi.advanceTimersByTime(940);
         dispatchPointer(window, 'pointermove', {
             pointerId: 2,
             pointerType: 'touch',
@@ -1206,7 +1206,7 @@ describe('DragEventHandler', () => {
             clientX: 32,
             clientY: 12,
         });
-        vi.advanceTimersByTime(220);
+        vi.advanceTimersByTime(120);
         dispatchPointer(window, 'pointermove', {
             pointerId: 3,
             pointerType: 'touch',
@@ -1252,7 +1252,7 @@ describe('DragEventHandler', () => {
             clientX: 32,
             clientY: 30,
         });
-        vi.advanceTimersByTime(560);
+        vi.advanceTimersByTime(940);
         dispatchPointer(window, 'pointermove', {
             pointerId: 51,
             pointerType: 'touch',
@@ -1272,7 +1272,7 @@ describe('DragEventHandler', () => {
             clientX: 32,
             clientY: 80,
         });
-        vi.advanceTimersByTime(240);
+        vi.advanceTimersByTime(120);
         dispatchPointer(window, 'pointermove', {
             pointerId: 52,
             pointerType: 'touch',

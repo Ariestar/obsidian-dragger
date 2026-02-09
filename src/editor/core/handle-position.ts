@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
+import { HANDLE_SIZE_PX } from './constants';
 
-const HANDLE_SIZE_PX = 16;
 const GUTTER_FALLBACK_WIDTH_PX = 32;
 let handleHorizontalOffsetPx = 0;
 

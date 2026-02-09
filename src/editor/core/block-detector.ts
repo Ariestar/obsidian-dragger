@@ -1,6 +1,15 @@
 import { EditorState, Text } from '@codemirror/state';
-import { BlockType, BlockInfo } from '../types';
-import { getLineMap, getLineMetaAt, peekCachedLineMap } from './core/line-map';
+import { BlockType, BlockInfo } from '../../types';
+import { getLineMap, getLineMetaAt, peekCachedLineMap } from './line-map';
+import {
+    isHorizontalRuleLine,
+    isBlockquoteLine,
+    isTableLine,
+} from './line-type-guards';
+import { nowMs } from '../utils/timing';
+import { splitBlockquotePrefix, getBlockquoteDepthFromLine } from './line-parsing';
+import { findCodeBlockRange, findMathBlockRange, FenceRange } from './fence-scanner';
+export { prewarmFenceScan } from './fence-scanner';
 
 export function getHeadingLevel(lineText: string): number | null {
     const trimmed = lineText.trimStart();
@@ -9,11 +18,6 @@ export function getHeadingLevel(lineText: string): number | null {
     return match[1].length;
 }
 
-function isHorizontalRuleLine(lineText: string): boolean {
-    const trimmed = lineText.trim();
-    if (trimmed.length < 3) return false;
-    return /^([-*_])(?:\s*\1){2,}$/.test(trimmed);
-}
 
 export function getHeadingSectionRange(doc: Text, lineNumber: number): { startLine: number; endLine: number } | null {
     if (lineNumber < 1 || lineNumber > doc.lines) return null;
@@ -128,13 +132,6 @@ function parseListMarker(lineText: string, tabSize: number): { isListItem: boole
     return { isListItem: false, indentWidth: getIndentWidth(lineText, tabSize) };
 }
 
-function splitBlockquotePrefix(lineText: string): { prefix: string; rest: string; depth: number } {
-    const match = lineText.match(/^(\s*> ?)+/);
-    if (!match) return { prefix: '', rest: lineText, depth: 0 };
-    const prefix = match[0];
-    const depth = (prefix.match(/>/g) || []).length;
-    return { prefix, rest: lineText.slice(prefix.length), depth };
-}
 
 function isCalloutHeader(restText: string): boolean {
     return restText.trimStart().startsWith('[!');
@@ -142,8 +139,10 @@ function isCalloutHeader(restText: string): boolean {
 
 function isInsideCalloutContainer(doc: Text, lineNumber: number, depth: number): boolean {
     for (let i = lineNumber; i >= 1; i--) {
-        const info = splitBlockquotePrefix(doc.line(i).text);
-        if (info.depth === 0 || info.depth < depth) break;
+        const text = doc.line(i).text;
+        const lineDepth = getBlockquoteDepthFromLine(text);
+        if (lineDepth === 0 || lineDepth < depth) break;
+        const info = splitBlockquotePrefix(text);
         if (isCalloutHeader(info.rest)) return true;
     }
     return false;
@@ -152,19 +151,15 @@ function isInsideCalloutContainer(doc: Text, lineNumber: number, depth: number):
 function getBlockquoteContainerRange(doc: Text, lineNumber: number, depth: number): { startLine: number; endLine: number } {
     let startLine = lineNumber;
     for (let i = lineNumber - 1; i >= 1; i--) {
-        const prevText = doc.line(i).text;
-        const info = splitBlockquotePrefix(prevText);
-        if (info.depth === 0) break;
-        if (info.depth < depth) break;
+        const d = getBlockquoteDepthFromLine(doc.line(i).text);
+        if (d === 0 || d < depth) break;
         startLine = i;
     }
 
     let endLine = lineNumber;
     for (let i = lineNumber + 1; i <= doc.lines; i++) {
-        const nextText = doc.line(i).text;
-        const info = splitBlockquotePrefix(nextText);
-        if (info.depth === 0) break;
-        if (info.depth < depth) break;
+        const d = getBlockquoteDepthFromLine(doc.line(i).text);
+        if (d === 0 || d < depth) break;
         endLine = i;
     }
     return { startLine, endLine };
@@ -261,27 +256,7 @@ function findNextNonEmptyLine(doc: Text, fromLine: number, tabSize: number): { i
     return null;
 }
 
-function isBlockquoteLine(lineText: string): boolean {
-    return lineText.trimStart().startsWith('>');
-}
 
-function isTableLine(lineText: string): boolean {
-    return lineText.trimStart().startsWith('|');
-}
-
-function isMathFenceLine(lineText: string): boolean {
-    return lineText.trimStart().startsWith('$$');
-}
-
-function isCodeFenceLine(lineText: string): boolean {
-    return lineText.trimStart().startsWith('```');
-}
-
-function getBlockquoteDepthFromLine(lineText: string): number {
-    const match = lineText.match(/^(\s*> ?)+/);
-    if (!match) return 0;
-    return (match[0].match(/>/g) || []).length;
-}
 
 function getBlockquoteSubtreeRange(doc: Text, lineNumber: number): { startLine: number; endLine: number } {
     const lineText = doc.line(lineNumber).text;
@@ -299,37 +274,12 @@ function getBlockquoteSubtreeRange(doc: Text, lineNumber: number): { startLine: 
     return { startLine: lineNumber, endLine };
 }
 
-function isSingleLineMathFence(lineText: string): boolean {
-    const trimmed = lineText.trimStart();
-    if (!trimmed.startsWith('$$')) return false;
-    return trimmed.slice(2).includes('$$');
-}
-
-type FenceRange = { startLine: number; endLine: number };
-
-type FenceLazyScanState = {
-    scannedUntilLine: number;
-    openCodeStartLine: number;
-    openMathStartLine: number;
-    fullyScanned: boolean;
-    codeRangeByLine: Map<number, FenceRange>;
-    mathRangeByLine: Map<number, FenceRange>;
-};
-
-const fenceLazyScanCache = new WeakMap<Text, FenceLazyScanState>();
 const blockDetectionCache = new WeakMap<Text, Map<number, Map<number, BlockInfo | null>>>();
 const LIST_LINE_MAP_COLD_BUILD_MAX_LINES = 30_000;
 
 type DetectBlockPerfDurationKey = 'detect_block_uncached';
 
 let detectBlockPerfRecorder: ((key: DetectBlockPerfDurationKey, durationMs: number) => void) | null = null;
-
-function nowMs(): number {
-    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-        return performance.now();
-    }
-    return Date.now();
-}
 
 function recordDetectBlockPerf(key: DetectBlockPerfDurationKey, durationMs: number): void {
     if (!detectBlockPerfRecorder) return;
@@ -341,120 +291,6 @@ export function setDetectBlockPerfRecorder(
     recorder: ((key: DetectBlockPerfDurationKey, durationMs: number) => void) | null
 ): void {
     detectBlockPerfRecorder = recorder;
-}
-
-function assignFenceRangeByLine(rangeByLine: Map<number, FenceRange>, startLine: number, endLine: number): void {
-    const range: FenceRange = { startLine, endLine };
-    for (let i = startLine; i <= endLine; i++) {
-        rangeByLine.set(i, range);
-    }
-}
-
-function createFenceLazyScanState(): FenceLazyScanState {
-    return {
-        scannedUntilLine: 0,
-        openCodeStartLine: 0,
-        openMathStartLine: 0,
-        fullyScanned: false,
-        codeRangeByLine: new Map<number, FenceRange>(),
-        mathRangeByLine: new Map<number, FenceRange>(),
-    };
-}
-
-function getFenceLazyScanState(doc: Text): FenceLazyScanState {
-    const cached = fenceLazyScanCache.get(doc);
-    if (cached) return cached;
-    const created = createFenceLazyScanState();
-    fenceLazyScanCache.set(doc, created);
-    return created;
-}
-
-function scanFenceLine(
-    state: FenceLazyScanState,
-    lineNumber: number,
-    text: string
-): void {
-    // When inside a code block, only look for closing code fence
-    if (state.openCodeStartLine !== 0) {
-        if (isCodeFenceLine(text)) {
-            assignFenceRangeByLine(state.codeRangeByLine, state.openCodeStartLine, lineNumber);
-            state.openCodeStartLine = 0;
-        }
-        // Ignore everything else (including $$) when inside code block
-        return;
-    }
-
-    // When inside a math block, only look for closing math fence
-    if (state.openMathStartLine !== 0) {
-        if (isMathFenceLine(text)) {
-            assignFenceRangeByLine(state.mathRangeByLine, state.openMathStartLine, lineNumber);
-            state.openMathStartLine = 0;
-        }
-        // Ignore everything else when inside math block
-        return;
-    }
-
-    // Not inside any block - check for opening fences
-    // Code fences take priority over math fences
-    if (isCodeFenceLine(text)) {
-        state.openCodeStartLine = lineNumber;
-        return;
-    }
-
-    if (isMathFenceLine(text)) {
-        if (isSingleLineMathFence(text)) {
-            assignFenceRangeByLine(state.mathRangeByLine, lineNumber, lineNumber);
-        } else {
-            state.openMathStartLine = lineNumber;
-        }
-    }
-}
-
-function finalizeFenceStateAtDocEnd(state: FenceLazyScanState): void {
-    if (state.openCodeStartLine !== 0) {
-        // Keep historical behavior for unclosed code fences.
-        assignFenceRangeByLine(state.codeRangeByLine, state.openCodeStartLine, state.openCodeStartLine);
-        state.openCodeStartLine = 0;
-    }
-    // Unclosed math fence intentionally remains unmatched.
-    state.openMathStartLine = 0;
-    state.fullyScanned = true;
-}
-
-function ensureFenceScanComplete(doc: Text): FenceLazyScanState {
-    const state = getFenceLazyScanState(doc);
-    if (state.fullyScanned) return state;
-
-    // Build fence ranges against the whole document once per doc snapshot.
-    // This avoids partial-range drift when users jump rapidly across long files.
-    let cursor = state.scannedUntilLine + 1;
-    while (cursor <= doc.lines) {
-        scanFenceLine(state, cursor, doc.line(cursor).text);
-        cursor++;
-    }
-    state.scannedUntilLine = Math.max(state.scannedUntilLine, cursor - 1);
-    finalizeFenceStateAtDocEnd(state);
-    return state;
-}
-
-/**
- * Pre-warm fence scan for a document to ensure code/math block boundaries
- * are fully computed before interaction. Call this during idle time.
- */
-export function prewarmFenceScan(doc: Text): void {
-    ensureFenceScanComplete(doc);
-}
-
-function findMathBlockRange(doc: Text, lineNumber: number): FenceRange | null {
-    if (lineNumber < 1 || lineNumber > doc.lines) return null;
-    const state = ensureFenceScanComplete(doc);
-    return state.mathRangeByLine.get(lineNumber) ?? null;
-}
-
-function findCodeBlockRange(doc: Text, lineNumber: number): FenceRange | null {
-    if (lineNumber < 1 || lineNumber > doc.lines) return null;
-    const state = ensureFenceScanComplete(doc);
-    return state.codeRangeByLine.get(lineNumber) ?? null;
 }
 
 /**
@@ -521,10 +357,10 @@ function detectBlockUncached(state: EditorState, lineNumber: number, tabSize: nu
     }
 
     if (blockType === BlockType.Blockquote) {
-        const quoteInfo = splitBlockquotePrefix(lineText);
-        const inCallout = isInsideCalloutContainer(doc, lineNumber, quoteInfo.depth);
+        const quoteDepth = getBlockquoteDepthFromLine(lineText);
+        const inCallout = isInsideCalloutContainer(doc, lineNumber, quoteDepth);
         if (inCallout) {
-            const range = getBlockquoteContainerRange(doc, lineNumber, quoteInfo.depth);
+            const range = getBlockquoteContainerRange(doc, lineNumber, quoteDepth);
             startLine = range.startLine;
             endLine = range.endLine;
             blockType = BlockType.Callout;

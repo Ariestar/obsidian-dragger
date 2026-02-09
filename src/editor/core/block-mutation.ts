@@ -1,7 +1,7 @@
 import { BlockType } from '../../types';
 
-export * from './mutations/quote-mutation';
-export * from './mutations/list-mutation';
+export * from './quote-mutation';
+export * from './list-mutation';
 
 export function buildInsertText(params: {
     sourceBlockType: BlockType;

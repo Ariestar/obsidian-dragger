@@ -9,6 +9,7 @@ import {
     setActiveDragSourceBlock,
 } from '../core/session';
 import { isPosInsideRenderedTableCell } from '../core/table-guard';
+import { DRAGGING_BODY_CLASS, DRAG_GHOST_CLASS, DRAG_SOURCE_LINE_NUMBER_CLASS } from '../core/selectors';
 
 const sourceLineMarkerByView = new WeakMap<EditorView, HTMLElement>();
 const draggingViews = new Set<EditorView>();
@@ -18,7 +19,7 @@ export function beginDragSession(blockInfo: BlockInfo, view: EditorView): void {
     setActiveDragSourceBlock(view, blockInfo);
     draggingViews.add(view);
     if (draggingViews.size > 0) {
-        document.body.classList.add('dnd-dragging');
+        document.body.classList.add(DRAGGING_BODY_CLASS);
     }
 }
 
@@ -32,7 +33,9 @@ export function finishDragSession(view?: EditorView): void {
         clearAllActiveDragSourceBlocks();
     }
 
-    document.body.classList.remove('dnd-dragging');
+    if (draggingViews.size === 0) {
+        document.body.classList.remove(DRAGGING_BODY_CLASS);
+    }
     hideDropVisuals();
 }
 
@@ -84,7 +87,7 @@ function startDragWithBlockInfo(
     }
 
     const ghost = document.createElement('div');
-    ghost.className = 'dnd-drag-ghost';
+    ghost.className = DRAG_GHOST_CLASS;
     ghost.textContent = blockInfo.content.slice(0, 50) + (blockInfo.content.length > 50 ? '...' : '');
     document.body.appendChild(ghost);
     e.dataTransfer.setDragImage(ghost, 0, 0);
@@ -104,12 +107,12 @@ function updateSourceLineNumberMarker(lineNumber: number, view: EditorView): voi
     if (!lineEl) return;
 
     sourceLineMarkerByView.set(view, lineEl);
-    lineEl.classList.add('dnd-drag-source-line-number');
+    lineEl.classList.add(DRAG_SOURCE_LINE_NUMBER_CLASS);
 }
 
 function clearSourceLineNumberMarker(view: EditorView): void {
     const marker = sourceLineMarkerByView.get(view);
     if (!marker) return;
-    marker.classList.remove('dnd-drag-source-line-number');
+    marker.classList.remove(DRAG_SOURCE_LINE_NUMBER_CLASS);
     sourceLineMarkerByView.delete(view);
 }

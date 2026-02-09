@@ -1,4 +1,4 @@
-import { DocLike } from '../protocol-types';
+import { DocLike } from './protocol-types';
 
 export function stripBlockquoteDepth(line: string, removeDepth: number): string {
     let remaining = line;

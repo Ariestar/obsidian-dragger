@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { DocLike } from '../protocol-types';
-import { parseLineWithQuote } from '../line-parsing';
+import type { DocLike } from './protocol-types';
+import { parseLineWithQuote } from './line-parsing';
 import {
     adjustListToTargetContext,
     buildIndentStringFromSample,

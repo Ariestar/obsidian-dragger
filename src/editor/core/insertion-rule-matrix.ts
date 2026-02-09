@@ -1,4 +1,11 @@
 import { BlockType } from '../../types';
+import {
+    isBlockquoteLine,
+    isCalloutLine,
+    isHorizontalRuleLine,
+    isListItemLine,
+    isTableLine,
+} from './line-type-guards';
 
 export type InsertionSlotContext =
     | 'inside_list'
@@ -32,40 +39,14 @@ function isQuoteLikeType(type: BlockType): boolean {
     return type === BlockType.Blockquote || type === BlockType.Callout;
 }
 
-function isBlockquoteLikeLine(line: string | null): boolean {
-    if (!line) return false;
-    return /^(> ?)+/.test(line.trimStart());
-}
-
-function isCalloutLine(line: string | null): boolean {
-    if (!line) return false;
-    return /^(\s*> ?)+\s*\[!/.test(line.trimStart());
-}
-
-function isListItemLine(line: string | null): boolean {
-    if (!line) return false;
-    return /^\s*(?:[-*+]\s(?:\[[ xX]\]\s+)?|\d+[.)]\s+)/.test(line);
-}
-
-function isTableLine(line: string | null): boolean {
-    if (!line) return false;
-    return line.trimStart().startsWith('|');
-}
-
-function isHorizontalRuleLine(line: string | null): boolean {
-    if (!line) return false;
-    const trimmed = line.trim();
-    if (trimmed.length < 3) return false;
-    return /^([-*_])(?:\s*\1){2,}$/.test(trimmed);
-}
 
 export function inferSlotContextFromAdjacentLines(input: {
     prevText: string | null;
     nextText: string | null;
 }): InsertionSlotContext {
     const { prevText, nextText } = input;
-    const prevIsQuoteLike = isBlockquoteLikeLine(prevText);
-    const nextIsQuoteLike = isBlockquoteLikeLine(nextText);
+    const prevIsQuoteLike = isBlockquoteLine(prevText);
+    const nextIsQuoteLike = isBlockquoteLine(nextText);
 
     if (isCalloutLine(prevText) && !nextIsQuoteLike) {
         return 'callout_after';

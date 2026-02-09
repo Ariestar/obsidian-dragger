@@ -1,6 +1,6 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { DocLike, ParsedLine } from '../core/protocol-types';
+import { DocLike, ParsedLine } from './protocol-types';
 import {
     buildIndentStringFromSample,
     getIndentUnitWidth,

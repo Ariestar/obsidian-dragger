@@ -1,8 +1,8 @@
 import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
-import { BlockType } from '../types';
+import { BlockType } from '../../types';
 import { detectBlock, getHeadingSectionRange } from './block-detector';
-import { peekCachedLineMap } from './core/line-map';
+import { peekCachedLineMap } from './line-map';
 
 function createState(doc: string): EditorState {
     return EditorState.create({ doc });

@@ -1,6 +1,9 @@
 import { EditorState } from '@codemirror/state';
 import { parseLineWithQuote } from './line-parsing';
 import { DocLike, StateWithDoc } from './protocol-types';
+import { isHorizontalRuleLine, isCalloutLine } from './line-type-guards';
+import { nowMs } from '../utils/timing';
+import { normalizeTabSize } from '../utils/indent-utils';
 
 export interface LineMeta {
     isEmpty: boolean;
@@ -58,13 +61,6 @@ const EMPTY_LINE_META: LineMeta = {
     quoteDepth: 0,
 };
 
-function nowMs(): number {
-    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-        return performance.now();
-    }
-    return Date.now();
-}
-
 function recordLineMapPerf(key: LineMapPerfDurationKey, durationMs: number): void {
     if (!lineMapPerfRecorder) return;
     if (!isFinite(durationMs) || durationMs < 0) return;
@@ -75,11 +71,6 @@ export function setLineMapPerfRecorder(
     recorder: ((key: LineMapPerfDurationKey, durationMs: number) => void) | null
 ): void {
     lineMapPerfRecorder = recorder;
-}
-
-function normalizeTabSize(tabSize: number | undefined): number {
-    const safe = tabSize ?? 4;
-    return safe > 0 ? safe : 4;
 }
 
 function resolveStateTabSize(state: unknown): number {
@@ -93,16 +84,6 @@ function resolveStateTabSize(state: unknown): number {
         // ignore tab size extraction failures on non-EditorState stubs
     }
     return 4;
-}
-
-function isHorizontalRuleLine(text: string): boolean {
-    const trimmed = text.trim();
-    if (trimmed.length < 3) return false;
-    return /^([-*_])(?:\s*\1){2,}$/.test(trimmed);
-}
-
-function isCalloutLine(text: string): boolean {
-    return /^(\s*> ?)+\s*\[!/.test(text.trimStart());
 }
 
 function createLineMetaFromText(text: string, tabSize: number): LineMeta {

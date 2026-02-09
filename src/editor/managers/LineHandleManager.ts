@@ -1,12 +1,13 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo, BlockType } from '../../types';
-import { detectBlock, getListItemOwnRangeForHandle } from '../block-detector';
+import { detectBlock, getListItemOwnRangeForHandle } from '../core/block-detector';
 import {
     getHandleLeftPxForLine,
     getHandleTopPxForLine,
     viewportXToEditorLocalX,
     viewportYToEditorLocalY,
 } from '../core/handle-position';
+import { LINE_HANDLE_CLASS } from '../core/selectors';
 
 type LineHandleEntry = {
     handle: HTMLElement;
@@ -95,7 +96,7 @@ export class LineHandleManager {
                     let entry = this.lineHandles.get(handleLineNumber);
                     if (!entry) {
                         const handle = this.deps.createHandleElement(getBlockInfo);
-                        handle.classList.add('dnd-line-handle');
+                        handle.classList.add(LINE_HANDLE_CLASS);
                         this.view.dom.appendChild(handle);
                         entry = { handle, lineNumber: handleLineNumber };
                         this.lineHandles.set(handleLineNumber, entry);

@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../types';
-import { EMBED_BLOCK_SELECTOR } from '../core/selectors';
+import { EMBED_BLOCK_SELECTOR, EMBED_HANDLE_CLASS } from '../core/selectors';
 import {
     getHandleColumnLeftPx,
     getHandleLeftPxForLine,
@@ -119,7 +119,7 @@ export class EmbedHandleManager {
             let entry = this.embedHandles.get(embedEl);
             if (!entry) {
                 const handle = this.deps.createHandleElement(getBlockInfo);
-                handle.classList.add('dnd-embed-handle');
+                handle.classList.add(EMBED_HANDLE_CLASS);
                 this.view.dom.appendChild(handle);
 
                 entry = { handle };

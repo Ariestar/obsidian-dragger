@@ -55,3 +55,13 @@ export interface DocLikeWithRange extends DocLike {
 export interface StateWithDoc {
     doc: DocLike;
 }
+
+export type DropTargetInfo = {
+    lineNumber: number;
+    indicatorY: number;
+    listContextLineNumber?: number;
+    listIndentDelta?: number;
+    listTargetIndentWidth?: number;
+    lineRect?: { left: number; width: number };
+    highlightRect?: { top: number; left: number; width: number; height: number };
+};

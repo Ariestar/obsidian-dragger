@@ -1,11 +1,10 @@
 import { EditorView } from '@codemirror/view';
-import { detectBlock } from '../block-detector';
 import { BlockInfo } from '../../types';
-import { getLineMap, LineMap } from '../core/line-map';
+import { getLineMap, LineMap } from './line-map';
 import {
     resolveDropRuleContextAtInsertion,
     type DropRuleContext,
-} from '../core/container-policies';
+} from './container-policies';
 
 export class ContainerPolicyService {
     constructor(private readonly view: EditorView) { }
@@ -20,7 +19,7 @@ export class ContainerPolicyService {
             this.view.state,
             sourceBlock,
             targetLineNumber,
-            detectBlock as any,
+            undefined,
             { lineMap }
         );
     }

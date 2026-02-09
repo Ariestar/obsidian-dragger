@@ -41,20 +41,6 @@ export interface BlockInfo {
     };
 }
 
-/**
- * 拖拽状态
- */
-export interface DragState {
-    /** 是否正在拖拽 */
-    isDragging: boolean;
-    /** 被拖拽的块信息 */
-    draggedBlock: BlockInfo | null;
-    /** 目标放置位置（行号） */
-    dropTargetLine: number | null;
-    /** 放置位置（before/after） */
-    dropPosition: 'before' | 'after' | null;
-}
-
 export type DragLifecycleState =
     | 'idle'
     | 'press_pending'

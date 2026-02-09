@@ -1,3 +1,5 @@
+import { nowMs } from '../utils/timing';
+
 type DurationSampleKey =
     | 'resolve_total'
     | 'vertical'
@@ -89,13 +91,6 @@ function summarize(values: number[]): { count: number; p50: number; p95: number;
         p95: percentile(values, 95),
         max: Number(Math.max(...values).toFixed(3)),
     };
-}
-
-function nowMs(): number {
-    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-        return performance.now();
-    }
-    return Date.now();
 }
 
 function serializeSnapshot(snapshot: DragPerfSnapshot): string {

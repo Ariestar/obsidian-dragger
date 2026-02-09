@@ -5,7 +5,7 @@ import {
     resolveInsertionRule,
 } from './insertion-rule-matrix';
 import { getLineMetaAt, LineMap } from './line-map';
-import { computeListIndentPlan } from './mutations/list-mutation';
+import { computeListIndentPlan } from './list-mutation';
 import { DocLike, ListContext, ParsedLine } from './protocol-types';
 
 export type InPlaceDropRejectReason =

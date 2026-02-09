@@ -8,6 +8,7 @@ import {
 } from '../core/line-map';
 import { GeometryFrameCache, getCoordsAtPos } from '../core/drop-target';
 import { DocLike, ParsedLine } from '../core/protocol-types';
+import { ListTargetSessionCache } from './ListTargetSessionCache';
 
 export type ListDropTargetInfo = {
     listContextLineNumber?: number;
@@ -48,32 +49,15 @@ type ListCalcContext = {
 
 const LARGE_DOC_HIGHLIGHT_THRESHOLD = 30_000;
 const MAX_PRECISE_HIGHLIGHT_SCAN_LINES = 200;
-const LIST_TARGET_X_BUCKET_PX_MIN = 4;
-
-type MarkerBounds = { markerStartX: number; contentStartX: number } | null;
-
-type MarkerBoundsSessionCache = {
-    state: unknown;
-    scrollLeft: number;
-    scrollTop: number;
-    byLine: Map<number, MarkerBounds>;
-};
-
-type ListTargetSessionCache = {
-    state: unknown;
-    scrollLeft: number;
-    scrollTop: number;
-    byKey: Map<string, ListDropTargetInfo>;
-};
-
 export class ListDropTargetCalculator {
-    private markerBoundsSessionCache: MarkerBoundsSessionCache | null = null;
-    private listTargetSessionCache: ListTargetSessionCache | null = null;
+    private readonly cache: ListTargetSessionCache;
 
     constructor(
         private readonly view: EditorView,
         private readonly deps: ListDropTargetCalculatorDeps
-    ) { }
+    ) {
+        this.cache = new ListTargetSessionCache(view);
+    }
 
     getListMarkerBounds(
         lineNumber: number,
@@ -85,7 +69,7 @@ export class ListDropTargetCalculator {
         if (memo && memo.markerBoundsByLine.has(lineNumber)) {
             return memo.markerBoundsByLine.get(lineNumber) ?? null;
         }
-        const sessionCached = this.getCachedMarkerBounds(lineNumber);
+        const sessionCached = this.cache.getCachedMarkerBounds(lineNumber);
         if (sessionCached !== undefined) {
             if (memo) memo.markerBoundsByLine.set(lineNumber, sessionCached);
             return sessionCached;
@@ -99,7 +83,7 @@ export class ListDropTargetCalculator {
         );
         if (!parsed || !parsed.isListItem) {
             if (memo) memo.markerBoundsByLine.set(lineNumber, null);
-            this.setCachedMarkerBounds(lineNumber, null);
+            this.cache.setCachedMarkerBounds(lineNumber, null);
             return null;
         }
 
@@ -110,7 +94,7 @@ export class ListDropTargetCalculator {
         const contentStart = getCoordsAtPos(this.view, contentStartPos, options?.frameCache);
         if (!markerStart || !contentStart) {
             if (memo) memo.markerBoundsByLine.set(lineNumber, null);
-            this.setCachedMarkerBounds(lineNumber, null);
+            this.cache.setCachedMarkerBounds(lineNumber, null);
             return null;
         }
 
@@ -119,7 +103,7 @@ export class ListDropTargetCalculator {
             contentStartX: contentStart.left,
         };
         if (memo) memo.markerBoundsByLine.set(lineNumber, bounds);
-        this.setCachedMarkerBounds(lineNumber, bounds);
+        this.cache.setCachedMarkerBounds(lineNumber, bounds);
         return bounds;
     }
 
@@ -145,7 +129,7 @@ export class ListDropTargetCalculator {
         } = params;
         if (!dragSource || dragSource.type !== BlockType.ListItem) return {};
 
-        const cacheKey = this.buildListTargetCacheKey({
+        const cacheKey = this.cache.buildListTargetCacheKey({
             targetLineNumber,
             lineNumber,
             forcedLineNumber,
@@ -153,11 +137,11 @@ export class ListDropTargetCalculator {
             dragSource,
             clientX,
         });
-        const cached = this.getCachedListTarget(cacheKey);
+        const cached = this.cache.getCachedListTarget(cacheKey);
         if (cached) return cached;
 
         const finalize = (result: ListDropTargetInfo): ListDropTargetInfo => {
-            this.setCachedListTarget(cacheKey, result);
+            this.cache.setCachedListTarget(cacheKey, result);
             return result;
         };
 
@@ -534,122 +518,4 @@ export class ListDropTargetCalculator {
         return null;
     }
 
-    private buildListTargetCacheKey(params: {
-        targetLineNumber: number;
-        lineNumber: number;
-        forcedLineNumber: number | null;
-        childIntentOnLine: boolean;
-        dragSource: BlockInfo;
-        clientX: number;
-    }): string {
-        const bucketSize = Math.max(
-            LIST_TARGET_X_BUCKET_PX_MIN,
-            Math.round((this.view.defaultCharacterWidth || 7) / 2)
-        );
-        const clientXBucket = Math.round(params.clientX / bucketSize);
-        return [
-            params.targetLineNumber,
-            params.lineNumber,
-            params.forcedLineNumber ?? 'n',
-            params.childIntentOnLine ? '1' : '0',
-            clientXBucket,
-            params.dragSource.type,
-            params.dragSource.startLine,
-            params.dragSource.endLine,
-            params.dragSource.from,
-            params.dragSource.to,
-        ].join('|');
-    }
-
-    private getScrollSignature(): { scrollLeft: number; scrollTop: number } {
-        const scrollDOM = (this.view as unknown as { scrollDOM?: HTMLElement }).scrollDOM;
-        if (!scrollDOM) return { scrollLeft: 0, scrollTop: 0 };
-        return {
-            scrollLeft: Math.round(scrollDOM.scrollLeft || 0),
-            scrollTop: Math.round(scrollDOM.scrollTop || 0),
-        };
-    }
-
-    private getCachedMarkerBounds(lineNumber: number): MarkerBounds | undefined {
-        const currentState = this.view.state;
-        const scroll = this.getScrollSignature();
-        const cache = this.markerBoundsSessionCache;
-        if (
-            !cache
-            || cache.state !== currentState
-            || cache.scrollLeft !== scroll.scrollLeft
-            || cache.scrollTop !== scroll.scrollTop
-        ) {
-            this.markerBoundsSessionCache = {
-                state: currentState,
-                scrollLeft: scroll.scrollLeft,
-                scrollTop: scroll.scrollTop,
-                byLine: new Map<number, MarkerBounds>(),
-            };
-            return undefined;
-        }
-        return cache.byLine.get(lineNumber);
-    }
-
-    private setCachedMarkerBounds(lineNumber: number, value: MarkerBounds): void {
-        const currentState = this.view.state;
-        const scroll = this.getScrollSignature();
-        if (
-            !this.markerBoundsSessionCache
-            || this.markerBoundsSessionCache.state !== currentState
-            || this.markerBoundsSessionCache.scrollLeft !== scroll.scrollLeft
-            || this.markerBoundsSessionCache.scrollTop !== scroll.scrollTop
-        ) {
-            this.markerBoundsSessionCache = {
-                state: currentState,
-                scrollLeft: scroll.scrollLeft,
-                scrollTop: scroll.scrollTop,
-                byLine: new Map<number, MarkerBounds>(),
-            };
-        }
-        this.markerBoundsSessionCache.byLine.set(lineNumber, value);
-    }
-
-    private getCachedListTarget(key: string): ListDropTargetInfo | null {
-        const currentState = this.view.state;
-        const scroll = this.getScrollSignature();
-        const cache = this.listTargetSessionCache;
-        if (
-            !cache
-            || cache.state !== currentState
-            || cache.scrollLeft !== scroll.scrollLeft
-            || cache.scrollTop !== scroll.scrollTop
-        ) {
-            this.listTargetSessionCache = {
-                state: currentState,
-                scrollLeft: scroll.scrollLeft,
-                scrollTop: scroll.scrollTop,
-                byKey: new Map<string, ListDropTargetInfo>(),
-            };
-            return null;
-        }
-        return cache.byKey.get(key) ?? null;
-    }
-
-    private setCachedListTarget(key: string, result: ListDropTargetInfo): void {
-        const currentState = this.view.state;
-        const scroll = this.getScrollSignature();
-        if (
-            !this.listTargetSessionCache
-            || this.listTargetSessionCache.state !== currentState
-            || this.listTargetSessionCache.scrollLeft !== scroll.scrollLeft
-            || this.listTargetSessionCache.scrollTop !== scroll.scrollTop
-        ) {
-            this.listTargetSessionCache = {
-                state: currentState,
-                scrollLeft: scroll.scrollLeft,
-                scrollTop: scroll.scrollTop,
-                byKey: new Map<string, ListDropTargetInfo>(),
-            };
-        }
-        if (this.listTargetSessionCache.byKey.size > 512) {
-            this.listTargetSessionCache.byKey.clear();
-        }
-        this.listTargetSessionCache.byKey.set(key, result);
-    }
 }
