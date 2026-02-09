@@ -32,9 +32,7 @@ export function finishDragSession(view?: EditorView): void {
         clearAllActiveDragSourceBlocks();
     }
 
-    if (draggingViews.size === 0) {
-        document.body.classList.remove('dnd-dragging');
-    }
+    document.body.classList.remove('dnd-dragging');
     hideDropVisuals();
 }
 

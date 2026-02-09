@@ -4,7 +4,7 @@ import builtins from "builtin-modules";
 import fs from "fs";
 
 const prod = process.argv[2] === "production";
-const pluginDir = ".obsidian/plugins/dragger";
+const pluginDir = "V:/dragger/.obsidian/plugins/dragger";
 
 // 复制 styles.css 到插件目录
 function copyStyles() {
