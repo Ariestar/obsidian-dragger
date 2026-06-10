@@ -20,27 +20,39 @@ type BlockMenuAction = {
     failureNotice: string;
 };
 
-type BlockTypeMenuRow = {
+type NestedConversionGroup = {
     label: string;
     icon: string;
-    chevron?: boolean;
-    run: (trigger: HTMLElement) => void;
+    options: BlockTypeConversionOption[];
 };
+
+let openChildMenu: Menu | null = null;
+let openChildTrigger: HTMLElement | null = null;
+let openChildMenuEl: HTMLElement | null = null;
+let closeChildMenuTimer: number | null = null;
 
 export function openBlockTypeMenu(view: EditorView, event: MouseEvent | PointerEvent | null): void {
     const menu = new Menu();
+    const nestedGroups: NestedConversionGroup[] = [
+        {
+            label: 'Heading',
+            icon: 'heading',
+            options: HEADING_BLOCK_TYPE_OPTIONS,
+        },
+        {
+            label: 'List',
+            icon: 'list',
+            options: LIST_BLOCK_TYPE_OPTIONS,
+        },
+    ];
+    menu.onHide(() => {
+        hideOpenChildMenu();
+    });
 
     addConversionItem(menu, view, PARAGRAPH_BLOCK_TYPE_OPTION);
-    addNestedConversionMenu(menu, view, {
-        label: 'Heading',
-        icon: 'heading',
-        options: HEADING_BLOCK_TYPE_OPTIONS,
-    });
-    addNestedConversionMenu(menu, view, {
-        label: 'List',
-        icon: 'list',
-        options: LIST_BLOCK_TYPE_OPTIONS,
-    });
+    for (const group of nestedGroups) {
+        addNestedConversionMenu(menu, view, group);
+    }
     for (const option of SIMPLE_BLOCK_TYPE_OPTIONS) {
         addConversionItem(menu, view, option);
     }
@@ -68,133 +80,129 @@ export function openBlockTypeMenu(view: EditorView, event: MouseEvent | PointerE
         },
     ]);
 
-    showMenu(menu, view, event);
+    showMenu(menu, view, event, nestedGroups);
 }
 
 function addConversionItem(menu: Menu, view: EditorView, option: BlockTypeConversionOption): void {
-    addMenuRow(menu, {
-        label: option.label,
-        icon: option.icon,
-        run: () => {
+    menu.addItem((item) => item
+        .setTitle(option.label)
+        .setIcon(option.icon)
+        .onClick(() => {
             if (!convertCurrentBlockType(view, option.target)) {
                 new Notice('Unable to change block type.');
                 return;
             }
             menu.hide();
-        },
-    });
+        }));
 }
 
 function addNestedConversionMenu(
     menu: Menu,
     view: EditorView,
-    group: {
-        label: string;
-        icon: string;
-        options: BlockTypeConversionOption[];
-    }
+    group: NestedConversionGroup
 ): void {
-    addMenuRow(menu, {
-        label: group.label,
-        icon: group.icon,
-        chevron: true,
-        run: (trigger) => {
-            const child = new Menu();
-            for (const option of group.options) {
-                addConversionItem(child, view, option);
-            }
-            showNestedMenu(child, trigger);
-        },
+    menu.addItem((item) => {
+        item
+            .setTitle(createSubmenuTitle(group.label))
+            .setIcon(group.icon);
+        if (isMobileMenuEnvironment()) {
+            item.onClick(() => {
+                openNestedMenuPage(menu, view, group);
+            });
+        }
     });
 }
 
-function addMenuRow(menu: Menu, row: BlockTypeMenuRow): void {
-    const trigger = createMenuRowTrigger(row);
+function createSubmenuTitle(labelText: string): DocumentFragment {
     const fragment = activeDocument.createDocumentFragment();
-    fragment.appendChild(trigger);
-    menu.addItem((item) => item
-        .setTitle(fragment)
-        .setIcon(null)
-        .setIsLabel(true)
-    );
-}
-
-function createMenuRowTrigger(row: BlockTypeMenuRow): HTMLDivElement {
-    const trigger = activeDocument.createElement('div');
-    trigger.className = 'clickable-icon dnd-block-type-menu-row';
-    trigger.setAttribute('role', 'button');
-    trigger.tabIndex = 0;
-    trigger.setAttribute('aria-label', row.label);
-
-    const icon = activeDocument.createElement('span');
-    icon.className = 'dnd-block-type-menu-row-icon';
-    setIcon(icon, row.icon);
+    const title = activeDocument.createElement('span');
+    title.className = 'dnd-block-type-submenu-title';
 
     const label = activeDocument.createElement('span');
-    label.className = 'dnd-block-type-menu-row-label';
-    label.textContent = row.label;
+    label.className = 'dnd-block-type-submenu-title-label';
+    label.textContent = labelText;
 
     const chevron = activeDocument.createElement('span');
-    chevron.className = 'dnd-block-type-menu-row-chevron';
-    if (row.chevron) {
-        setIcon(chevron, 'chevron-right');
-    }
+    chevron.className = 'dnd-block-type-submenu-title-chevron';
+    chevron.setAttribute('aria-hidden', 'true');
+    setIcon(chevron, 'chevron-right');
 
-    trigger.append(icon, label, chevron);
-    trigger.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        row.run(trigger);
+    title.append(label, chevron);
+    fragment.appendChild(title);
+    return fragment;
+}
+
+function openNestedMenuPopover(
+    view: EditorView,
+    group: NestedConversionGroup,
+    trigger: HTMLElement
+): void {
+    cancelChildMenuClose();
+    if (openChildMenu && openChildTrigger === trigger) return;
+
+    hideOpenChildMenu();
+    const child = createNestedConversionMenu(view, group.options);
+    openChildMenu = child;
+    openChildTrigger = trigger;
+    child.onHide(() => {
+        if (openChildMenu === child) {
+            clearOpenChildMenuState();
+        }
     });
-    trigger.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        event.stopPropagation();
-        row.run(trigger);
-    });
-    return trigger;
+    openChildMenuEl = showNestedMenu(child, trigger);
+    activeDocument.addEventListener('pointermove', closeChildMenuWhenPointerLeaves, true);
+}
+
+function openNestedMenuPage(
+    parent: Menu,
+    view: EditorView,
+    group: NestedConversionGroup
+): void {
+    parent.hide();
+    const child = new Menu();
+    child.addItem((item) => item
+        .setTitle('Back')
+        .setIcon('chevron-left')
+        .onClick(() => {
+            child.hide();
+            openBlockTypeMenu(view, null);
+        }));
+    for (const option of group.options) {
+        addConversionItem(child, view, option);
+    }
+    showMenu(child, view, null);
+}
+
+function createNestedConversionMenu(view: EditorView, options: BlockTypeConversionOption[]): Menu {
+    const child = new Menu();
+    for (const option of options) {
+        addConversionItem(child, view, option);
+    }
+    return child;
+}
+
+function isMobileMenuEnvironment(): boolean {
+    return activeWindow.matchMedia('(hover: none) and (pointer: coarse)').matches;
 }
 
 function addActionRow(menu: Menu, actions: BlockMenuAction[]): void {
-    const row = activeDocument.createElement('div');
-    row.className = 'dnd-block-type-action-row';
     for (const action of actions) {
-        row.appendChild(createActionButton(menu, action));
+        addActionItem(menu, action);
     }
-
-    const fragment = activeDocument.createDocumentFragment();
-    fragment.appendChild(row);
-    menu.addItem((item) => item
-        .setTitle(fragment)
-        .setIcon(null)
-        .setIsLabel(true)
-    );
 }
 
-function createActionButton(menu: Menu, action: BlockMenuAction): HTMLDivElement {
-    const button = activeDocument.createElement('div');
-    button.className = 'clickable-icon dnd-block-type-action-button';
-    button.setAttribute('role', 'button');
-    button.tabIndex = 0;
-    if (action.warning) {
-        button.classList.add('is-warning');
-        button.classList.add('mod-warning');
-    }
-    button.setAttribute('aria-label', action.label);
-    button.setAttribute('title', action.label);
-    setIcon(button, action.icon);
-    button.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        void executeMenuAction(menu, action);
+function addActionItem(menu: Menu, action: BlockMenuAction): void {
+    menu.addItem((item) => {
+        item
+            .setTitle(action.label)
+            .setIcon(action.icon)
+            .onClick(() => {
+                void executeMenuAction(menu, action);
+            });
+        if (action.warning) {
+            item.setWarning(true);
+        }
     });
-    button.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        event.stopPropagation();
-        void executeMenuAction(menu, action);
-    });
-    return button;
 }
 
 async function executeMenuAction(menu: Menu, action: BlockMenuAction): Promise<void> {
@@ -206,42 +214,91 @@ async function executeMenuAction(menu: Menu, action: BlockMenuAction): Promise<v
     menu.hide();
 }
 
-function markMenuItems(): void {
-    const rows = activeDocument.querySelectorAll('.dnd-block-type-menu-row, .dnd-block-type-action-row');
-    for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const menuItem = row.closest('.menu-item');
-        if (menuItem && !menuItem.classList.contains('dnd-custom-menu-item')) {
-            menuItem.classList.add('dnd-custom-menu-item');
-        }
+function prepareNestedMenuItems(view: EditorView, groups: NestedConversionGroup[]): void {
+    const isMobile = isMobileMenuEnvironment();
+    const items = activeDocument.querySelectorAll<HTMLElement>('.menu-item');
+    for (const item of Array.from(items)) {
+        const title = item.querySelector<HTMLElement>('.dnd-block-type-submenu-title-label')?.textContent?.trim();
+        const group = groups.find((candidate) => candidate.label === title);
+        if (!group) continue;
+
+        if (isMobile || item.dataset.dndSubmenuBound === 'true') continue;
+
+        item.dataset.dndSubmenuBound = 'true';
+        item.addEventListener('pointerenter', () => {
+            openNestedMenuPopover(view, group, item);
+        });
     }
 }
 
-function showNestedMenu(menu: Menu, trigger: HTMLElement): void {
+function closeChildMenuWhenPointerLeaves(event: PointerEvent): void {
+    const target = event.target;
+    if (
+        target instanceof Node
+        && (openChildTrigger?.contains(target) || openChildMenuEl?.contains(target))
+    ) {
+        cancelChildMenuClose();
+        return;
+    }
+
+    cancelChildMenuClose();
+    closeChildMenuTimer = activeWindow.setTimeout(() => {
+        hideOpenChildMenu();
+    }, 80);
+}
+
+function cancelChildMenuClose(): void {
+    if (closeChildMenuTimer === null) return;
+    activeWindow.clearTimeout(closeChildMenuTimer);
+    closeChildMenuTimer = null;
+}
+
+function hideOpenChildMenu(): void {
+    const menu = openChildMenu;
+    clearOpenChildMenuState();
+    menu?.hide();
+}
+
+function clearOpenChildMenuState(): void {
+    cancelChildMenuClose();
+    activeDocument.removeEventListener('pointermove', closeChildMenuWhenPointerLeaves, true);
+    openChildMenu = null;
+    openChildTrigger = null;
+    openChildMenuEl = null;
+}
+
+function showNestedMenu(menu: Menu, trigger: HTMLElement): HTMLElement | null {
     const rect = trigger.getBoundingClientRect();
+    const existingMenus = new Set(Array.from(activeDocument.querySelectorAll<HTMLElement>('.menu')));
     menu.showAtPosition({
         x: rect.right,
         y: rect.top,
         width: rect.width,
         overlap: true,
     });
-    markMenuItems();
+    const menus = Array.from(activeDocument.querySelectorAll<HTMLElement>('.menu'));
+    for (let i = menus.length - 1; i >= 0; i--) {
+        if (!existingMenus.has(menus[i])) return menus[i];
+    }
+    return menus[menus.length - 1] ?? null;
 }
 
-function showMenu(menu: Menu, view: EditorView, event: MouseEvent | PointerEvent | null): void {
+function showMenu(
+    menu: Menu,
+    view: EditorView,
+    event: MouseEvent | PointerEvent | null,
+    nestedGroups: NestedConversionGroup[] = []
+): void {
     if (event) {
         menu.showAtMouseEvent(event);
-        markMenuItems();
-        return;
+    } else {
+        const coords = view.coordsAtPos(view.state.selection.main.head);
+        if (coords) {
+            menu.showAtPosition({ x: coords.left, y: coords.bottom });
+        } else {
+            menu.showAtPosition({ x: activeWindow.innerWidth / 2, y: activeWindow.innerHeight / 2 });
+        }
     }
 
-    const coords = view.coordsAtPos(view.state.selection.main.head);
-    if (coords) {
-        menu.showAtPosition({ x: coords.left, y: coords.bottom });
-        markMenuItems();
-        return;
-    }
-
-    menu.showAtPosition({ x: activeWindow.innerWidth / 2, y: activeWindow.innerHeight / 2 });
-    markMenuItems();
+    prepareNestedMenuItems(view, nestedGroups);
 }
