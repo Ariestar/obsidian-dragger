@@ -20,7 +20,7 @@ import {
 registerMouseHandlerTestHooks();
 
 describe('PipelineAdapter Range Selection', () => {
-    it('supports mouse two-stage flow: first select range, then long-press selected bar to drag', () => {
+    it('supports mouse handle range selection and selected-handle removal', () => {
         const view = createViewStub(8);
         const handle = appendHandleForBlockStart(view, 1);
 
@@ -79,6 +79,11 @@ describe('PipelineAdapter Range Selection', () => {
         expect(selectedHandle).not.toBeNull();
         expect(selectedHandle?.querySelector<HTMLInputElement>(':scope > .dnd-selection-checkbox')?.checked).toBe(true);
         expect(view.dom.querySelector('.dnd-selection-floating-grip')).toBeNull();
+        expect(handler.pipelineState.type).toBe('selecting');
+        if (handler.pipelineState.type !== 'selecting') throw new Error('expected range selection');
+        expect(handler.pipelineState.selection.selection.ranges[0].startLine).toBe(1);
+        expect(handler.pipelineState.selection.selection.ranges.at(-1)?.endLine).toBe(5);
+
         dispatchPointer(selectedHandle!, 'pointerdown', {
             pointerId: 8,
             pointerType: 'mouse',
@@ -86,35 +91,19 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 80,
         });
-        vi.advanceTimersByTime(280);
-        dispatchPointer(window, 'pointermove', {
-            pointerId: 8,
-            pointerType: 'mouse',
-            shiftKey: true,
-            clientX: 90,
-            clientY: 105,
-        });
-
-        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as BlockSelection;
-        expect(selectedBlock.ranges[0].startLine).toBe(1);
-        expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(5);
-        expect(onDropPreview).toHaveBeenCalledWith(90, 105, expect.objectContaining({
-            ranges: [expect.objectContaining({
-                startLine: 1,
-                endLine: 5,
-            })],
-            }), 'mouse');
         dispatchPointer(window, 'pointerup', {
             pointerId: 8,
             pointerType: 'mouse',
             shiftKey: true,
-            clientX: 90,
-            clientY: 105,
+            clientX: 12,
+            clientY: 80,
         });
 
-        expect(onPlatformCommit).toHaveBeenCalledTimes(1);
-        expect(finishDragSession).toHaveBeenCalledTimes(1);
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(onDropPreview).not.toHaveBeenCalled();
+        expect(onPlatformCommit).not.toHaveBeenCalled();
+        expect(finishDragSession).not.toHaveBeenCalled();
+        expect(selectedHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
         handler.destroy();
     });
 
@@ -321,7 +310,7 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
-    it('requires second long-press before dragging committed mouse selection', () => {
+    it('does not start committed selection drag from a selected desktop handle', () => {
         const view = createViewStub(8);
         const handle = appendHandleForBlockStart(view, 1);
 
@@ -393,8 +382,8 @@ describe('PipelineAdapter Range Selection', () => {
             clientY: 80,
         });
 
-        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(onDropPreview).toHaveBeenCalledWith(90, 80, expect.any(Object), 'mouse');
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(0);
+        expect(onDropPreview).not.toHaveBeenCalled();
         handler.destroy();
     });
 
@@ -470,7 +459,7 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
-    it('prioritizes long-press drag over toggle when pressing a selected handle', () => {
+    it('removes selected desktop handles by sliding from an already-selected handle', () => {
         const view = createViewStub(8);
         const startHandle = appendHandleForBlockStart(view, 1);
         const endHandle = appendHandleForBlockStart(view, 5);
@@ -523,29 +512,28 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 105,
         });
-        vi.advanceTimersByTime(280);
         dispatchPointer(window, 'pointermove', {
             pointerId: 182,
             pointerType: 'mouse',
             shiftKey: true,
-            clientX: 90,
-            clientY: 105,
+            clientX: 12,
+            clientY: 30,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 182,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 30,
         });
 
-        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as BlockSelection;
-        expect(selectedBlock.ranges[0].startLine).toBe(1);
-        expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(5);
-        expect(onDropPreview).toHaveBeenCalledWith(90, 105, expect.objectContaining({
-            ranges: [expect.objectContaining({
-                startLine: 1,
-                endLine: 5,
-            })],
-            }), 'mouse');
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(onDropPreview).not.toHaveBeenCalled();
+        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).toHaveLength(0);
         handler.destroy();
     });
 
-    it('clears committed selection overlay when dragging from a selected handle', () => {
+    it('does not create drag overlay when sliding from a selected desktop handle', () => {
         const view = createViewStub(8);
         const startHandle = appendHandleForBlockStart(view, 1);
         const endHandle = appendHandleForBlockStart(view, 5);
@@ -606,8 +594,6 @@ describe('PipelineAdapter Range Selection', () => {
             clientY: 105,
         });
 
-        expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
-
         dispatchPointer(window, 'pointerup', {
             pointerId: 282,
             pointerType: 'mouse',
@@ -616,12 +602,13 @@ describe('PipelineAdapter Range Selection', () => {
             clientY: 105,
         });
 
-        expect(onPlatformCommit).toHaveBeenCalledTimes(1);
+        expect(onPlatformCommit).not.toHaveBeenCalled();
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
+        expect(endHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
         handler.destroy();
     });
 
-    it('still starts long-press drag for a committed selection after small pointer jitter on a selected handle', () => {
+    it('does not start drag from a selected desktop handle after small pointer jitter', () => {
         const view = createViewStub(8);
         const startHandle = appendHandleForBlockStart(view, 1);
         const endHandle = appendHandleForBlockStart(view, 5);
@@ -688,17 +675,13 @@ describe('PipelineAdapter Range Selection', () => {
             clientY: 105,
         });
 
-        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        expect(onDropPreview).toHaveBeenCalledWith(90, 105, expect.objectContaining({
-            ranges: [expect.objectContaining({
-                startLine: 1,
-                endLine: 5,
-            })],
-            }), 'mouse');
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(onDropPreview).not.toHaveBeenCalled();
+        expect(endHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
         handler.destroy();
     });
 
-    it('does not toggle selection when long-pressing selected handle without movement', () => {
+    it('removes a selected desktop handle without starting drag', () => {
         const view = createViewStub(8);
         const startHandle = appendHandleForBlockStart(view, 1);
         const endHandle = appendHandleForBlockStart(view, 5);
@@ -760,7 +743,8 @@ describe('PipelineAdapter Range Selection', () => {
         });
 
         expect(beginPointerDragSession).not.toHaveBeenCalled();
-        expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).not.toHaveLength(0);
+        expect(endHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
+        expect(startHandle.classList.contains('dnd-range-selected-handle')).toBe(true);
         handler.destroy();
     });
 
@@ -1431,32 +1415,11 @@ describe('PipelineAdapter Range Selection', () => {
 
         const selectedHandle = view.dom.querySelector<HTMLElement>('.dnd-range-selected-handle');
         expect(selectedHandle).not.toBeNull();
-        dispatchPointer(selectedHandle!, 'pointerdown', {
-            pointerId: 10,
-            pointerType: 'mouse',
-            shiftKey: true,
-            clientX: 12,
-            clientY: 25,
-        });
-        vi.advanceTimersByTime(280);
-        dispatchPointer(window, 'pointermove', {
-            pointerId: 10,
-            pointerType: 'mouse',
-            shiftKey: true,
-            clientX: 90,
-            clientY: 25,
-        });
-
-        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as BlockSelection;
-        expect(selectedBlock.ranges[0].startLine).toBe(0);
-        expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(2); // list child line must be included
-        expect(onDropPreview).toHaveBeenCalledWith(90, 25, expect.objectContaining({
-            ranges: [expect.objectContaining({
-                startLine: 0,
-                endLine: 2,
-            })],
-            }), 'mouse');
+        expect(handler.pipelineState.type).toBe('selecting');
+        if (handler.pipelineState.type !== 'selecting') throw new Error('expected range selection');
+        expect(handler.pipelineState.selection.selection.ranges[0].startLine).toBe(0);
+        expect(handler.pipelineState.selection.selection.ranges.at(-1)?.endLine).toBe(2); // list child line must be included
+        expect(onDropPreview).not.toHaveBeenCalled();
         handler.destroy();
     });
 
@@ -1558,36 +1521,15 @@ describe('PipelineAdapter Range Selection', () => {
 
         const selectedHandle = view.dom.querySelector<HTMLElement>('.dnd-range-selected-handle');
         expect(selectedHandle).not.toBeNull();
-        dispatchPointer(selectedHandle!, 'pointerdown', {
-            pointerId: 12,
-            pointerType: 'mouse',
-            shiftKey: true,
-            clientX: 12,
-            clientY: 92,
-        });
-        vi.advanceTimersByTime(280);
-        dispatchPointer(window, 'pointermove', {
-            pointerId: 12,
-            pointerType: 'mouse',
-            shiftKey: true,
-            clientX: 90,
-            clientY: 92,
-        });
-
-        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        const selectedBlock = beginPointerDragSession.mock.calls[0][0] as BlockSelection;
-        expect(selectedBlock.ranges[0].startLine).toBe(1);
-        expect(selectedBlock.ranges[selectedBlock.ranges.length - 1].endLine).toBe(5);
-        expect(onDropPreview).toHaveBeenCalledWith(90, 92, expect.objectContaining({
-            ranges: [expect.objectContaining({
-                startLine: 1,
-                endLine: 5,
-            })],
-            }), 'mouse');
+        expect(handler.pipelineState.type).toBe('selecting');
+        if (handler.pipelineState.type !== 'selecting') throw new Error('expected range selection');
+        expect(handler.pipelineState.selection.selection.ranges[0].startLine).toBe(1);
+        expect(handler.pipelineState.selection.selection.ranges.at(-1)?.endLine).toBe(5);
+        expect(onDropPreview).not.toHaveBeenCalled();
         handler.destroy();
     });
 
-    it('keeps disjoint committed ranges and drags them as one ordered composite source', () => {
+    it('keeps disjoint committed ranges as one ordered composite selection', () => {
         const view = createViewStub(12);
         const handleA = appendHandleForBlockStart(view, 1);
         const handleB = appendHandleForBlockStart(view, 7);
@@ -1595,7 +1537,6 @@ describe('PipelineAdapter Range Selection', () => {
         const blockA = createBlock('line 2', 1, 1);
         const blockB = createBlock('line 8', 7, 7);
         const beginPointerDragSession = vi.fn();
-        const onDropPreview = vi.fn();
         const onPlatformCommit = vi.fn();
 
         const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
@@ -1610,7 +1551,7 @@ describe('PipelineAdapter Range Selection', () => {
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
-            onDropPreview,
+            onDropPreview: vi.fn(),
             onHideDropPreview: vi.fn(),
             onPlatformCommit,
         }));
@@ -1666,51 +1607,15 @@ describe('PipelineAdapter Range Selection', () => {
         const selectedHandle = view.dom.querySelector<HTMLElement>('.dnd-range-selected-handle');
         expect(selectedHandle).not.toBeNull();
 
-        dispatchPointer(selectedHandle!, 'pointerdown', {
-            pointerId: 32,
-            pointerType: 'mouse',
-            shiftKey: true,
-            clientX: 12,
-            clientY: 80,
-        });
-        vi.advanceTimersByTime(280);
-        dispatchPointer(window, 'pointermove', {
-            pointerId: 32,
-            pointerType: 'mouse',
-            shiftKey: true,
-            clientX: 90,
-            clientY: 80,
-        });
-
-        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
-        const composite = beginPointerDragSession.mock.calls[0][0] as BlockSelection;
-        expect(composite.ranges[0].startLine).toBe(1);
-        expect(composite.ranges[composite.ranges.length - 1].endLine).toBe(7);
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(handler.pipelineState.type).toBe('selecting');
+        if (handler.pipelineState.type !== 'selecting') throw new Error('expected range selection');
+        const composite = handler.pipelineState.selection.selection;
         expect(composite.ranges).toEqual([
             { startLine: 1, endLine: 1 },
             { startLine: 7, endLine: 7 },
         ]);
-        expect(onDropPreview).toHaveBeenCalledWith(90, 80, expect.objectContaining({
-            ranges: [
-                { startLine: 1, endLine: 1 },
-                { startLine: 7, endLine: 7 },
-            ],
-        }), 'mouse');
-
-        dispatchPointer(window, 'pointerup', {
-            pointerId: 32,
-            pointerType: 'mouse',
-            shiftKey: true,
-            clientX: 90,
-            clientY: 80,
-        });
-
-        expect(onPlatformCommit).toHaveBeenCalledTimes(1);
-        const droppedSource = onPlatformCommit.mock.calls[0][0] as BlockSelection;
-        expect(droppedSource.ranges).toEqual([
-            { startLine: 1, endLine: 1 },
-            { startLine: 7, endLine: 7 },
-        ]);
+        expect(onPlatformCommit).not.toHaveBeenCalled();
         handler.destroy();
     });
 
@@ -1766,6 +1671,7 @@ describe('PipelineAdapter Range Selection', () => {
             })],
             }), 'mouse');
         expect(onPlatformCommit).toHaveBeenCalledTimes(1);
+        expect(view.dom.querySelector('.dnd-range-selected-handle')).toBeNull();
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
         handler.destroy();
     });

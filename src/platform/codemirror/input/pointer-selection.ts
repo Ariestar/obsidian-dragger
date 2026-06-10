@@ -271,10 +271,11 @@ function decidePassiveSelectionDrag(
     if (!passiveSource) return { type: 'none' };
 
     const pointerType = e.pointerType || null;
+    const selectedHandleHit = !!target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`);
+    if (pointerType === 'mouse' && selectedHandleHit) return { type: 'none' };
     if (!context.isSelectionDragGripHit(target, e.clientX, e.clientY, pointerType)) {
         return { type: 'none' };
     }
-    const selectedHandleHit = !!target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`);
     const sourceKind: HoldTarget['source'] = selectedHandleHit ? 'handle' : 'selected_text';
     if (!context.canStartDragForPointer(pointerType, sourceKind)) return { type: 'none' };
 
