@@ -26,7 +26,6 @@ import {
     shouldStartMobilePressDrag as shouldStartMobilePressDragByInput,
 } from './pointer-hit-test';
 import {
-    MOBILE_DRAG_LONG_PRESS_MS,
     MOBILE_SELECTED_RANGE_DRAG_LONG_PRESS_MS,
 } from './touch-delay-policy';
 
@@ -51,6 +50,7 @@ export type PointerSelectionContext = {
     readonly isMobileEnvironment: boolean;
     readonly isMultiLineSelectionEnabled: boolean;
     readonly isMobileTextLongPressDragEnabled: boolean;
+    readonly mobileDragLongPressMs: number;
     readonly isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
     readonly resolveBlockSelection: (request: BlockSelectionRequest) => BlockSelection | null;
     readonly canStartDragForPointer: (pointerType: string | null, source: HoldTarget['source']) => boolean;
@@ -189,7 +189,7 @@ function resolvePointerInputPolicy(context: PointerSelectionContext, e: PointerE
         pointerType,
         canResizeSelection: platform === 'mobile',
         canUseTextLongPress: platform === 'mobile',
-        handleLongPressMs: platform === 'desktop' ? 0 : MOBILE_DRAG_LONG_PRESS_MS,
+        handleLongPressMs: platform === 'desktop' ? 0 : context.mobileDragLongPressMs,
     };
 }
 

@@ -195,15 +195,18 @@ export function shouldStartMobilePressDrag(e: PointerEvent): boolean {
         && e.button === 0;
 }
 
-export function autoScrollNearViewportEdge(scroller: HTMLElement, clientY: number): boolean {
+export function autoScrollNearViewportEdge(
+    scroller: HTMLElement,
+    clientY: number,
+    edgeZone = 88,
+    maxSpeed = 22,
+): boolean {
     const rect = scroller.getBoundingClientRect();
-    const topEdgeZone = 88;
-    const bottomEdgeZone = 88;
     let delta = 0;
-    if (clientY < rect.top + topEdgeZone) {
-        delta = -Math.min(22, ((rect.top + topEdgeZone) - clientY) * 0.35 + 2);
-    } else if (clientY > rect.bottom - bottomEdgeZone) {
-        delta = Math.min(22, (clientY - (rect.bottom - bottomEdgeZone)) * 0.35 + 2);
+    if (clientY < rect.top + edgeZone) {
+        delta = -Math.min(maxSpeed, ((rect.top + edgeZone) - clientY) * 0.35 + 2);
+    } else if (clientY > rect.bottom - edgeZone) {
+        delta = Math.min(maxSpeed, (clientY - (rect.bottom - edgeZone)) * 0.35 + 2);
     }
     if (delta === 0) return false;
     const previousScrollTop = scroller.scrollTop;
@@ -211,12 +214,17 @@ export function autoScrollNearViewportEdge(scroller: HTMLElement, clientY: numbe
     return scroller.scrollTop !== previousScrollTop;
 }
 
-export function autoScrollEditorNearViewportEdge(view: EditorView, clientY: number): boolean {
+export function autoScrollEditorNearViewportEdge(
+    view: EditorView,
+    clientY: number,
+    edgeZone?: number,
+    maxSpeed?: number,
+): boolean {
     const scroller = view.scrollDOM
         ?? view.dom.querySelector<HTMLElement>('.cm-scroller')
         ?? null;
     if (!scroller) return false;
-    return autoScrollNearViewportEdge(scroller, clientY);
+    return autoScrollNearViewportEdge(scroller, clientY, edgeZone, maxSpeed);
 }
 
 function safeGetBlockInfoAtPoint(

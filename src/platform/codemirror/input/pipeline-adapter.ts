@@ -64,6 +64,10 @@ export interface PipelineAdapterDeps {
     isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
     isMultiLineSelectionEnabled?: () => boolean;
     getMultiLineSelectionLongPressMs?: () => number;
+    getMobileDragLongPressMs?: () => number;
+    getMouseRangeSelectLongPressMs?: () => number;
+    getAutoScrollEdgeZonePx?: () => number;
+    getAutoScrollMaxSpeedPx?: () => number;
     isMobileDragModeEnabled?: () => boolean;
     isMobileTextLongPressDragEnabled?: () => boolean;
     beginPointerDragSession: (source: BlockSelection) => void;
@@ -188,6 +192,7 @@ export class PipelineAdapter {
             isMobileEnvironment: this.mobile.isMobileEnvironment(),
             isMultiLineSelectionEnabled: this.isMultiLineSelectionEnabled(),
             isMobileTextLongPressDragEnabled: this.deps.isMobileTextLongPressDragEnabled?.() !== false,
+            mobileDragLongPressMs: this.deps.getMobileDragLongPressMs?.() ?? MOBILE_DRAG_LONG_PRESS_MS,
             isBlockInsideRenderedTableCell: (blockInfo) => this.deps.isBlockInsideRenderedTableCell(blockInfo),
             resolveBlockSelection: (request) => this.resolveBlockSelection(request),
             canStartDragForPointer: (pointerType, source) => this.canStartDragForPointer(pointerType, source),
@@ -257,7 +262,7 @@ export class PipelineAdapter {
         const skipLongPress = options?.skipLongPress === true;
         const config = resolveRangeSelectConfig(
             pointerType,
-            MOUSE_RANGE_SELECT_LONG_PRESS_MS,
+            this.deps.getMouseRangeSelectLongPressMs?.() ?? MOUSE_RANGE_SELECT_LONG_PRESS_MS,
             () => this.getTouchRangeSelectLongPressMs()
         );
         const waitForMouseLongPress = pointerType === 'mouse' && !skipLongPress;
@@ -290,7 +295,7 @@ export class PipelineAdapter {
                 if (state.pointerId !== e.pointerId) return;
                 state.dragReady = true;
                 this.activateMouseRangeSelectInterception(state);
-            }, MOBILE_DRAG_LONG_PRESS_MS);
+            }, this.deps.getMobileDragLongPressMs?.() ?? MOBILE_DRAG_LONG_PRESS_MS);
         }
         if (!waitForMouseLongPress) {
             e.preventDefault();
@@ -400,8 +405,8 @@ export class PipelineAdapter {
         const sessionId = this.createSessionId();
         const skipLongPress = options?.skipLongPress === true || options?.longPressMs === 0;
         const longPressMs = options?.longPressMs ?? (pointerType === 'mouse'
-            ? MOUSE_RANGE_SELECT_LONG_PRESS_MS
-            : MOBILE_DRAG_LONG_PRESS_MS);
+            ? (this.deps.getMouseRangeSelectLongPressMs?.() ?? MOUSE_RANGE_SELECT_LONG_PRESS_MS)
+            : (this.deps.getMobileDragLongPressMs?.() ?? MOBILE_DRAG_LONG_PRESS_MS));
         const timeoutId = skipLongPress
             ? null
             : window.setTimeout(() => this.markPressReady(sessionId, e.pointerId, pointerType), longPressMs);

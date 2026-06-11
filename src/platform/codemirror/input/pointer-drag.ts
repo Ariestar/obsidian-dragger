@@ -69,7 +69,12 @@ function autoScrollDrag(
     if (host.pipelineState.type !== 'dragging') return false;
     const pointer = host.getActiveDragPointer();
     if (!pointer) return false;
-    const didScroll = autoScrollEditorNearViewportEdge(host.view, pointer.clientY);
+    const didScroll = autoScrollEditorNearViewportEdge(
+        host.view,
+        pointer.clientY,
+        host.deps.getAutoScrollEdgeZonePx?.(),
+        host.deps.getAutoScrollMaxSpeedPx?.(),
+    );
     if (didScroll) {
         const drop = host.resolveActiveDragDropSnapshot(host.pipelineState.drag.selection);
         host.previewActiveDrag({
@@ -188,7 +193,12 @@ function handleRangeSelectionPointerMove(
         host.updateMouseRangeSelection(state, targetBoundary);
     }
 
-    autoScrollEditorNearViewportEdge(host.view, e.clientY);
+    autoScrollEditorNearViewportEdge(
+        host.view,
+        e.clientY,
+        host.deps.getAutoScrollEdgeZonePx?.(),
+        host.deps.getAutoScrollMaxSpeedPx?.(),
+    );
 }
 
 function resolveHandleRangeBoundaryAtPoint(

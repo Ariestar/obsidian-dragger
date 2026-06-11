@@ -49,6 +49,10 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     enableCrossFileDrag: true,
     enableMultiLineSelection: true,
     multiLineSelectionLongPressMs: DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS,
+    mobileDragLongPressMs: 200,
+    mouseRangeSelectLongPressMs: 260,
+    autoScrollEdgeZonePx: 88,
+    autoScrollMaxSpeedPx: 22,
     disableMobileDragModeAfterDrop: true,
     enableMobileTextLongPressDrag: true,
     mobileDragModeToggleLocations: ['view-action'],
@@ -160,34 +164,13 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 });
         });
 
-        let sizeInput!: import('obsidian').TextComponent;
-        new Setting(containerEl)
-            .setName(i.handleSize)
-            .setDesc(i.handleSizeDesc)
-            .addSlider((slider) => slider
-                .setLimits(MIN_HANDLE_SIZE_PX, MAX_HANDLE_SIZE_PX, 2)
-                .setValue(this.plugin.settings.handleSize)
-                .onChange(async (value) => {
-                    this.plugin.settings.handleSize = value;
-                    sizeInput.setValue(String(value));
-                    await this.plugin.saveSettings();
-                }))
-            .addText((text) => {
-                sizeInput = text;
-                text.inputEl.type = 'number';
-                text.inputEl.addClass('dnd-setting-number-input');
-                text.setValue(String(this.plugin.settings.handleSize));
-                text.inputEl.addEventListener('blur', async () => {
-                    const v = Math.round(Math.max(MIN_HANDLE_SIZE_PX, Math.min(MAX_HANDLE_SIZE_PX, Number(text.inputEl.value) || MIN_HANDLE_SIZE_PX)));
-                    text.setValue(String(v));
-                    this.plugin.settings.handleSize = v;
-                    await this.plugin.saveSettings();
-                    this.display();
-                });
-                text.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
-                    if (e.key === 'Enter') { e.preventDefault(); text.inputEl.blur(); }
-                });
-            });
+        this.addNumericSetting(containerEl, {
+            name: i.handleSize, desc: i.handleSizeDesc,
+            min: MIN_HANDLE_SIZE_PX, max: MAX_HANDLE_SIZE_PX, step: 2,
+            value: this.plugin.settings.handleSize,
+            defaultValue: DEFAULT_SETTINGS.handleSize,
+            onChange: async (v) => { this.plugin.settings.handleSize = v; await this.plugin.saveSettings(); },
+        });
 
         new Setting(containerEl)
             .setName(i.handleVisibility)
@@ -214,34 +197,13 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
-        let offsetInput!: import('obsidian').TextComponent;
-        new Setting(containerEl)
-            .setName(i.handleOffset)
-            .setDesc(i.handleOffsetDesc)
-            .addSlider((slider) => slider
-                .setLimits(-80, 80, 1)
-                .setValue(this.plugin.settings.handleHorizontalOffsetPx)
-                .onChange(async (value) => {
-                    this.plugin.settings.handleHorizontalOffsetPx = value;
-                    offsetInput.setValue(String(value));
-                    await this.plugin.saveSettings();
-                }))
-            .addText((text) => {
-                offsetInput = text;
-                text.inputEl.type = 'number';
-                text.inputEl.addClass('dnd-setting-number-input');
-                text.setValue(String(this.plugin.settings.handleHorizontalOffsetPx));
-                text.inputEl.addEventListener('blur', async () => {
-                    const v = Math.round(Math.max(-80, Math.min(80, Number(text.inputEl.value) || 0)));
-                    text.setValue(String(v));
-                    this.plugin.settings.handleHorizontalOffsetPx = v;
-                    await this.plugin.saveSettings();
-                    this.display();
-                });
-                text.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
-                    if (e.key === 'Enter') { e.preventDefault(); text.inputEl.blur(); }
-                });
-            });
+        this.addNumericSetting(containerEl, {
+            name: i.handleOffset, desc: i.handleOffsetDesc,
+            min: -80, max: 80, step: 1,
+            value: this.plugin.settings.handleHorizontalOffsetPx,
+            defaultValue: DEFAULT_SETTINGS.handleHorizontalOffsetPx,
+            onChange: async (v) => { this.plugin.settings.handleHorizontalOffsetPx = v; await this.plugin.saveSettings(); },
+        });
 
         new Setting(containerEl).setName(i.headingHighlight).setHeading();
 
@@ -315,34 +277,13 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
-        let longPressInput!: import('obsidian').TextComponent;
-        new Setting(containerEl)
-            .setName(i.multiLineSelectionLongPressMs)
-            .setDesc(i.multiLineSelectionLongPressMsDesc)
-            .addSlider((slider) => slider
-                .setLimits(MIN_MULTI_LINE_SELECTION_LONG_PRESS_MS, MAX_MULTI_LINE_SELECTION_LONG_PRESS_MS, 50)
-                .setValue(this.plugin.settings.multiLineSelectionLongPressMs)
-                .onChange(async (value) => {
-                    this.plugin.settings.multiLineSelectionLongPressMs = value;
-                    longPressInput.setValue(String(value));
-                    await this.plugin.saveSettings();
-                }))
-            .addText((text) => {
-                longPressInput = text;
-                text.inputEl.type = 'number';
-                text.inputEl.addClass('dnd-setting-number-input');
-                text.setValue(String(this.plugin.settings.multiLineSelectionLongPressMs));
-                text.inputEl.addEventListener('blur', async () => {
-                    const v = normalizeMultiLineSelectionLongPressMs(Number(text.inputEl.value));
-                    text.setValue(String(v));
-                    this.plugin.settings.multiLineSelectionLongPressMs = v;
-                    await this.plugin.saveSettings();
-                    this.display();
-                });
-                text.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
-                    if (e.key === 'Enter') { e.preventDefault(); text.inputEl.blur(); }
-                });
-            });
+        this.addNumericSetting(containerEl, {
+            name: i.multiLineSelectionLongPressMs, desc: i.multiLineSelectionLongPressMsDesc,
+            min: MIN_MULTI_LINE_SELECTION_LONG_PRESS_MS, max: MAX_MULTI_LINE_SELECTION_LONG_PRESS_MS, step: 50,
+            value: this.plugin.settings.multiLineSelectionLongPressMs,
+            defaultValue: DEFAULT_SETTINGS.multiLineSelectionLongPressMs,
+            onChange: async (v) => { this.plugin.settings.multiLineSelectionLongPressMs = v; await this.plugin.saveSettings(); },
+        });
 
         new Setting(containerEl)
             .setName(i.enableCrossFileDrag)
@@ -353,6 +294,38 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     this.plugin.settings.enableCrossFileDrag = value;
                     await this.plugin.saveSettings();
                 }));
+
+        this.addNumericSetting(containerEl, {
+            name: i.mobileDragLongPressMs, desc: i.mobileDragLongPressMsDesc,
+            min: 50, max: 800, step: 10,
+            value: this.plugin.settings.mobileDragLongPressMs,
+            defaultValue: DEFAULT_SETTINGS.mobileDragLongPressMs,
+            onChange: async (v) => { this.plugin.settings.mobileDragLongPressMs = v; await this.plugin.saveSettings(); },
+        });
+
+        this.addNumericSetting(containerEl, {
+            name: i.mouseRangeSelectLongPressMs, desc: i.mouseRangeSelectLongPressMsDesc,
+            min: 50, max: 800, step: 10,
+            value: this.plugin.settings.mouseRangeSelectLongPressMs,
+            defaultValue: DEFAULT_SETTINGS.mouseRangeSelectLongPressMs,
+            onChange: async (v) => { this.plugin.settings.mouseRangeSelectLongPressMs = v; await this.plugin.saveSettings(); },
+        });
+
+        this.addNumericSetting(containerEl, {
+            name: i.autoScrollEdgeZonePx, desc: i.autoScrollEdgeZonePxDesc,
+            min: 20, max: 200, step: 4,
+            value: this.plugin.settings.autoScrollEdgeZonePx,
+            defaultValue: DEFAULT_SETTINGS.autoScrollEdgeZonePx,
+            onChange: async (v) => { this.plugin.settings.autoScrollEdgeZonePx = v; await this.plugin.saveSettings(); },
+        });
+
+        this.addNumericSetting(containerEl, {
+            name: i.autoScrollMaxSpeedPx, desc: i.autoScrollMaxSpeedPxDesc,
+            min: 4, max: 60, step: 2,
+            value: this.plugin.settings.autoScrollMaxSpeedPx,
+            defaultValue: DEFAULT_SETTINGS.autoScrollMaxSpeedPx,
+            onChange: async (v) => { this.plugin.settings.autoScrollMaxSpeedPx = v; await this.plugin.saveSettings(); },
+        });
 
         const isMobile = Platform.isMobile;
         const disabledCls = isMobile ? '' : 'dnd-setting-disabled';
@@ -412,6 +385,67 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     this.plugin.settings.disableMobileDragModeAfterDrop = value;
                     await this.plugin.saveSettings();
                 }));
+    }
+
+    private addNumericSetting(
+        containerEl: HTMLElement,
+        opts: {
+            name: string;
+            desc: string;
+            min: number;
+            max: number;
+            step: number;
+            value: number;
+            defaultValue: number;
+            onChange: (value: number) => Promise<void>;
+        },
+    ): void {
+        let textInput!: import('obsidian').TextComponent;
+        let resetBtn!: import('obsidian').ExtraButtonComponent;
+        let currentValue = opts.value;
+
+        const updateResetVisibility = () => {
+            resetBtn.extraSettingsEl.toggle(currentValue !== opts.defaultValue);
+        };
+
+        new Setting(containerEl)
+            .setName(opts.name)
+            .setDesc(opts.desc)
+            .addSlider((slider) => slider
+                .setLimits(opts.min, opts.max, opts.step)
+                .setValue(opts.value)
+                .onChange(async (value) => {
+                    currentValue = value;
+                    textInput.setValue(String(value));
+                    updateResetVisibility();
+                    await opts.onChange(value);
+                }))
+            .addText((text) => {
+                textInput = text;
+                text.inputEl.type = 'number';
+                text.inputEl.addClass('dnd-setting-number-input');
+                text.setValue(String(opts.value));
+                text.inputEl.addEventListener('blur', async () => {
+                    const v = Math.round(Math.max(opts.min, Math.min(opts.max, Number(text.inputEl.value) || opts.defaultValue)));
+                    currentValue = v;
+                    text.setValue(String(v));
+                    updateResetVisibility();
+                    await opts.onChange(v);
+                });
+                text.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+                    if (e.key === 'Enter') { e.preventDefault(); text.inputEl.blur(); }
+                });
+            })
+            .addExtraButton((btn) => {
+                resetBtn = btn;
+                btn.setIcon('reset')
+                    .setTooltip('Reset')
+                    .onClick(async () => {
+                        await opts.onChange(opts.defaultValue);
+                        this.display();
+                    });
+                btn.extraSettingsEl.toggle(opts.value !== opts.defaultValue);
+            });
     }
 
     private resolveThemeAccent(): string {
