@@ -1,7 +1,10 @@
 export const zhCn = {
     // Headings
-    headingAppearance: '样式',
-    headingBehavior: '功能',
+    headingAppearance: '外观',
+    headingHandle: '拖拽手柄',
+    headingHighlight: '高亮效果',
+    headingBehavior: '行为',
+    headingMobile: '移动端',
 
     // Handle color
     handleColor: '手柄颜色',
@@ -58,12 +61,13 @@ export const zhCn = {
     disableMobileDragModeAfterDropDesc: '开启后，移动端每次成功移动文本块后会自动退出拖拽模式',
     mobileTextLongPressDrag: '移动端文本长按拖拽',
     mobileTextLongPressDragDesc: '移动端在文本整行或块内容区域长按可直接拖拽当前块，无需左侧手柄',
-    mobileDragModeToggleLocations: '拖拽模式开关位置',
+    mobileDragModeToggleLocations: 'Toggle 按钮位置',
     mobileDragModeToggleLocationsDesc: '选择移动端拖拽模式开关显示在哪些入口，可多选或不选',
-    optionMobileDragModeToggleViewAction: '右上角操作按钮',
-    optionMobileDragModeToggleToolbarCommand: '移动端 toolbar',
+    optionMobileDragModeToggleViewAction: '视图操作栏',
+    optionMobileDragModeToggleToolbarCommand: '底部工具栏',
     enableCrossFileDrag: '跨文件拖拽',
     enableCrossFileDragDesc: '允许将块拖拽到已打开编辑器、内部链接或文件列表笔记中',
+    mobileOnlyNotice: '⚠️ 以下设置仅在移动端可修改',
 
 };
 

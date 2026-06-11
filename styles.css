@@ -381,3 +381,52 @@ body[data-dnd-list-drop-highlight="off"] .dnd-drop-highlight {
     width: var(--icon-size, 18px);
     height: var(--icon-size, 18px);
 }
+
+/* 设置面板顶部 Tab 导航 */
+.dnd-settings-nav {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+    margin-bottom: var(--size-4-4);
+}
+
+.dnd-settings-tab {
+    flex: 1;
+    padding: var(--size-4-2) var(--size-4-4);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    font-size: var(--font-ui-medium);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.dnd-settings-tab:hover {
+    color: var(--text-normal);
+}
+
+.dnd-settings-tab.is-active {
+    color: var(--text-normal);
+    border-bottom-color: var(--interactive-accent);
+    font-weight: var(--font-semibold);
+}
+
+/* 滑块旁的数字输入框 */
+.dnd-setting-number-input {
+    width: 4em !important;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 设置面板子选项从属关系 */
+.dnd-setting-indent {
+    padding-left: 1.5em;
+    border-top: none;
+}
+
+/* 禁用状态的设置项 */
+.dnd-setting-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}

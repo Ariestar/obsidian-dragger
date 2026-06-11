@@ -2,7 +2,10 @@ import type { ZhCnStrings } from './zh-cn';
 
 export const ru: ZhCnStrings = {
     headingAppearance: 'Внешний вид',
+    headingHandle: 'Маркер перетаскивания',
+    headingHighlight: 'Подсветка',
     headingBehavior: 'Поведение',
+    headingMobile: 'Мобильное устройство',
 
     handleColor: 'Цвет маркера',
     handleColorDesc: 'Использовать цвет акцента темы или выбрать свой',
@@ -52,10 +55,11 @@ export const ru: ZhCnStrings = {
     disableMobileDragModeAfterDropDesc: 'На мобильном автоматически выходить из режима перетаскивания после успешного перемещения блока',
     mobileTextLongPressDrag: 'Перетаскивание долгим нажатием на мобильном',
     mobileTextLongPressDragDesc: 'На мобильном удерживайте строку текста или блок, чтобы перетащить его напрямую без использования маркера',
-    mobileDragModeToggleLocations: 'Расположение переключателя режима перетаскивания',
+    mobileDragModeToggleLocations: 'Расположение кнопки',
     mobileDragModeToggleLocationsDesc: 'Выберите, где показывать переключатель режима перетаскивания на мобильном. Можно выбрать несколько вариантов или ни одного',
-    optionMobileDragModeToggleViewAction: 'Кнопка вверху справа',
-    optionMobileDragModeToggleToolbarCommand: 'Мобильная панель',
+    optionMobileDragModeToggleViewAction: 'Панель действий',
+    optionMobileDragModeToggleToolbarCommand: 'Нижняя панель',
     enableCrossFileDrag: 'Перетаскивание между файлами',
     enableCrossFileDragDesc: 'Разрешить перетаскивание блоков в другой открытый файл',
+    mobileOnlyNotice: '⚠️ Эти настройки доступны только на мобильном устройстве',
 };

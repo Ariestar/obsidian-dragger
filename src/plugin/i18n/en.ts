@@ -2,7 +2,10 @@ import type { ZhCnStrings } from './zh-cn';
 
 export const en: ZhCnStrings = {
     headingAppearance: 'Appearance',
+    headingHandle: 'Drag handle',
+    headingHighlight: 'Highlights',
     headingBehavior: 'Behavior',
+    headingMobile: 'Mobile',
 
     handleColor: 'Handle color',
     handleColorDesc: 'Follow theme accent or pick a custom color',
@@ -52,11 +55,12 @@ export const en: ZhCnStrings = {
     disableMobileDragModeAfterDropDesc: 'On mobile, automatically exit drag mode after a block is moved successfully',
     mobileTextLongPressDrag: 'Mobile text long-press drag',
     mobileTextLongPressDragDesc: 'On mobile, long-press a text line or rendered block content to drag the current block directly without using the left handle',
-    mobileDragModeToggleLocations: 'Drag mode toggle locations',
+    mobileDragModeToggleLocations: 'Toggle button placement',
     mobileDragModeToggleLocationsDesc: 'Choose where to show the mobile drag mode toggle. Multiple or none can be selected',
-    optionMobileDragModeToggleViewAction: 'Top-right action',
-    optionMobileDragModeToggleToolbarCommand: 'Mobile toolbar',
+    optionMobileDragModeToggleViewAction: 'View actions',
+    optionMobileDragModeToggleToolbarCommand: 'Bottom toolbar',
     enableCrossFileDrag: 'Cross-file drag',
     enableCrossFileDragDesc: 'Allow dragging blocks into open editors, internal links, and file explorer notes',
+    mobileOnlyNotice: '⚠️ These settings can only be modified on mobile',
 
 };
