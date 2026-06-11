@@ -64,7 +64,6 @@ export interface PipelineAdapterDeps {
     isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
     isMultiLineSelectionEnabled?: () => boolean;
     getMultiLineSelectionLongPressMs?: () => number;
-    isMobileDragModeRequired?: () => boolean;
     isMobileDragModeEnabled?: () => boolean;
     isMobileTextLongPressDragEnabled?: () => boolean;
     beginPointerDragSession: (source: BlockSelection) => void;
@@ -991,18 +990,16 @@ export class PipelineAdapter {
     }
 
     canStartDragForPointer(pointerType: string | null, source: HoldTarget['source'] = 'handle'): boolean {
-        if (source === 'handle' || source === 'command') return true;
+        if (source === 'command') return true;
         if (pointerType === 'mouse') return true;
         if (!this.mobile.isMobileEnvironment()) return true;
-        if (this.deps.isMobileDragModeRequired?.() !== true) return true;
         return this.deps.isMobileDragModeEnabled?.() === true;
     }
 
     isMobileDragModeActiveForPointer(pointerType: string | null): boolean {
         if (pointerType === 'mouse') return false;
         if (!this.mobile.isMobileEnvironment()) return false;
-        return this.deps.isMobileDragModeRequired?.() === true
-            && this.deps.isMobileDragModeEnabled?.() === true;
+        return this.deps.isMobileDragModeEnabled?.() === true;
     }
 
     getTouchRangeSelectLongPressMs(): number {

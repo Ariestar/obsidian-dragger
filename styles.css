@@ -293,6 +293,10 @@ body.dnd-handles-hidden .dnd-drag-handle {
     display: none;
 }
 
+body.dnd-mobile-handles-hidden .dnd-drag-handle {
+    display: none;
+}
+
 /* 拖拽中的状态 */
 body.dnd-dragging {
     cursor: grabbing;

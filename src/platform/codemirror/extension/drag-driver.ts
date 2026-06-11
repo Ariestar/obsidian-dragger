@@ -198,7 +198,6 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     isPosInsideRenderedTableCell(this.view, blockInfo.from, { skipLayoutRead: true }),
                 isMultiLineSelectionEnabled: () => plugin.settings.enableMultiLineSelection,
                 getMultiLineSelectionLongPressMs: () => plugin.settings.multiLineSelectionLongPressMs,
-                isMobileDragModeRequired: () => plugin.settings.requireMobileDragMode,
                 isMobileDragModeEnabled: () => plugin.isMobileDragModeEnabled(),
                 isMobileTextLongPressDragEnabled: () => plugin.settings.enableMobileTextLongPressDrag,
                 beginPointerDragSession: (source) => {
@@ -461,7 +460,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             this.cachedHandleGutterSide = this.resolveConfiguredHandleGutterSide();
             this.syncViewDomState();
             this.pipelineAdapter.handleMobileDragAvailabilityChanged(
-                plugin.settings.requireMobileDragMode !== true || plugin.isMobileDragModeEnabled()
+                plugin.isMobileDragModeEnabled()
             );
             this.refreshDecorationsAndEmbeds();
             this.pipelineAdapter.refreshSelectionVisual();

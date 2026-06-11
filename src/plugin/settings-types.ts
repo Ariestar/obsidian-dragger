@@ -2,6 +2,7 @@ export type HandleVisibilityMode = 'always' | 'hover' | 'hidden';
 export type HandleIconStyle = 'dot' | 'grip-dots' | 'grip-lines' | 'square';
 export type BlockSelectionVisualStyle = 'outline' | 'subtle' | 'filled';
 export type HandleGutterPosition = 'left' | 'right';
+export type MobileDragModeToggleLocation = 'view-action' | 'toolbar-command';
 
 export interface DragNDropSettings {
     handleColorMode: 'theme' | 'custom';
@@ -14,9 +15,9 @@ export interface DragNDropSettings {
     enableCrossFileDrag: boolean;
     enableMultiLineSelection: boolean;
     multiLineSelectionLongPressMs: number;
-    requireMobileDragMode: boolean;
     disableMobileDragModeAfterDrop: boolean;
     enableMobileTextLongPressDrag: boolean;
+    mobileDragModeToggleLocations: MobileDragModeToggleLocation[];
     enableBlockSelectionHighlight: boolean;
     enableListDropHighlight: boolean;
     selectionVisualStyle: BlockSelectionVisualStyle;

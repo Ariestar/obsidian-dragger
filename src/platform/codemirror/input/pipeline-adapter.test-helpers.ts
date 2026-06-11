@@ -85,6 +85,7 @@ export function createPipelineAdapterDeps(deps: PipelineAdapterTestDeps): Pipeli
 
     return {
         ...deps,
+        isMobileDragModeEnabled: deps.isMobileDragModeEnabled ?? (() => true),
         getVisibleHandleForBlockStart: deps.getVisibleHandleForBlockStart
             ?? ((blockStart) => activeDocument.querySelector<HTMLElement>(
                 `.${DRAG_HANDLE_CLASS}.${LINE_HANDLE_CLASS}[data-block-start="${blockStart}"]`

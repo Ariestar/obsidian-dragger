@@ -12,6 +12,7 @@ import type {
     HandleGutterPosition,
     HandleIconStyle,
     HandleVisibilityMode,
+    MobileDragModeToggleLocation,
 } from './settings-types';
 
 export type {
@@ -20,6 +21,7 @@ export type {
     HandleGutterPosition,
     HandleIconStyle,
     HandleVisibilityMode,
+    MobileDragModeToggleLocation,
 } from './settings-types';
 
 export const DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS = 900;
@@ -47,9 +49,9 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     enableCrossFileDrag: false,
     enableMultiLineSelection: true,
     multiLineSelectionLongPressMs: DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS,
-    requireMobileDragMode: true,
     disableMobileDragModeAfterDrop: true,
     enableMobileTextLongPressDrag: true,
+    mobileDragModeToggleLocations: ['view-action', 'toolbar-command'],
     enableBlockSelectionHighlight: true,
     enableListDropHighlight: true,
     selectionVisualStyle: 'subtle',
@@ -70,6 +72,14 @@ export function normalizeBlockSelectionVisualStyle(value: unknown): BlockSelecti
         return 'outline';
     }
     return 'subtle';
+}
+
+export function normalizeMobileDragModeToggleLocations(value: unknown): MobileDragModeToggleLocation[] {
+    if (!Array.isArray(value)) return [...DEFAULT_SETTINGS.mobileDragModeToggleLocations];
+    const locations = value.filter((entry): entry is MobileDragModeToggleLocation => (
+        entry === 'view-action' || entry === 'toolbar-command'
+    ));
+    return Array.from(new Set(locations));
 }
 
 export class DragNDropSettingTab extends PluginSettingTab {
@@ -267,16 +277,6 @@ export class DragNDropSettingTab extends PluginSettingTab {
             });
 
         new Setting(containerEl)
-            .setName(i.requireMobileDragMode)
-            .setDesc(i.requireMobileDragModeDesc)
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.requireMobileDragMode)
-                .onChange(async (value) => {
-                    this.plugin.settings.requireMobileDragMode = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
             .setName(i.disableMobileDragModeAfterDrop)
             .setDesc(i.disableMobileDragModeAfterDropDesc)
             .addToggle(toggle => toggle
@@ -294,7 +294,38 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.enableMobileTextLongPressDrag = value;
                     await this.plugin.saveSettings();
+                    this.display();
                 }));
+
+        if (this.plugin.settings.enableMobileTextLongPressDrag) {
+            const toggleLocation = async (location: MobileDragModeToggleLocation, enabled: boolean) => {
+                const next = new Set(this.plugin.settings.mobileDragModeToggleLocations);
+                if (enabled) {
+                    next.add(location);
+                } else {
+                    next.delete(location);
+                }
+                this.plugin.settings.mobileDragModeToggleLocations = Array.from(next);
+                await this.plugin.saveSettings();
+            };
+            new Setting(containerEl)
+                .setName(i.mobileDragModeToggleLocations)
+                .setDesc(i.mobileDragModeToggleLocationsDesc)
+                .addToggle(toggle => {
+                    toggle.toggleEl.insertAdjacentText('beforebegin', `${i.optionMobileDragModeToggleViewAction} `);
+                    return toggle
+                        .setTooltip(i.optionMobileDragModeToggleViewAction)
+                        .setValue(this.plugin.settings.mobileDragModeToggleLocations.includes('view-action'))
+                        .onChange((value) => toggleLocation('view-action', value));
+                })
+                .addToggle(toggle => {
+                    toggle.toggleEl.insertAdjacentText('beforebegin', `${i.optionMobileDragModeToggleToolbarCommand} `);
+                    return toggle
+                        .setTooltip(i.optionMobileDragModeToggleToolbarCommand)
+                        .setValue(this.plugin.settings.mobileDragModeToggleLocations.includes('toolbar-command'))
+                        .onChange((value) => toggleLocation('toolbar-command', value));
+                });
+        }
         new Setting(containerEl)
             .setName(i.enableCrossFileDrag)
             .setDesc(i.enableCrossFileDragDesc)

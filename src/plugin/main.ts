@@ -24,6 +24,7 @@ import {
     normalizeHandleGutterPosition,
     normalizeMultiLineSelectionLongPressMs,
     normalizeBlockSelectionVisualStyle,
+    normalizeMobileDragModeToggleLocations,
 } from './settings';
 import { DragLifecycleEvent, DragLifecycleListener } from '../drag/pipeline/pipeline-output';
 import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
@@ -31,7 +32,7 @@ import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
 export default class DragNDropPlugin extends Plugin {
     settings: DragNDropSettings;
     private readonly dragLifecycleListeners = new Set<DragLifecycleListener>();
-    private readonly mobileDragModeActionByView = new WeakMap<MarkdownView, HTMLElement>();
+    private mobileDragModeActionByView = new WeakMap<MarkdownView, HTMLElement>();
     private readonly mobileDragModeActionEls = new Set<HTMLElement>();
     private mobileDragModeEnabled = false;
 
@@ -81,12 +82,15 @@ export default class DragNDropPlugin extends Plugin {
         this.settings.enableBlockSelectionHighlight = this.settings.enableBlockSelectionHighlight !== false;
         this.settings.enableListDropHighlight = this.settings.enableListDropHighlight !== false;
         this.settings.enableCrossFileDrag = this.settings.enableCrossFileDrag === true;
-        this.settings.requireMobileDragMode = this.settings.requireMobileDragMode !== false;
         this.settings.disableMobileDragModeAfterDrop = this.settings.disableMobileDragModeAfterDrop !== false;
+        this.settings.mobileDragModeToggleLocations = normalizeMobileDragModeToggleLocations(
+            this.settings.mobileDragModeToggleLocations
+        );
         this.settings.multiLineSelectionLongPressMs = normalizeMultiLineSelectionLongPressMs(
             this.settings.multiLineSelectionLongPressMs
         );
         this.settings.handleGutterPosition = normalizeHandleGutterPosition(this.settings.handleGutterPosition);
+        delete (this.settings as DragNDropSettings & Record<string, unknown>).requireMobileDragMode;
         await this.saveData(this.settings);
         this.applySettings();
     }
@@ -98,12 +102,19 @@ export default class DragNDropPlugin extends Plugin {
 
     applySettings() {
         const body = activeDocument.body;
+        if (!this.settings.enableMobileTextLongPressDrag) {
+            this.mobileDragModeEnabled = false;
+        }
         const visibility: HandleVisibilityMode = this.settings.handleVisibility ?? 'hover';
         body.classList.toggle('dnd-handles-always', visibility === 'always');
         body.classList.toggle('dnd-handles-hidden', visibility === 'hidden');
+        body.classList.toggle('dnd-mobile-handles-hidden', Platform.isMobile && !this.settings.enableMobileTextLongPressDrag);
         body.classList.toggle('dnd-mobile-drag-mode-enabled', this.mobileDragModeEnabled);
         this.settings.multiLineSelectionLongPressMs = normalizeMultiLineSelectionLongPressMs(
             this.settings.multiLineSelectionLongPressMs
+        );
+        this.settings.mobileDragModeToggleLocations = normalizeMobileDragModeToggleLocations(
+            this.settings.mobileDragModeToggleLocations
         );
 
         const selectionVisualStyle = normalizeBlockSelectionVisualStyle(this.settings.selectionVisualStyle);
@@ -172,6 +183,7 @@ export default class DragNDropPlugin extends Plugin {
         body.setAttribute(DND_HANDLE_ICON_ATTR, this.settings.handleIcon ?? 'grip-dots');
 
         window.dispatchEvent(new Event('dnd:settings-updated'));
+        this.syncMobileDragModeActionVisibility();
     }
 
     onDragLifecycleEvent(listener: DragLifecycleListener): () => void {
@@ -197,8 +209,16 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     toggleMobileDragMode(): boolean {
+        if (!this.settings.enableMobileTextLongPressDrag) {
+            this.setMobileDragModeEnabled(false);
+            return false;
+        }
         this.setMobileDragModeEnabled(!this.mobileDragModeEnabled);
         return this.mobileDragModeEnabled;
+    }
+
+    isMobileDragModeToolbarCommandEnabled(): boolean {
+        return this.isMobileDragModeToggleLocationEnabled('toolbar-command');
     }
 
     private setMobileDragModeEnabled(enabled: boolean): void {
@@ -238,6 +258,10 @@ export default class DragNDropPlugin extends Plugin {
 
     private registerMobileDragModeActions(): void {
         if (!Platform.isMobile) return;
+        if (!this.isMobileDragModeToggleLocationEnabled('view-action')) {
+            this.removeMobileDragModeActions();
+            return;
+        }
 
         for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
             const view = leaf.view;
@@ -258,6 +282,23 @@ export default class DragNDropPlugin extends Plugin {
             this.mobileDragModeActionEls.add(actionEl);
             this.syncMobileDragModeActionEl(actionEl);
         }
+    }
+
+    private syncMobileDragModeActionVisibility(): void {
+        if (!Platform.isMobile) return;
+        if (!this.isMobileDragModeToggleLocationEnabled('view-action')) {
+            this.removeMobileDragModeActions();
+            return;
+        }
+        this.registerMobileDragModeActions();
+    }
+
+    private removeMobileDragModeActions(): void {
+        for (const actionEl of Array.from(this.mobileDragModeActionEls)) {
+            actionEl.remove();
+        }
+        this.mobileDragModeActionEls.clear();
+        this.mobileDragModeActionByView = new WeakMap<MarkdownView, HTMLElement>();
     }
 
     private syncMobileDragModeActionIcons(): void {
@@ -284,5 +325,10 @@ export default class DragNDropPlugin extends Plugin {
 
     private getMobileDragModeActionTitle(): string {
         return this.mobileDragModeEnabled ? 'Drag mode enabled' : 'Drag mode disabled';
+    }
+
+    private isMobileDragModeToggleLocationEnabled(location: 'view-action' | 'toolbar-command'): boolean {
+        return this.settings.enableMobileTextLongPressDrag
+            && this.settings.mobileDragModeToggleLocations.includes(location);
     }
 }

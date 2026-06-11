@@ -16,6 +16,7 @@ export function registerMobileToolbarCommands(plugin: {
     app: App;
     addCommand: (command: Command) => Command;
     toggleMobileDragMode: () => boolean;
+    isMobileDragModeToolbarCommandEnabled: () => boolean;
 }): void {
     plugin.addCommand({
         id: 'toggle-mobile-drag-mode',
@@ -24,6 +25,7 @@ export function registerMobileToolbarCommands(plugin: {
         mobileOnly: true,
         checkCallback: (checking) => {
             if (!Platform.isMobile) return false;
+            if (!plugin.isMobileDragModeToolbarCommandEnabled()) return false;
             const view = getActiveEditorView(plugin.app);
             if (!view) return false;
             if (!checking) {

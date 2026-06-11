@@ -2004,7 +2004,6 @@ describe('PipelineAdapter Range Selection', () => {
         const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
-            isMobileDragModeRequired: () => true,
             isMobileDragModeEnabled: () => true,
             beginPointerDragSession,
             finishDragSession,
@@ -2070,7 +2069,7 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
-    it('drags selected mobile handles even when mobile text drag mode is disabled', () => {
+    it('does not drag selected mobile handles after mobile drag mode becomes disabled', () => {
         document.body.classList.add('is-mobile');
         const view = createViewStub(8);
         const handle = appendHandleForBlockStart(view, 0);
@@ -2081,7 +2080,6 @@ describe('PipelineAdapter Range Selection', () => {
         const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => sourceBlock }),
             isBlockInsideRenderedTableCell: () => false,
-            isMobileDragModeRequired: () => true,
             isMobileDragModeEnabled: () => mobileDragModeEnabled,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -2111,7 +2109,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientY: 30,
         });
 
-        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
         document.body.classList.remove('is-mobile');
         handler.destroy();
     });
@@ -2242,7 +2240,6 @@ describe('PipelineAdapter Range Selection', () => {
                 point: (_x, y) => (y >= 100 ? farBlock : firstBlock),
             }),
             isBlockInsideRenderedTableCell: () => false,
-            isMobileDragModeRequired: () => true,
             isMobileDragModeEnabled: () => true,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -2593,7 +2590,6 @@ describe('PipelineAdapter Range Selection', () => {
                 },
             }),
             isBlockInsideRenderedTableCell: () => false,
-            isMobileDragModeRequired: () => true,
             isMobileDragModeEnabled: () => true,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession: vi.fn(),
@@ -2692,7 +2688,6 @@ describe('PipelineAdapter Range Selection', () => {
                 },
             }),
             isBlockInsideRenderedTableCell: () => false,
-            isMobileDragModeRequired: () => true,
             isMobileDragModeEnabled: () => true,
             isMobileTextLongPressDragEnabled: () => true,
             beginPointerDragSession: vi.fn(),
@@ -2889,6 +2884,7 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 });
+
 
 
 
