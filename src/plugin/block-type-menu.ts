@@ -30,8 +30,11 @@ let openChildMenu: Menu | null = null;
 let openChildTrigger: HTMLElement | null = null;
 let openChildMenuEl: HTMLElement | null = null;
 let closeChildMenuTimer: number | null = null;
+let menuCursorPos: number = 0;
 
 export function openBlockTypeMenu(view: EditorView, event: MouseEvent | PointerEvent | null): void {
+    const cursorHead = view.state.selection.main.head;
+    menuCursorPos = cursorHead;
     const menu = new Menu();
     const nestedGroups: NestedConversionGroup[] = [
         {
@@ -46,15 +49,15 @@ export function openBlockTypeMenu(view: EditorView, event: MouseEvent | PointerE
         },
     ];
     menu.onHide(() => {
-        hideOpenChildMenu();
+        activeWindow.setTimeout(() => hideOpenChildMenu(), 150);
     });
 
-    addConversionItem(menu, view, PARAGRAPH_BLOCK_TYPE_OPTION);
+    addConversionItem(menu, view, PARAGRAPH_BLOCK_TYPE_OPTION, cursorHead);
     for (const group of nestedGroups) {
         addNestedConversionMenu(menu, view, group);
     }
     for (const option of SIMPLE_BLOCK_TYPE_OPTIONS) {
-        addConversionItem(menu, view, option);
+        addConversionItem(menu, view, option, cursorHead);
     }
 
     menu.addSeparator();
@@ -83,12 +86,12 @@ export function openBlockTypeMenu(view: EditorView, event: MouseEvent | PointerE
     showMenu(menu, view, event, nestedGroups);
 }
 
-function addConversionItem(menu: Menu, view: EditorView, option: BlockTypeConversionOption): void {
+function addConversionItem(menu: Menu, view: EditorView, option: BlockTypeConversionOption, pos: number): void {
     menu.addItem((item) => item
         .setTitle(option.label)
         .setIcon(option.icon)
         .onClick(() => {
-            if (!convertCurrentBlockType(view, option.target)) {
+            if (!convertCurrentBlockType(view, option.target, pos)) {
                 new Notice('Unable to change block type.');
                 return;
             }
@@ -141,7 +144,7 @@ function openNestedMenuPopover(
     if (openChildMenu && openChildTrigger === trigger) return;
 
     hideOpenChildMenu();
-    const child = createNestedConversionMenu(view, group.options);
+    const child = createNestedConversionMenu(view, group.options, menuCursorPos);
     openChildMenu = child;
     openChildTrigger = trigger;
     child.onHide(() => {
@@ -168,15 +171,15 @@ function openNestedMenuPage(
             openBlockTypeMenu(view, null);
         }));
     for (const option of group.options) {
-        addConversionItem(child, view, option);
+        addConversionItem(child, view, option, menuCursorPos);
     }
     showMenu(child, view, null);
 }
 
-function createNestedConversionMenu(view: EditorView, options: BlockTypeConversionOption[]): Menu {
+function createNestedConversionMenu(view: EditorView, options: BlockTypeConversionOption[], pos: number): Menu {
     const child = new Menu();
     for (const option of options) {
-        addConversionItem(child, view, option);
+        addConversionItem(child, view, option, pos);
     }
     return child;
 }

@@ -38,8 +38,8 @@ export const SIMPLE_BLOCK_TYPE_OPTIONS: BlockTypeConversionOption[] = [
     { target: { type: BlockType.MathBlock }, label: 'Math block', icon: 'sigma' },
 ];
 
-export function convertCurrentBlockType(view: EditorView, conversion: BlockTypeConversion): boolean {
-    const block = getCurrentBlock(view);
+export function convertCurrentBlockType(view: EditorView, conversion: BlockTypeConversion, pos?: number): boolean {
+    const block = getBlockAtPos(view, pos);
     if (!block) return false;
 
     const changes = planBlockTypeConversionChanges(view.state.doc, block.startLine + 1, block.endLine + 1, conversion);
@@ -53,7 +53,7 @@ export function convertCurrentBlockType(view: EditorView, conversion: BlockTypeC
 }
 
 export function deleteCurrentBlock(view: EditorView): boolean {
-    const block = getCurrentBlock(view);
+    const block = getBlockAtPos(view);
     if (!block) return false;
 
     const transaction = planBlockCommandTransaction({
@@ -69,7 +69,7 @@ export function deleteCurrentBlock(view: EditorView): boolean {
 }
 
 export async function copyCurrentBlock(view: EditorView): Promise<boolean> {
-    const text = getCurrentBlockText(view);
+    const text = getBlockAtPosText(view);
     if (text === null) return false;
     return writeClipboardText(text);
 }
@@ -80,8 +80,8 @@ export async function cutCurrentBlock(view: EditorView): Promise<boolean> {
     return deleteCurrentBlock(view);
 }
 
-function getCurrentBlockText(view: EditorView): string | null {
-    const block = getCurrentBlock(view);
+function getBlockAtPosText(view: EditorView): string | null {
+    const block = getBlockAtPos(view);
     if (!block) return null;
     return view.state.doc.sliceString(block.from, block.to);
 }
@@ -96,8 +96,8 @@ async function writeClipboardText(text: string): Promise<boolean> {
     }
 }
 
-function getCurrentBlock(view: EditorView): BlockInfo | null {
-    const head = view.state.selection.main.head;
+function getBlockAtPos(view: EditorView, pos?: number): BlockInfo | null {
+    const head = pos ?? view.state.selection.main.head;
     const lineNumber = view.state.doc.lineAt(head).number;
     const block = detectBlock(view.state, lineNumber, { tabSize: view.state.facet(EditorState.tabSize) });
     if (block) return block;
