@@ -49,7 +49,7 @@ export function openBlockTypeMenu(view: EditorView, event: MouseEvent | PointerE
         },
     ];
     menu.onHide(() => {
-        activeWindow.setTimeout(() => hideOpenChildMenu(), 150);
+        window.setTimeout(() => hideOpenChildMenu(), 150);
     });
 
     addConversionItem(menu, view, PARAGRAPH_BLOCK_TYPE_OPTION, cursorHead);
@@ -245,14 +245,14 @@ function closeChildMenuWhenPointerLeaves(event: PointerEvent): void {
     }
 
     cancelChildMenuClose();
-    closeChildMenuTimer = activeWindow.setTimeout(() => {
+    closeChildMenuTimer = window.setTimeout(() => {
         hideOpenChildMenu();
     }, 80);
 }
 
 function cancelChildMenuClose(): void {
     if (closeChildMenuTimer === null) return;
-    activeWindow.clearTimeout(closeChildMenuTimer);
+    window.clearTimeout(closeChildMenuTimer);
     closeChildMenuTimer = null;
 }
 

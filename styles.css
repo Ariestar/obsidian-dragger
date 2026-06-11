@@ -413,8 +413,8 @@ body[data-dnd-list-drop-highlight="off"] .dnd-drop-highlight {
 }
 
 /* 滑块旁的数字输入框 */
-.dnd-setting-number-input {
-    width: 4em !important;
+.setting-item .dnd-setting-number-input {
+    width: 4em;
     text-align: center;
     font-variant-numeric: tabular-nums;
 }
@@ -429,4 +429,10 @@ body[data-dnd-list-drop-highlight="off"] .dnd-drop-highlight {
 .dnd-setting-disabled {
     opacity: 0.5;
     pointer-events: none;
+}
+
+/* 主题色探测元素 */
+.dnd-theme-accent-probe {
+    display: none;
+    background-color: var(--interactive-accent);
 }

@@ -69,6 +69,7 @@ export default tseslint.config(
                     '**/core/**',
                 ],
             }],
+            '@typescript-eslint/no-deprecated': 'off',
         },
     }
 );

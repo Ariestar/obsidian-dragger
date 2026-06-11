@@ -425,12 +425,12 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 text.inputEl.type = 'number';
                 text.inputEl.addClass('dnd-setting-number-input');
                 text.setValue(String(opts.value));
-                text.inputEl.addEventListener('blur', async () => {
+                text.inputEl.addEventListener('blur', () => {
                     const v = Math.round(Math.max(opts.min, Math.min(opts.max, Number(text.inputEl.value) || opts.defaultValue)));
                     currentValue = v;
                     text.setValue(String(v));
                     updateResetVisibility();
-                    await opts.onChange(v);
+                    void opts.onChange(v);
                 });
                 text.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
                     if (e.key === 'Enter') { e.preventDefault(); text.inputEl.blur(); }
@@ -439,19 +439,15 @@ export class DragNDropSettingTab extends PluginSettingTab {
             .addExtraButton((btn) => {
                 resetBtn = btn;
                 btn.setIcon('reset')
-                    .setTooltip('Reset')
-                    .onClick(async () => {
-                        await opts.onChange(opts.defaultValue);
-                        this.display();
+                    .onClick(() => {
+                        void opts.onChange(opts.defaultValue).then(() => this.display());
                     });
                 btn.extraSettingsEl.toggle(opts.value !== opts.defaultValue);
             });
     }
 
     private resolveThemeAccent(): string {
-        const el = document.body.createEl('div');
-        el.style.display = 'none';
-        el.style.backgroundColor = 'var(--interactive-accent)';
+        const el = activeDocument.body.createEl('div', { cls: 'dnd-theme-accent-probe' });
         const rgb = getComputedStyle(el).backgroundColor;
         el.remove();
         const match = rgb.match(/(\d+),\s*(\d+),\s*(\d+)/);
