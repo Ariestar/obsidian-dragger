@@ -61,8 +61,6 @@ For another editor platform, adapt host events into core values:
 
 `previewData` on `DragDropSnapshot<TPreview>` is platform-private rendering data. For example, CodeMirror stores the resolved drop-indicator geometry there. The core keeps the type and passes it back on `PipelineOutput`; it never reads or mutates that data.
 
-See [`examples/headless-platform`](examples/headless-platform) for the minimal adapter shape.
-
 ## Usage
 
 1. **Hover** on the left edge of any block to reveal the drag handle

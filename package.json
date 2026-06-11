@@ -36,7 +36,6 @@
         "dist/main.js",
         "dist/manifest.json",
         "dist/styles.css",
-        "examples/headless-platform",
         "manifest.json",
         "styles.css"
     ],

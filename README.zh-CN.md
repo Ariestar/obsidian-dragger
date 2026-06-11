@@ -61,8 +61,6 @@ import { getLineMap, parseLineWithQuote } from 'md-dragger/markdown';
 
 `DragDropSnapshot<TPreview>` 里的 `previewData` 是平台私有的渲染数据。例如 CodeMirror 会把落点指示器的几何信息放在这里。core 只保持类型并在 `PipelineOutput` 中原样传回平台，不读取也不修改它。
 
-最小接入形态见 [`examples/headless-platform`](examples/headless-platform)。
-
 ## 使用
 
 1. **悬停** 在任意块的左侧边缘，显示拖拽手柄
