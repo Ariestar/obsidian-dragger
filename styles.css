@@ -395,6 +395,7 @@ body[data-dnd-list-drop-highlight="off"] .dnd-drop-highlight {
     padding: var(--size-4-2) var(--size-4-4);
     background: none;
     border: none;
+    border-radius: 0;
     border-bottom: 2px solid transparent;
     color: var(--text-muted);
     font-size: var(--font-ui-medium);

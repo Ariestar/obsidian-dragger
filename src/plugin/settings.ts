@@ -269,7 +269,6 @@ export class DragNDropSettingTab extends PluginSettingTab {
         });
 
         const isMobile = platform.isMobile;
-        const disabledCls = isMobile ? '' : 'dnd-setting-disabled';
 
         new Setting(containerEl).setName(i.headingMobile).setHeading();
 
@@ -280,7 +279,6 @@ export class DragNDropSettingTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName(i.mobileTextLongPressDrag)
             .setDesc(i.mobileTextLongPressDragDesc)
-            .setClass(disabledCls)
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.enableMobileTextLongPressDrag)
                 .setDisabled(!isMobile)
@@ -291,9 +289,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 }));
 
         if (this.plugin.settings.enableMobileTextLongPressDrag && isMobile) {
-            new Setting(containerEl)
-                .setName(i.mobileDragModeToggleLocations)
-                .setDesc(i.mobileDragModeToggleLocationsDesc);
+            new Setting(containerEl).setName(i.mobileDragModeToggleLocations).setHeading();
 
             const toggleLocation = async (location: MobileDragModeToggleLocation, enabled: boolean) => {
                 const next = new Set(this.plugin.settings.mobileDragModeToggleLocations);
@@ -318,7 +314,6 @@ export class DragNDropSettingTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName(i.disableMobileDragModeAfterDrop)
             .setDesc(i.disableMobileDragModeAfterDropDesc)
-            .setClass(disabledCls)
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.disableMobileDragModeAfterDrop)
                 .setDisabled(!isMobile)
