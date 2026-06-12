@@ -8,8 +8,8 @@ import { Platform } from 'obsidian';
  * `platform.isMobile = true`.
  */
 export const platform = {
-    isMobile: Platform.isMobileApp,
+    isMobile: Platform.isMobile,
     isPhone: Platform.isPhone,
     isTablet: Platform.isTablet,
-    isDesktop: Platform.isDesktopApp,
+    isDesktop: Platform.isDesktop,
 };
