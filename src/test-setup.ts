@@ -1,3 +1,16 @@
+import { vi } from 'vitest';
+
+vi.mock('obsidian', () => ({
+    Platform: {
+        isMobile: false,
+        isMobileApp: false,
+        isPhone: false,
+        isTablet: false,
+        isDesktop: true,
+        isDesktopApp: true,
+    },
+}));
+
 if (typeof window !== 'undefined') {
     Object.defineProperty(window, 'activeWindow', {
         configurable: true,

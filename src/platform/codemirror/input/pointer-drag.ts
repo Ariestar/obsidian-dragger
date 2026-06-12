@@ -1,3 +1,4 @@
+import { platform } from '../../../plugin/platform';
 import { DRAG_HANDLE_CLASS, EMBED_HANDLE_CLASS } from '../../../shared/dom-selectors';
 import {
     autoScrollEditorNearViewportEdge,
@@ -147,13 +148,13 @@ function handleRangeSelectionPointerMove(
     const dx = e.clientX - state.startX;
     const dy = e.clientY - state.startY;
 
-    if (state.pointerId === -1 && pointerType !== 'mouse' && host.mobile.isMostlyVerticalScrollGesture(dx, dy)) {
+    if (state.pointerId === -1 && platform.isMobile && host.mobile.isMostlyVerticalScrollGesture(dx, dy)) {
         host.finishRangeSelectionSession();
         return;
     }
 
     if (!state.longPressReady) {
-        if (pointerType === 'mouse') {
+        if (!platform.isMobile) {
             if (distance >= MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -300,14 +301,14 @@ function finishRangeSelectingPointer(
         mode === 'up'
         && !rangeState.longPressReady
         && host.pipelineState.type === 'idle'
-        && shouldOpenBlockTypeMenuFromShortTextTap(host, e.pointerType || null, rangeState.sourceKind)
+        && shouldOpenBlockTypeMenuFromShortTextTap(host, rangeState.sourceKind)
     ) {
         e.preventDefault();
         e.stopPropagation();
         host.openBlockTypeMenuForTap(rangeState.sourceSelection, e);
         return;
     }
-    if (mode === 'up' && !rangeState.longPressReady && rangeState.pointerType === 'mouse') {
+    if (mode === 'up' && !rangeState.longPressReady && !platform.isMobile) {
         e.preventDefault();
         e.stopPropagation();
         host.deps.openBlockTypeMenu?.(rangeState.sourceSelection.anchorBlock, e);
@@ -327,7 +328,7 @@ function finishRangeSelectingPointer(
         return;
     }
     if (!rangeState.longPressReady) {
-        if (mode === 'up' && rangeState.pointerType === 'mouse') {
+        if (mode === 'up' && !platform.isMobile) {
             e.preventDefault();
             e.stopPropagation();
             host.deps.openBlockTypeMenu?.(rangeState.sourceSelection.anchorBlock, e);
@@ -358,7 +359,7 @@ function finishPressPendingPointer(
         mode === 'up'
         && !pressState.longPressReady
         && (host.pipelineState.type === 'holding' || host.pipelineState.type === 'ready_to_drag')
-        && shouldOpenBlockTypeMenuFromShortTextTap(host, e.pointerType || null, host.pipelineState.hold.target.source)
+        && shouldOpenBlockTypeMenuFromShortTextTap(host, host.pipelineState.hold.target.source)
     ) {
         e.preventDefault();
         e.stopPropagation();
@@ -370,9 +371,8 @@ function finishPressPendingPointer(
 
 function shouldOpenBlockTypeMenuFromShortTextTap(
     host: PipelineAdapter,
-    pointerType: string | null,
     sourceKind: string | null | undefined
 ): boolean {
     return sourceKind === 'text'
-        && host.isMobileDragModeActiveForPointer(pointerType);
+        && host.isMobileDragModeActiveForPointer();
 }

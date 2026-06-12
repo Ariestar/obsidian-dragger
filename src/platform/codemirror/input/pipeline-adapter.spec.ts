@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { PipelineAdapter } from './pipeline-adapter';
+import { platform } from '../../../plugin/platform';
 import {
     registerMouseHandlerTestHooks,
     createBlock,
@@ -119,6 +120,7 @@ describe('PipelineAdapter', () => {
             onPlatformCommit: vi.fn(),
         }));
 
+        platform.isMobile = true;
         handler.attach();
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 90,
@@ -136,6 +138,7 @@ describe('PipelineAdapter', () => {
 
         expect(beginPointerDragSession).not.toHaveBeenCalled();
         expect(onDropPreview).not.toHaveBeenCalled();
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -161,6 +164,7 @@ describe('PipelineAdapter', () => {
             onPlatformCommit,
         }));
 
+        platform.isMobile = true;
         handler.attach();
         dispatchPointer(line!, 'pointerdown', {
             pointerId: 91,
@@ -192,6 +196,7 @@ describe('PipelineAdapter', () => {
         expect(onPlatformCommit).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -216,6 +221,7 @@ describe('PipelineAdapter', () => {
             openBlockTypeMenu,
         }));
 
+        platform.isMobile = true;
         handler.attach();
         const downEvent = dispatchPointer(line!, 'pointerdown', {
             pointerId: 92,
@@ -237,6 +243,7 @@ describe('PipelineAdapter', () => {
         expect(openBlockTypeMenu).toHaveBeenCalledWith(sourceBlock, null);
         expect(beginPointerDragSession).not.toHaveBeenCalled();
         expect(handler.pipelineState.type).toBe('idle');
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -262,6 +269,7 @@ describe('PipelineAdapter', () => {
             openBlockTypeMenu,
         }));
 
+        platform.isMobile = true;
         handler.attach();
         dispatchPointer(line!, 'pointerdown', {
             pointerId: 93,
@@ -282,6 +290,7 @@ describe('PipelineAdapter', () => {
         expect(openBlockTypeMenu).toHaveBeenCalledWith(sourceBlock, null);
         expect(beginPointerDragSession).not.toHaveBeenCalled();
         expect(handler.pipelineState.type).toBe('idle');
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -316,6 +325,7 @@ describe('PipelineAdapter', () => {
             onPlatformCommit,
         }));
 
+        platform.isMobile = true;
         handler.attach();
         dispatchPointer(line!, 'pointerdown', {
             pointerId: 92,
@@ -338,6 +348,7 @@ describe('PipelineAdapter', () => {
         expect(targetHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -362,6 +373,7 @@ describe('PipelineAdapter', () => {
             onPlatformCommit,
         }));
 
+        platform.isMobile = true;
         handler.attach();
         dispatchPointer(line!, 'pointerdown', {
             pointerId: 94,
@@ -389,11 +401,12 @@ describe('PipelineAdapter', () => {
         expect(view.dom.querySelector('.dnd-range-selected-handle')).toBeNull();
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).toBeNull();
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).toBeNull();
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('exits selected-text hold when mobile drag mode becomes unavailable', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(6);
         const sourceBlock = createBlock('- item', 0, 0);
         const beginPointerDragSession = vi.fn();
@@ -428,7 +441,7 @@ describe('PipelineAdapter', () => {
 
         expect(handler.pipelineState.type).toBe('idle');
         expect(beginPointerDragSession).not.toHaveBeenCalled();
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -458,6 +471,7 @@ describe('PipelineAdapter', () => {
             onPlatformCommit,
         }));
 
+        platform.isMobile = true;
         handler.attach();
         const downEvent = dispatchPointer(line!, 'pointerdown', {
             pointerId: 913,
@@ -479,6 +493,7 @@ describe('PipelineAdapter', () => {
         expect(onDropPreview).not.toHaveBeenCalled();
         expect(onPlatformCommit).not.toHaveBeenCalled();
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -503,6 +518,7 @@ describe('PipelineAdapter', () => {
             onPlatformCommit: vi.fn(),
         }));
 
+        platform.isMobile = true;
         handler.attach();
         const downEvent = dispatchPointer(line!, 'pointerdown', {
             pointerId: 911,
@@ -523,6 +539,7 @@ describe('PipelineAdapter', () => {
         });
 
         expect(beginPointerDragSession).not.toHaveBeenCalled();
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -543,6 +560,7 @@ describe('PipelineAdapter', () => {
             onPlatformCommit: vi.fn(),
         }));
 
+        platform.isMobile = true;
         handler.attach();
         dispatchPointer(line!, 'pointerdown', {
             pointerId: 912,
@@ -566,11 +584,12 @@ describe('PipelineAdapter', () => {
             clientY: 10,
         });
 
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('auto-scrolls the editor at the viewport edge while dragging instead of using native scroll', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(20);
         const scroller = document.createElement('div');
         scroller.className = 'cm-scroller';
@@ -633,7 +652,7 @@ describe('PipelineAdapter', () => {
             clientX: 12,
             clientY: 195,
         });
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -664,6 +683,7 @@ describe('PipelineAdapter', () => {
             onPlatformCommit: vi.fn(),
         }));
 
+        platform.isMobile = true;
         handler.attach();
         const downEvent = dispatchPointer(line!, 'pointerdown', {
             pointerId: 914,
@@ -684,6 +704,7 @@ describe('PipelineAdapter', () => {
             clientY: 10,
         });
         expect(beginPointerDragSession).toHaveBeenCalledWith(expect.objectContaining({ anchorBlock: sourceBlock }));
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -707,6 +728,7 @@ describe('PipelineAdapter', () => {
             onPlatformCommit,
         }));
 
+        platform.isMobile = true;
         handler.attach();
         dispatchPointer(line!, 'pointerdown', {
             pointerId: 92,
@@ -731,6 +753,7 @@ describe('PipelineAdapter', () => {
         expect(beginPointerDragSession).not.toHaveBeenCalled();
         expect(onDropPreview).not.toHaveBeenCalled();
         expect(onPlatformCommit).not.toHaveBeenCalled();
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -753,6 +776,7 @@ describe('PipelineAdapter', () => {
             onPlatformCommit,
         }));
 
+        platform.isMobile = true;
         handler.attach();
         dispatchPointer(line!, 'pointerdown', {
             pointerId: 93,
@@ -776,6 +800,7 @@ describe('PipelineAdapter', () => {
 
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(onPlatformCommit).toHaveBeenCalledTimes(1);
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -807,6 +832,7 @@ describe('PipelineAdapter', () => {
             onPlatformCommit: vi.fn(),
         }));
 
+        platform.isMobile = true;
         handler.attach();
         dispatchPointer(calloutContent, 'pointerdown', {
             pointerId: 931,
@@ -835,6 +861,7 @@ describe('PipelineAdapter', () => {
                 endLine: 3,
             })],
             }), 'touch');
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -871,6 +898,7 @@ describe('PipelineAdapter', () => {
             onPlatformCommit: vi.fn(),
         }));
 
+        platform.isMobile = true;
         handler.attach();
         dispatchPointer(mathContainer, 'pointerdown', {
             pointerId: 932,
@@ -899,6 +927,7 @@ describe('PipelineAdapter', () => {
                 endLine: 4,
             })],
             }), 'touch');
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -925,6 +954,7 @@ describe('PipelineAdapter', () => {
             }),
         }));
 
+        platform.isMobile = true;
         handler.attach();
         dispatchPointer(line!, 'pointerdown', {
             pointerId: 94,
@@ -952,6 +982,7 @@ describe('PipelineAdapter', () => {
         expect(pressPendingReady).toBeDefined();
         expect(lifecycleEvents.some((event) => event.type === 'drag_started')).toBe(true);
         expect(lifecycleEvents.some((event) => event.type === 'drag_idle')).toBe(true);
+        platform.isMobile = false;
         handler.destroy();
     });
 

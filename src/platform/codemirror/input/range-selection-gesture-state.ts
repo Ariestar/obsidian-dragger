@@ -5,6 +5,7 @@ import type { BlockSelection, RangeSelectionOperation } from '../../../domain/se
 import type { SelectedBlockRange } from '../../../domain/selection/block-ranges';
 import type { GuardId } from '../../../drag/pipeline/pipeline-event';
 import type { HoldTarget } from '../../../drag/pipeline/pipeline-state';
+import { platform } from '../../../plugin/platform';
 
 export type RangeSelectConfig = {
     longPressMs: number;
@@ -54,11 +55,10 @@ type CreateInitialRangeSelectionStateOptions = {
 };
 
 export function resolveRangeSelectConfig(
-    pointerType: string | null,
     mouseLongPressMs: number,
     getTouchRangeSelectLongPressMs: () => number
 ): RangeSelectConfig {
-    if (pointerType === 'mouse') {
+    if (!platform.isMobile) {
         return {
             longPressMs: mouseLongPressMs,
         };
@@ -107,9 +107,9 @@ export function createInitialRangeSelectionState(
         latestX: options.startX,
         latestY: options.startY,
         pointerType: options.pointerType,
-        dragReady: options.pointerType === 'mouse',
+        dragReady: !platform.isMobile,
         longPressReady: false,
-        isIntercepting: options.pointerType !== 'mouse',
+        isIntercepting: platform.isMobile,
         timeoutId: null,
         dragTimeoutId: null,
         currentLineNumber: initialBoundary.representativeLineNumber,

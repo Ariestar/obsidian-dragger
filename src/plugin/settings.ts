@@ -1,4 +1,4 @@
-import { App, Platform, PluginSettingTab, Setting } from 'obsidian';
+import { App, PluginSettingTab, Setting } from 'obsidian';
 import DragNDropPlugin from './main';
 import { t } from './i18n';
 import {
@@ -12,6 +12,7 @@ import type {
     HandleVisibilityMode,
     MobileDragModeToggleLocation,
 } from './settings-types';
+import { platform } from './platform';
 
 export {
     DEFAULT_SETTINGS,
@@ -267,7 +268,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
             onChange: async (v) => { this.plugin.settings.autoScrollMaxSpeedPx = v; await this.plugin.saveSettings(); },
         });
 
-        const isMobile = Platform.isMobile;
+        const isMobile = platform.isMobile;
         const disabledCls = isMobile ? '' : 'dnd-setting-disabled';
 
         new Setting(containerEl).setName(i.headingMobile).setHeading();

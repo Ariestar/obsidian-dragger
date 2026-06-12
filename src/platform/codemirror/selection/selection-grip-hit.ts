@@ -8,6 +8,7 @@ import {
     type BlockSelectionSegment,
     type SelectedBlockRange,
 } from '../../../domain/selection/block-ranges';
+import { platform } from '../../../plugin/platform';
 
 export const RANGE_SELECTION_GRIP_HIT_PADDING_PX = 20;
 export const RANGE_SELECTION_GRIP_HIT_X_PADDING_PX = 28;
@@ -49,7 +50,7 @@ export function isRangeSelectionGripHit(options: IsRangeSelectionGripHitOptions)
     const hitHandle = options.target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`);
     if (hitHandle) return true;
 
-    if (options.pointerType && options.pointerType !== 'mouse') {
+    if (platform.isMobile) {
         if (options.target.closest(`.${DRAG_SOURCE_LINE_CLASS}`)) return true;
         if (!options.isWithinMobileDragHotzoneBand(options.clientX)) {
             return false;
@@ -63,7 +64,7 @@ export function isRangeSelectionGripHit(options: IsRangeSelectionGripHitOptions)
     for (const segment of segments) {
         const anchorSpan = options.resolveAnchorSpan(segment);
         if (!anchorSpan) continue;
-        if (!options.pointerType || options.pointerType === 'mouse') {
+        if (!platform.isMobile) {
             if (Math.abs(options.clientX - anchorSpan.x) > RANGE_SELECTION_GRIP_HIT_X_PADDING_PX) {
                 continue;
             }

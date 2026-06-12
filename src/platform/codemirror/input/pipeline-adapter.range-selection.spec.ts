@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../../domain/block/block-types';
 import { type BlockSelection } from '../../../domain/selection/block-selection';
 import { PipelineAdapter } from './pipeline-adapter';
+import { platform } from '../../../plugin/platform';
 import {
     registerMouseHandlerTestHooks,
     createBlock,
@@ -793,6 +794,7 @@ describe('PipelineAdapter Range Selection', () => {
     });
 
     it('uses unified touch long-press drag flow for handle interactions', () => {
+        platform.isMobile = true;
         const view = createViewStub(8);
         const handle = document.createElement('div');
         handle.className = 'dnd-drag-handle';
@@ -839,11 +841,12 @@ describe('PipelineAdapter Range Selection', () => {
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(onPlatformCommit).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('enters mobile selection from real handle long-press when text long-press selection is disabled', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(6);
         const handle = appendHandleForBlockStart(view, 1);
         const sourceBlock = createBlock('- item', 1, 1);
@@ -894,12 +897,12 @@ describe('PipelineAdapter Range Selection', () => {
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
 
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('enters mobile selection from real handle long-press when text long-press selection is enabled', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(6);
         const handle = appendHandleForBlockStart(view, 1);
         const sourceBlock = createBlock('- item', 1, 1);
@@ -936,11 +939,12 @@ describe('PipelineAdapter Range Selection', () => {
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
 
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('keeps mobile handle long-press duration aligned with drag flow', () => {
+        platform.isMobile = true;
         const view = createViewStub(8);
         const handle = document.createElement('div');
         handle.className = 'dnd-drag-handle';
@@ -985,6 +989,7 @@ describe('PipelineAdapter Range Selection', () => {
         expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
         expect(onPlatformCommit).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -1044,7 +1049,7 @@ describe('PipelineAdapter Range Selection', () => {
     });
 
     it('shows mobile resize handles for mobile selection mode', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(8);
         appendHandleForBlockStart(view, 0);
         appendHandleForBlockStart(view, 1);
@@ -1074,12 +1079,12 @@ describe('PipelineAdapter Range Selection', () => {
         expect(view.dom.querySelector('.dnd-drag-source-line')).not.toBeNull();
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('suppresses editor input without locking scroll in passive mobile selection mode', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(8);
         view.contentDOM.setAttribute('contenteditable', 'true');
         appendHandleForBlockStart(view, 1);
@@ -1108,7 +1113,7 @@ describe('PipelineAdapter Range Selection', () => {
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
 
         expect(view.contentDOM.getAttribute('contenteditable')).toBe('true');
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -1745,6 +1750,7 @@ describe('PipelineAdapter Range Selection', () => {
             onPlatformCommit: vi.fn(),
         }));
 
+        platform.isMobile = true;
         handler.attach();
         dispatchPointer(handle, 'pointerdown', {
             pointerId: 2,
@@ -1773,6 +1779,7 @@ describe('PipelineAdapter Range Selection', () => {
             })],
             }), 'touch');
         expect(vibrate).toHaveBeenCalledTimes(1);
+        platform.isMobile = false;
         handler.destroy();
     });
 
@@ -1792,7 +1799,7 @@ describe('PipelineAdapter Range Selection', () => {
         }));
 
         const line = view.contentDOM.querySelector<HTMLElement>('.cm-line') ?? view.contentDOM;
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         handler.attach();
         dispatchPointer(line, 'pointerdown', {
             pointerId: 52,
@@ -1929,7 +1936,7 @@ describe('PipelineAdapter Range Selection', () => {
     });
 
     it('keeps mobile selection mode open and supports resize handles to extend selection', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(8);
         const startHandle = appendHandleForBlockStart(view, 0);
         const endHandle = appendHandleForBlockStart(view, 5);
@@ -1987,12 +1994,12 @@ describe('PipelineAdapter Range Selection', () => {
         expect(selectedHandles).toContain(startHandle);
         expect(selectedHandles).toContain(endHandle);
         expect(view.dom.querySelector('.dnd-mobile-selection-bar')).toBeNull();
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('drags highlighted mobile selection handles only after a second long-press', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(8);
         const handle = appendHandleForBlockStart(view, 0);
         const sourceBlock = createBlock('- item', 0, 0);
@@ -2065,12 +2072,12 @@ describe('PipelineAdapter Range Selection', () => {
         expect(onPlatformCommit).toHaveBeenCalledTimes(1);
         expect(finishDragSession).toHaveBeenCalledTimes(1);
         expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('does not drag selected mobile handles after mobile drag mode becomes disabled', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(8);
         const handle = appendHandleForBlockStart(view, 0);
         const sourceBlock = createBlock('- item', 0, 0);
@@ -2110,12 +2117,12 @@ describe('PipelineAdapter Range Selection', () => {
         });
 
         expect(beginPointerDragSession).not.toHaveBeenCalled();
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('keeps mobile selection highlight visible while dragging from selected handles', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(8);
         const handle = appendHandleForBlockStart(view, 0);
         const sourceBlock = createBlock('- item', 0, 0);
@@ -2173,12 +2180,12 @@ describe('PipelineAdapter Range Selection', () => {
         expect(view.dom.querySelector('.dnd-range-selected-line')).toBeNull();
         expect(view.dom.querySelector('.dnd-drag-source-line')).not.toBeNull();
 
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('keeps mobile committed selection visuals during committed selection refresh', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(8);
         const handle = appendHandleForBlockStart(view, 0);
         const sourceBlock = createBlock('- item', 0, 0);
@@ -2218,12 +2225,12 @@ describe('PipelineAdapter Range Selection', () => {
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-top')).not.toBeNull();
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom')).not.toBeNull();
 
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('drags the whole mobile selection from selected text long-press', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(8);
         const firstLine = view.contentDOM.querySelectorAll<HTMLElement>('.cm-line')[0];
         expect(firstLine).not.toBeNull();
@@ -2299,12 +2306,12 @@ describe('PipelineAdapter Range Selection', () => {
             ],
         }), 'touch');
 
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('extends and shrinks mobile selection from segment top and bottom handles', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(8);
         const lineHandles = [
             appendHandleForBlockStart(view, 0),
@@ -2445,12 +2452,12 @@ describe('PipelineAdapter Range Selection', () => {
         expect(selectedHandles).toContain(lineHandles[3]);
         expect(view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-resize-handle-top')?.getAttribute('data-dnd-mobile-selection-start-line')).toBe('3');
         expect(view.dom.querySelector<HTMLElement>('.dnd-mobile-selection-resize-handle-bottom')?.getAttribute('data-dnd-mobile-selection-end-line')).toBe('4');
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('adds disjoint mobile selection ranges from unselected handles', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(8);
         const firstHandle = appendHandleForBlockStart(view, 0);
         const middleHandle = appendHandleForBlockStart(view, 1);
@@ -2517,12 +2524,12 @@ describe('PipelineAdapter Range Selection', () => {
         expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
         expect(dispatchTouchMove(window).defaultPrevented).toBe(false);
 
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('exits mobile selection when parent mobile drag mode becomes unavailable', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(8);
         view.contentDOM.setAttribute('contenteditable', 'true');
         const handle = appendHandleForBlockStart(view, 0);
@@ -2563,12 +2570,12 @@ describe('PipelineAdapter Range Selection', () => {
         expect(view.dom.querySelector('.dnd-mobile-selection-resize-handle-bottom.is-active')).toBeNull();
         expect(view.contentDOM.getAttribute('contenteditable')).toBe('true');
 
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('adds disjoint mobile selection ranges from unselected text long-long-press without clearing short taps', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(8);
         const farLine = view.contentDOM.querySelectorAll<HTMLElement>('.cm-line')[5];
         expect(farLine).not.toBeNull();
@@ -2656,12 +2663,12 @@ describe('PipelineAdapter Range Selection', () => {
         expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-top.is-active')).toHaveLength(2);
         expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-bottom.is-active')).toHaveLength(2);
         expect(document.body.classList.contains('dnd-mobile-gesture-lock')).toBe(false);
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('enters mobile selection from text long-long-press and appends multiple text ranges', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(10);
         const lines = view.contentDOM.querySelectorAll<HTMLElement>('.cm-line');
         const firstLine = lines[0];
@@ -2749,12 +2756,12 @@ describe('PipelineAdapter Range Selection', () => {
         expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-top.is-active')).toHaveLength(3);
         expect(view.dom.querySelectorAll('.dnd-mobile-selection-resize-handle-bottom.is-active')).toHaveLength(3);
 
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 
     it('keeps mobile selection mode open while scrolling the document', () => {
-        document.body.classList.add('is-mobile');
+        platform.isMobile = true;
         const view = createViewStub(8);
         appendHandleForBlockStart(view, 0);
         const sourceBlock = createBlock('- item', 0, 0);
@@ -2784,7 +2791,7 @@ describe('PipelineAdapter Range Selection', () => {
 
         expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).not.toHaveLength(0);
         expect(view.dom.querySelector('.dnd-mobile-selection-bar')).toBeNull();
-        document.body.classList.remove('is-mobile');
+        platform.isMobile = false;
         handler.destroy();
     });
 

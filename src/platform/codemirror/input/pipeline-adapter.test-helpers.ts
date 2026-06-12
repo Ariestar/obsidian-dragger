@@ -24,7 +24,6 @@ type RectLike = {
     toJSON: () => Record<string, never>;
 };
 
-const originalMatchMedia = window.matchMedia;
 const originalVibrate = (navigator as Navigator & { vibrate?: (pattern: number | number[]) => boolean }).vibrate;
 let originalElementFromPoint: ((this: void, x: number, y: number) => Element | null) | undefined;
 
@@ -311,20 +310,6 @@ export function registerMouseHandlerTestHooks(): void {
             originalElementFromPoint = (x: number, y: number) => nativeElementFromPoint(x, y);
         }
         vi.useFakeTimers();
-        Object.defineProperty(window, 'matchMedia', {
-            configurable: true,
-            writable: true,
-            value: vi.fn().mockImplementation((query: string) => ({
-                matches: query === '(hover: none) and (pointer: coarse)',
-                media: query,
-                onchange: null,
-                addEventListener: vi.fn(),
-                removeEventListener: vi.fn(),
-                addListener: vi.fn(),
-                removeListener: vi.fn(),
-                dispatchEvent: vi.fn(),
-            })),
-        });
     });
 
     afterEach(() => {
@@ -332,11 +317,6 @@ export function registerMouseHandlerTestHooks(): void {
         activeDocument.body.className = '';
         vi.restoreAllMocks();
         vi.useRealTimers();
-        Object.defineProperty(window, 'matchMedia', {
-            configurable: true,
-            writable: true,
-            value: originalMatchMedia,
-        });
         Object.defineProperty(window.navigator, 'vibrate', {
             configurable: true,
             writable: true,

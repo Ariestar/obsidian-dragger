@@ -54,10 +54,6 @@ export class InputGuardController {
         this.mobileInputHitTest = new MobileInputHitTest(view);
     }
 
-    isMobileEnvironment(): boolean {
-        return this.mobileInputHitTest.isMobileEnvironment();
-    }
-
     isWithinContentTolerance(clientX: number): boolean {
         return this.mobileInputHitTest.isWithinContentTolerance(clientX);
     }

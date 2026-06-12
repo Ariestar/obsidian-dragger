@@ -97,6 +97,13 @@ const allowedPlatformPluginEdges = new Set([
     'src/platform/codemirror/extension/drag-driver.ts -> ../../../plugin/block-type-menu',
     'src/platform/codemirror/extension/editor-extension.ts -> ../../../plugin/main',
     'src/platform/obsidian/external-file-drop-controller.ts -> ../../plugin/main',
+    // Platform detection module — shared foundation, imported by both layers.
+    'src/platform/codemirror/input/pipeline-adapter.ts -> ../../../plugin/platform',
+    'src/platform/codemirror/input/pointer-selection.ts -> ../../../plugin/platform',
+    'src/platform/codemirror/input/pointer-drag.ts -> ../../../plugin/platform',
+    'src/platform/codemirror/input/range-selection-gesture-state.ts -> ../../../plugin/platform',
+    'src/platform/codemirror/preview/range-selection-visual-manager.ts -> ../../../plugin/platform',
+    'src/platform/codemirror/selection/selection-grip-hit.ts -> ../../../plugin/platform',
 ]);
 
 describe('final architecture boundaries', () => {

@@ -28,6 +28,7 @@ import {
 import {
     MOBILE_SELECTED_RANGE_DRAG_LONG_PRESS_MS,
 } from './touch-delay-policy';
+import { platform } from '../../../plugin/platform';
 
 export type RangeSelectionSessionOptions = {
     skipLongPress?: boolean;
@@ -47,14 +48,13 @@ export type PointerSelectionContext = {
     readonly pipelineState: PipelineState;
     readonly hasActiveRangePointerSession: boolean;
     readonly passiveSelectionSource: BlockSelection | null;
-    readonly isMobileEnvironment: boolean;
     readonly isMultiLineSelectionEnabled: boolean;
     readonly isMobileTextLongPressDragEnabled: boolean;
     readonly mobileDragLongPressMs: number;
     readonly isBlockInsideRenderedTableCell: (blockInfo: BlockInfo) => boolean;
     readonly resolveBlockSelection: (request: BlockSelectionRequest) => BlockSelection | null;
-    readonly canStartDragForPointer: (pointerType: string | null, source: HoldTarget['source']) => boolean;
-    readonly isMobileDragModeActiveForPointer: (pointerType: string | null) => boolean;
+    readonly canStartDragForPointer: (source: HoldTarget['source']) => boolean;
+    readonly isMobileDragModeActiveForPointer: () => boolean;
     readonly isWithinMobileTextLineOrEmbedArea: (target: HTMLElement | null, clientX: number, clientY: number) => boolean;
     readonly isSelectionDragGripHit: (target: HTMLElement, clientX: number, clientY: number, pointerType: string | null) => boolean;
 };
@@ -97,23 +97,12 @@ export type MobileSelectionModeDecision =
         markEventHandled: boolean;
     };
 
-type PointerPlatform = 'desktop' | 'mobile';
-
-type PointerInputPolicy = {
-    platform: PointerPlatform;
-    pointerType: string | null;
-    canResizeSelection: boolean;
-    canUseTextLongPress: boolean;
-    handleLongPressMs: number;
-};
-
 export function decidePointerDown(
     context: PointerSelectionContext,
     e: PointerEvent,
     target: HTMLElement
 ): PointerDownDecision {
-    const policy = resolvePointerInputPolicy(context, e);
-    const resize = decideSelectionResize(context, e, target, policy);
+    const resize = decideSelectionResize(context, e, target);
     if (resize.type !== 'none') return resize;
 
     const passiveDrag = decidePassiveSelectionDrag(context, e, target);
@@ -121,20 +110,20 @@ export function decidePointerDown(
 
     const handle = target.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
     if (handle && !handle.classList.contains(EMBED_HANDLE_CLASS)) {
-        return decideHandlePointerDown(context, e, handle, policy);
+        return decideHandlePointerDown(context, e, handle);
     }
 
-    const textRange = decideTextRangeSelection(context, e, target, policy);
+    const textRange = decideTextRangeSelection(context, e, target);
     if (textRange.type !== 'none') return textRange;
     if (isPassiveSelectionActive(context)) return { type: 'none' };
-    return decideTextLongPressDrag(context, e, target, policy);
+    return decideTextLongPressDrag(context, e, target);
 }
 
 export function decideEnterMobileSelectionMode(
     context: PointerSelectionContext,
     e: Event
 ): MobileSelectionModeDecision {
-    if (!context.isMobileEnvironment) return { type: 'none' };
+    if (!platform.isMobile) return { type: 'none' };
     if (!context.isMultiLineSelectionEnabled) return { type: 'none' };
     if (context.pipelineState.type !== 'idle') return { type: 'none' };
 
@@ -158,9 +147,9 @@ function decideEnterMobileSelectionModeFromBlock(
     blockInfo: BlockInfo,
     e: Event
 ): MobileSelectionModeDecision {
-    if (!context.isMobileEnvironment) return { type: 'none' };
+    if (!platform.isMobile) return { type: 'none' };
     if (!context.isMultiLineSelectionEnabled) return { type: 'none' };
-    if (!context.canStartDragForPointer('touch', 'text')) return { type: 'none' };
+    if (!context.canStartDragForPointer('text')) return { type: 'none' };
     if (
         context.pipelineState.type !== 'idle'
         && context.pipelineState.type !== 'holding'
@@ -181,18 +170,6 @@ function decideEnterMobileSelectionModeFromBlock(
     };
 }
 
-function resolvePointerInputPolicy(context: PointerSelectionContext, e: PointerEvent): PointerInputPolicy {
-    const pointerType = e.pointerType || null;
-    const platform = pointerType !== 'mouse' && context.isMobileEnvironment ? 'mobile' : 'desktop';
-    return {
-        platform,
-        pointerType,
-        canResizeSelection: platform === 'mobile',
-        canUseTextLongPress: platform === 'mobile',
-        handleLongPressMs: platform === 'desktop' ? 0 : context.mobileDragLongPressMs,
-    };
-}
-
 function isPassiveSelectionActive(context: PointerSelectionContext): boolean {
     return context.pipelineState.type === 'selecting'
         && context.pipelineState.selection.phase === 'passive';
@@ -201,10 +178,9 @@ function isPassiveSelectionActive(context: PointerSelectionContext): boolean {
 function decideSelectionResize(
     context: PointerSelectionContext,
     e: PointerEvent,
-    target: HTMLElement,
-    policy: PointerInputPolicy
+    target: HTMLElement
 ): PointerDownDecision {
-    if (!policy.canResizeSelection) return { type: 'none' };
+    if (!platform.isMobile) return { type: 'none' };
     if (context.pipelineState.type !== 'selecting' || context.pipelineState.selection.phase !== 'passive') return { type: 'none' };
 
     const handleEl = target.closest<HTMLElement>(`.${MOBILE_SELECTION_RESIZE_HANDLE_CLASS}`);
@@ -272,17 +248,17 @@ function decidePassiveSelectionDrag(
 
     const pointerType = e.pointerType || null;
     const selectedHandleHit = !!target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`);
-    if (pointerType === 'mouse' && selectedHandleHit) return { type: 'none' };
+    if (!platform.isMobile && selectedHandleHit) return { type: 'none' };
     if (!context.isSelectionDragGripHit(target, e.clientX, e.clientY, pointerType)) {
         return { type: 'none' };
     }
     const sourceKind: HoldTarget['source'] = selectedHandleHit ? 'handle' : 'selected_text';
-    if (!context.canStartDragForPointer(pointerType, sourceKind)) return { type: 'none' };
+    if (!context.canStartDragForPointer(sourceKind)) return { type: 'none' };
 
     if (context.pipelineState.type === 'selecting' && context.hasActiveRangePointerSession) {
         return { type: 'retarget_mobile_range_selection' };
     }
-    const longPressMs = pointerType !== 'mouse' && context.isMobileEnvironment
+    const longPressMs = platform.isMobile
         ? MOBILE_SELECTED_RANGE_DRAG_LONG_PRESS_MS
         : undefined;
     return {
@@ -295,11 +271,10 @@ function decidePassiveSelectionDrag(
 function decideHandlePointerDown(
     context: PointerSelectionContext,
     e: PointerEvent,
-    handle: HTMLElement,
-    policy: PointerInputPolicy
+    handle: HTMLElement
 ): PointerDownDecision {
     if (e.button !== 0) return { type: 'none' };
-    if (policy.platform === 'mobile') {
+    if (platform.isMobile) {
         const append = decideRangeSelectionFromHandleWhileSelecting(context, handle, e);
         if (append.type !== 'none') return append;
         const retarget = decideRetargetRangeSelectionFromHandleWhileSelecting(context, handle, e);
@@ -311,14 +286,14 @@ function decideHandlePointerDown(
     const blockInfo = source.anchorBlock;
     if (context.isBlockInsideRenderedTableCell(blockInfo)) return { type: 'handled' };
 
-    const rangePolicy = resolveHandleRangeSelectionPolicy(context, e, policy);
+    const rangePolicy = resolveHandleRangeSelectionPolicy(context, e);
     if (rangePolicy) {
         return {
             type: 'start_range_selection',
             source,
             handle,
             options: rangePolicy,
-            preventDefault: policy.handleLongPressMs === 0,
+            preventDefault: !platform.isMobile,
         };
     }
 
@@ -327,18 +302,17 @@ function decideHandlePointerDown(
         source,
         options: {
             sourceKind: 'handle',
-            longPressMs: policy.handleLongPressMs,
+            longPressMs: platform.isMobile ? context.mobileDragLongPressMs : 0,
         },
     };
 }
 
 function resolveHandleRangeSelectionPolicy(
     context: PointerSelectionContext,
-    e: PointerEvent,
-    policy: PointerInputPolicy
+    e: PointerEvent
 ): RangeSelectionSessionOptions | null {
     if (!context.isMultiLineSelectionEnabled) return null;
-    if (policy.platform === 'mobile') {
+    if (platform.isMobile) {
         if (isPassiveSelectionActive(context)) return { skipLongPress: true };
         return { deferPipelineStart: true, guardDeps: ['mobile-text-drag-mode'], sourceKind: 'handle' };
     }
@@ -353,7 +327,7 @@ function decideRangeSelectionFromHandleWhileSelecting(
     e: PointerEvent
 ): PointerDownDecision {
     if (context.pipelineState.type !== 'selecting' || context.pipelineState.selection.phase !== 'passive') return { type: 'none' };
-    if (e.pointerType === 'mouse') return { type: 'none' };
+    if (!platform.isMobile) return { type: 'none' };
     if (targetIsInsideMobileSelection(handle)) return { type: 'none' };
 
     const source = context.resolveBlockSelection({ kind: 'handle', handle });
@@ -387,13 +361,12 @@ function decideRangeSelectionThroughSharedSession(
 function decideTextRangeSelection(
     context: PointerSelectionContext,
     e: PointerEvent,
-    target: HTMLElement,
-    policy: PointerInputPolicy
+    target: HTMLElement
 ): PointerDownDecision {
     if (!isPassiveSelectionActive(context)) return { type: 'none' };
-    if (!policy.canUseTextLongPress) return { type: 'none' };
+    if (!platform.isMobile) return { type: 'none' };
     if (!shouldStartMobilePressDragByInput(e)) return { type: 'none' };
-    if (!context.canStartDragForPointer(e.pointerType || null, 'text')) return { type: 'none' };
+    if (!context.canStartDragForPointer('text')) return { type: 'none' };
     if (!context.isMobileTextLongPressDragEnabled) return { type: 'none' };
     if (!context.isWithinMobileTextLineOrEmbedArea(target, e.clientX, e.clientY)) return { type: 'none' };
 
@@ -412,7 +385,7 @@ function decideRetargetRangeSelectionFromHandleWhileSelecting(
     e: PointerEvent
 ): PointerDownDecision {
     if (context.pipelineState.type !== 'selecting') return { type: 'none' };
-    if (e.pointerType === 'mouse') return { type: 'none' };
+    if (!platform.isMobile) return { type: 'none' };
 
     const source = context.resolveBlockSelection({ kind: 'handle', handle });
     if (!source) return { type: 'none' };
@@ -430,12 +403,11 @@ function decideRetargetRangeSelectionFromHandleWhileSelecting(
 function decideTextLongPressDrag(
     context: PointerSelectionContext,
     e: PointerEvent,
-    target: HTMLElement,
-    policy: PointerInputPolicy
+    target: HTMLElement
 ): PointerDownDecision {
-    if (!policy.canUseTextLongPress) return { type: 'none' };
+    if (!platform.isMobile) return { type: 'none' };
     if (!shouldStartMobilePressDrag(context, e)) return { type: 'none' };
-    if (!context.canStartDragForPointer(e.pointerType || null, 'text')) return { type: 'none' };
+    if (!context.canStartDragForPointer('text')) return { type: 'none' };
 
     const inTextLineOrEmbedArea = context.isMobileTextLongPressDragEnabled
         && context.isWithinMobileTextLineOrEmbedArea(target, e.clientX, e.clientY);
@@ -472,7 +444,7 @@ function targetIsInsideMobileSelection(target: HTMLElement): boolean {
 
 function shouldStartMobilePressDrag(context: PointerSelectionContext, e: PointerEvent): boolean {
     if (context.pipelineState.type !== 'idle') return false;
-    if (!context.isMobileEnvironment) return false;
+    if (!platform.isMobile) return false;
     return shouldStartMobilePressDragByInput(e);
 }
 

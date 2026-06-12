@@ -18,6 +18,7 @@ import type { BlockSelection } from '../../../domain/selection/block-selection';
 import type { PipelineState } from '../../../drag/pipeline/pipeline-state';
 import { getMainContentLineElementForLine } from '../../dom/line-dom';
 import { addSourceLineClasses, removeSourceLineClasses } from './source-line-visual';
+import { platform } from '../../../plugin/platform';
 
 export type RangeAnchorPoint = {
     x: number;
@@ -204,7 +205,7 @@ class RangeSelectionBoundaryHandleRenderer {
         blocks: SelectedBlockRange[],
         options?: { showMobileResizeHandles?: boolean }
     ): void {
-        if (!options?.showMobileResizeHandles || !this.isMobileEnvironment()) {
+        if (!options?.showMobileResizeHandles || !platform.isMobile) {
             this.clear();
             return;
         }
@@ -306,15 +307,6 @@ class RangeSelectionBoundaryHandleRenderer {
             handleEl.remove();
             this.resizeHandleEls.delete(key);
         }
-    }
-
-    private isMobileEnvironment(): boolean {
-        const body = activeDocument.body;
-        if (body.classList.contains('is-mobile') || body.classList.contains('is-phone') || body.classList.contains('is-tablet')) {
-            return true;
-        }
-        if (typeof window.matchMedia !== 'function') return false;
-        return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
     }
 }
 

@@ -1,5 +1,6 @@
 import { Menu, Notice, setIcon } from 'obsidian';
 import { EditorView } from '@codemirror/view';
+import { platform } from './platform';
 import {
     copyCurrentBlock,
     cutCurrentBlock,
@@ -108,7 +109,7 @@ function addNestedConversionMenu(
         item
             .setTitle(createSubmenuTitle(group.label))
             .setIcon(group.icon);
-        if (isMobileMenuEnvironment()) {
+        if (platform.isMobile) {
             item.onClick(() => {
                 openNestedMenuPage(menu, view, group);
             });
@@ -184,10 +185,6 @@ function createNestedConversionMenu(view: EditorView, options: BlockTypeConversi
     return child;
 }
 
-function isMobileMenuEnvironment(): boolean {
-    return activeWindow.matchMedia('(hover: none) and (pointer: coarse)').matches;
-}
-
 function addActionRow(menu: Menu, actions: BlockMenuAction[]): void {
     for (const action of actions) {
         addActionItem(menu, action);
@@ -218,7 +215,7 @@ async function executeMenuAction(menu: Menu, action: BlockMenuAction): Promise<v
 }
 
 function prepareNestedMenuItems(view: EditorView, groups: NestedConversionGroup[]): void {
-    const isMobile = isMobileMenuEnvironment();
+    const isMobile = platform.isMobile;
     const items = activeDocument.querySelectorAll<HTMLElement>('.menu-item');
     for (const item of Array.from(items)) {
         const title = item.querySelector<HTMLElement>('.dnd-block-type-submenu-title-label')?.textContent?.trim();

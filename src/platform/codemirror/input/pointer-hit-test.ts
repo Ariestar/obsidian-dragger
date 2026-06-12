@@ -181,15 +181,6 @@ export function readVisibilityInput(event: Event): VisibilityInput {
     };
 }
 
-export function isMobileEnvironment(): boolean {
-    const body = activeDocument.body;
-    if (body?.classList.contains('is-mobile') || body?.classList.contains('is-phone') || body?.classList.contains('is-tablet')) {
-        return true;
-    }
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-    return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-}
-
 export function shouldStartMobilePressDrag(e: PointerEvent): boolean {
     return e.pointerType === 'touch'
         && e.button === 0;

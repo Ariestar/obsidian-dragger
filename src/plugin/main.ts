@@ -1,4 +1,4 @@
-import { MarkdownView, Platform, Plugin, setIcon } from 'obsidian';
+import { MarkdownView, Plugin, setIcon } from 'obsidian';
 import { dragHandleExtension } from '../platform/codemirror/extension/editor-extension';
 import { ExternalFileDropController } from '../platform/obsidian/external-file-drop-controller';
 import {
@@ -19,6 +19,7 @@ import {
     HandleVisibilityMode,
 } from './settings';
 import { migrateSettings } from './settings-migrations';
+import { platform } from './platform';
 import { DragLifecycleEvent, DragLifecycleListener } from '../drag/pipeline/pipeline-output';
 import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
 
@@ -74,7 +75,7 @@ export default class DragNDropPlugin extends Plugin {
         const visibility: HandleVisibilityMode = this.settings.handleVisibility;
         body.classList.toggle('dnd-handles-always', visibility === 'always');
         body.classList.toggle('dnd-handles-hidden', visibility === 'hidden');
-        body.classList.toggle('dnd-mobile-handles-hidden', Platform.isMobile && !this.settings.enableMobileTextLongPressDrag);
+        body.classList.toggle('dnd-mobile-handles-hidden', platform.isMobile && !this.settings.enableMobileTextLongPressDrag);
         body.classList.toggle('dnd-mobile-drag-mode-enabled', this.mobileDragModeEnabled);
 
         const selectionVisualStyle = this.settings.selectionVisualStyle;
@@ -183,7 +184,7 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     private dismissActiveMobileInput(): void {
-        if (!Platform.isMobile) return;
+        if (!platform.isMobile) return;
         const win = activeWindow as typeof window;
         const active = activeDocument.activeElement;
         if (!(active instanceof win.HTMLElement)) return;
@@ -202,13 +203,13 @@ export default class DragNDropPlugin extends Plugin {
 
     private handleMobileDragModeLifecycle(event: DragLifecycleEvent): void {
         if (event.type !== 'drag_drop_commit') return;
-        if (event.pointerType === 'mouse') return;
+        if (!platform.isMobile) return;
         if (this.settings.disableMobileDragModeAfterDrop === false) return;
         this.setMobileDragModeEnabled(false);
     }
 
     private registerMobileDragModeActions(): void {
-        if (!Platform.isMobile) return;
+        if (!platform.isMobile) return;
         if (!this.isMobileDragModeToggleLocationEnabled('view-action')) {
             this.removeMobileDragModeActions();
             return;
@@ -236,7 +237,7 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     private syncMobileDragModeActionVisibility(): void {
-        if (!Platform.isMobile) return;
+        if (!platform.isMobile) return;
         if (!this.isMobileDragModeToggleLocationEnabled('view-action')) {
             this.removeMobileDragModeActions();
             return;

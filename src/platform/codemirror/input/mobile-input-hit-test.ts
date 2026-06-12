@@ -11,15 +11,6 @@ const MOBILE_RANGE_SELECT_SCROLL_CANCEL_THRESHOLD_PX = 14;
 export class MobileInputHitTest {
     constructor(private readonly view: EditorView) {}
 
-    isMobileEnvironment(): boolean {
-        const body = activeDocument.body;
-        if (body?.classList.contains('is-mobile') || body?.classList.contains('is-phone') || body?.classList.contains('is-tablet')) {
-            return true;
-        }
-        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-        return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-    }
-
     isWithinContentTolerance(clientX: number): boolean {
         const contentRect = this.view.contentDOM.getBoundingClientRect();
         const left = contentRect.left - MOBILE_DRAG_HOTZONE_EXTRA_LEFT_TOLERANCE_PX;

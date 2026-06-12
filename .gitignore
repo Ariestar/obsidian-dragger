@@ -38,3 +38,5 @@ Thumbs.db
 npm-debug.log*
 
 ob_vault/
+
+.claude/

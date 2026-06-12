@@ -37,9 +37,6 @@ import {
     type RangeSelectionPointerSession,
 } from './pointer-session';
 import { readFocusInput, readKeyboardInput, readPointerInput, readVisibilityInput } from './pointer-hit-test';
-import {
-    isMobileEnvironment as isMobileEnvironmentByInput,
-} from './pointer-hit-test';
 import { createRangeSelectionBoundaryResolver } from '../selection/block-boundary-resolver';
 import { type BlockSelectionRequest } from '../selection/block-selection-resolver';
 import {
@@ -48,6 +45,7 @@ import {
     INPUT_GUARD_MOBILE_SELECTION_PASSIVE,
 } from './input-guards';
 import { RANGE_SELECTED_HANDLE_CLASS } from '../../../shared/dom-selectors';
+import { platform } from '../../../plugin/platform';
 import { handlePointerCancel, handlePointerMove, handlePointerUp } from './pointer-drag';
 import {
     clampTouchRangeSelectLongPressMs,
@@ -179,24 +177,19 @@ export class PipelineAdapter {
         this.rangeVisual.scheduleRefresh();
     }
 
-    private isMobileEnvironment(): boolean {
-        return isMobileEnvironmentByInput();
-    }
-
     private buildPointerSelectionContext(): PointerSelectionContext {
         return {
             view: this.view,
             pipelineState: this.pipelineState,
             hasActiveRangePointerSession: this.rangePointerSession !== null,
             passiveSelectionSource: this.getPassiveSelectionSource(),
-            isMobileEnvironment: this.mobile.isMobileEnvironment(),
             isMultiLineSelectionEnabled: this.isMultiLineSelectionEnabled(),
             isMobileTextLongPressDragEnabled: this.deps.isMobileTextLongPressDragEnabled?.() !== false,
             mobileDragLongPressMs: this.deps.getMobileDragLongPressMs?.() ?? MOBILE_DRAG_LONG_PRESS_MS,
             isBlockInsideRenderedTableCell: (blockInfo) => this.deps.isBlockInsideRenderedTableCell(blockInfo),
             resolveBlockSelection: (request) => this.resolveBlockSelection(request),
-            canStartDragForPointer: (pointerType, source) => this.canStartDragForPointer(pointerType, source),
-            isMobileDragModeActiveForPointer: (pointerType) => this.isMobileDragModeActiveForPointer(pointerType),
+            canStartDragForPointer: (source) => this.canStartDragForPointer(source),
+            isMobileDragModeActiveForPointer: () => this.isMobileDragModeActiveForPointer(),
             isWithinMobileTextLineOrEmbedArea: (target, clientX, clientY) =>
                 this.mobile.isWithinMobileTextLineOrEmbedArea(target, clientX, clientY),
             isSelectionDragGripHit: (target, clientX, clientY, pointerType) =>
@@ -261,11 +254,10 @@ export class PipelineAdapter {
         const pointerType = e.pointerType || null;
         const skipLongPress = options?.skipLongPress === true;
         const config = resolveRangeSelectConfig(
-            pointerType,
             this.deps.getMouseRangeSelectLongPressMs?.() ?? MOUSE_RANGE_SELECT_LONG_PRESS_MS,
             () => this.getTouchRangeSelectLongPressMs()
         );
-        const waitForMouseLongPress = pointerType === 'mouse' && !skipLongPress;
+        const waitForMouseLongPress = !platform.isMobile && !skipLongPress;
         const initialRangeSelectState = createInitialRangeSelectionState({
             blockInfo,
             sourceSelection: source,
@@ -287,7 +279,7 @@ export class PipelineAdapter {
 
         const allowSecondaryDrag = options?.allowSecondaryDrag !== false;
         let dragTimeoutId: number | null = null;
-        if (pointerType !== 'mouse' && allowSecondaryDrag) {
+        if (platform.isMobile && allowSecondaryDrag) {
             dragTimeoutId = window.setTimeout(() => {
                 const state = this.rangePointerSession;
                 if (!state) return;
@@ -330,7 +322,7 @@ export class PipelineAdapter {
             this.startRangeSelectionPipeline(initialRangeSelectState);
             this.updateMouseRangeSelectionFromLine(initialRangeSelectState, initialRangeSelectState.currentLineNumber);
         }
-        if (e.pointerType !== 'mouse' && this.rangePointerSession?.isIntercepting) {
+        if (platform.isMobile && this.rangePointerSession?.isIntercepting) {
             this.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_SELECTION_GESTURE, e.target);
         }
     }
@@ -393,26 +385,26 @@ export class PipelineAdapter {
     ): void {
         const pointerType = e.pointerType || null;
         const sourceKind = options?.sourceKind ?? 'handle';
-        if (!this.canStartDragForPointer(pointerType, sourceKind)) return;
+        if (!this.canStartDragForPointer(sourceKind)) return;
 
         e.preventDefault();
         e.stopPropagation();
         this.pointer.tryCapturePointer(e);
-        if (pointerType !== 'mouse') {
+        if (platform.isMobile) {
             this.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_DRAG_GESTURE, e.target);
         }
 
         const sessionId = this.createSessionId();
         const skipLongPress = options?.skipLongPress === true || options?.longPressMs === 0;
-        const longPressMs = options?.longPressMs ?? (pointerType === 'mouse'
-            ? (this.deps.getMouseRangeSelectLongPressMs?.() ?? MOUSE_RANGE_SELECT_LONG_PRESS_MS)
-            : (this.deps.getMobileDragLongPressMs?.() ?? MOBILE_DRAG_LONG_PRESS_MS));
+        const longPressMs = options?.longPressMs ?? (platform.isMobile
+            ? (this.deps.getMobileDragLongPressMs?.() ?? MOBILE_DRAG_LONG_PRESS_MS)
+            : (this.deps.getMouseRangeSelectLongPressMs?.() ?? MOUSE_RANGE_SELECT_LONG_PRESS_MS));
         const timeoutId = skipLongPress
             ? null
             : window.setTimeout(() => this.markPressReady(sessionId, e.pointerId, pointerType), longPressMs);
         const startMoveThresholdPx = skipLongPress
             ? 2
-            : (pointerType === 'mouse' ? 4 : 8);
+            : (platform.isMobile ? 8 : 4);
 
         this.pressSession = {
             sessionId,
@@ -432,7 +424,7 @@ export class PipelineAdapter {
             type: 'hold_start',
             sessionId,
             target: { selection: source, source: sourceKind },
-            guardDeps: this.guardDepsForSource(sourceKind, pointerType),
+            guardDeps: this.guardDepsForSource(sourceKind),
             pointerType,
         });
         if (skipLongPress) {
@@ -475,7 +467,7 @@ export class PipelineAdapter {
         pointerType: string | null,
         sourceKind: HoldTarget['source'] = 'handle'
     ): void {
-        if (!this.canStartDragForPointer(pointerType, sourceKind)) {
+        if (!this.canStartDragForPointer(sourceKind)) {
             this.resetInteractionSession({ shouldFinishDragSession: false, shouldHideDropPreview: true });
             return;
         }
@@ -487,7 +479,7 @@ export class PipelineAdapter {
                 type: 'hold_start',
                 sessionId,
                 target: { selection: source, source: sourceKind },
-                guardDeps: this.guardDepsForSource(sourceKind, pointerType),
+                guardDeps: this.guardDepsForSource(sourceKind),
                 pointerType,
             });
             this.pipeline.enter({ type: 'hold_ready', sessionId, pointerType });
@@ -496,7 +488,7 @@ export class PipelineAdapter {
         this.pipeline.enter({ type: 'drag_start', sessionId, drop, pointerType });
         if (this.pipelineState.type !== 'dragging') return;
 
-        if (this.mobile.isMobileEnvironment()) {
+        if (platform.isMobile) {
             this.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_DRAG_GESTURE);
             this.mobile.triggerMobileHapticFeedback();
         }
@@ -661,7 +653,7 @@ export class PipelineAdapter {
 
     retargetMobileRangeSelection(e: PointerEvent): void {
         const state = this.rangePointerSession;
-        if (this.pipelineState.type !== 'selecting' || !state || state.pointerType === 'mouse') return;
+        if (this.pipelineState.type !== 'selecting' || !state || !platform.isMobile) return;
         state.pointerId = e.pointerId;
         state.startX = e.clientX;
         state.startY = e.clientY;
@@ -691,7 +683,7 @@ export class PipelineAdapter {
         }
         const selectedHandleHit = !!target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`);
         const sourceKind: HoldTarget['source'] = selectedHandleHit ? 'handle' : 'selected_text';
-        if (!this.canStartDragForPointer(pointerType, sourceKind)) return false;
+        if (!this.canStartDragForPointer(sourceKind)) return false;
 
         if (this.pipelineState.type === 'selecting' && this.rangePointerSession) {
             this.retargetMobileRangeSelection(e);
@@ -764,7 +756,7 @@ export class PipelineAdapter {
         this.pointer.detachPointerListeners();
         this.pointer.releasePointerCapture();
         this.pipeline.enter({ type: 'selection_finish' });
-        if (this.mobile.isMobileEnvironment() && this.pipelineState.type === 'selecting') {
+        if (platform.isMobile && this.pipelineState.type === 'selecting') {
             this.mobile.applyInputGuardMode(INPUT_GUARD_MOBILE_SELECTION_PASSIVE);
         } else {
             this.mobile.clearInputGuardMode();
@@ -821,7 +813,7 @@ export class PipelineAdapter {
             cancelReason: null,
             pointerType,
         });
-        if (pointerType === 'mouse') {
+        if (!platform.isMobile) {
             this.deps.openBlockTypeMenu?.(selection.anchorBlock, e);
             return;
         }
@@ -994,16 +986,14 @@ export class PipelineAdapter {
         return this.deps.isMultiLineSelectionEnabled();
     }
 
-    canStartDragForPointer(pointerType: string | null, source: HoldTarget['source'] = 'handle'): boolean {
+    canStartDragForPointer(source: HoldTarget['source'] = 'handle'): boolean {
         if (source === 'command') return true;
-        if (pointerType === 'mouse') return true;
-        if (!this.mobile.isMobileEnvironment()) return true;
+        if (!platform.isMobile) return true;
         return this.deps.isMobileDragModeEnabled?.() === true;
     }
 
-    isMobileDragModeActiveForPointer(pointerType: string | null): boolean {
-        if (pointerType === 'mouse') return false;
-        if (!this.mobile.isMobileEnvironment()) return false;
+    isMobileDragModeActiveForPointer(): boolean {
+        if (!platform.isMobile) return false;
         return this.deps.isMobileDragModeEnabled?.() === true;
     }
 
@@ -1023,8 +1013,8 @@ export class PipelineAdapter {
         this.activeDragSession = null;
     }
 
-    private guardDepsForSource(source: HoldTarget['source'], pointerType: string | null): string[] {
-        if ((source === 'text' || source === 'selected_text') && pointerType !== 'mouse' && this.mobile.isMobileEnvironment()) {
+    private guardDepsForSource(source: HoldTarget['source']): string[] {
+        if ((source === 'text' || source === 'selected_text') && platform.isMobile) {
             return [GUARD_MOBILE_TEXT_DRAG];
         }
         return [];
