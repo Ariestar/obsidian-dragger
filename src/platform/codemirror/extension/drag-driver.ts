@@ -27,7 +27,7 @@ import type { BlockSelection } from '../../../domain/selection/block-selection';
 import type { DragDocumentRelation, DragSelectionScope } from '../drop/codemirror-drop-snapshot';
 import type { DragLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../../../shared/dom-attrs';
-import { normalizeBlockSelectionVisualStyle } from '../../../plugin/settings';
+
 import { resolveEditorDocumentKey } from '../../obsidian/editor-document-key';
 import { createBlockFoldStateManager } from '../../obsidian/block-fold-state';
 import {
@@ -447,7 +447,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private syncViewDomState(): void {
             ensureEditorRootClasses(this.view);
             placeHandleGutterForConfiguredSide(this.view, this.resolveConfiguredHandleGutterSide());
-            syncBlockSelectionStyleAttr(this.view, normalizeBlockSelectionVisualStyle(plugin.settings.selectionVisualStyle));
+            syncBlockSelectionStyleAttr(this.view, plugin.settings.selectionVisualStyle);
             syncBlockSelectionHighlightAttr(this.view, this.isBlockSelectionHighlightEnabled());
         }
 

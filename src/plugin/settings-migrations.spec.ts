@@ -1,0 +1,79 @@
+import { describe, it, expect } from 'vitest';
+import { migrateSettings } from './settings-migrations';
+import { DEFAULT_SETTINGS } from './settings-types';
+
+describe('migrateSettings', () => {
+    it('returns full defaults for empty/absent data', () => {
+        expect(migrateSettings(null)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 1 });
+        expect(migrateSettings(undefined)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 1 });
+        expect(migrateSettings({})).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 1 });
+    });
+
+    it('preserves user values and backfills new fields from defaults', () => {
+        const result = migrateSettings({ handleSize: 32, handleVisibility: 'always' });
+        expect(result.handleSize).toBe(32);
+        expect(result.handleVisibility).toBe('always');
+        // untouched field falls back to default
+        expect(result.enableCrossFileDrag).toBe(DEFAULT_SETTINGS.enableCrossFileDrag);
+        expect(result.schemaVersion).toBe(1);
+    });
+
+    it('migrates legacy alwaysShowHandles -> handleVisibility', () => {
+        expect(migrateSettings({ alwaysShowHandles: true }).handleVisibility).toBe('always');
+        expect(migrateSettings({ alwaysShowHandles: false }).handleVisibility).toBe('hover');
+        // explicit handleVisibility wins over legacy field
+        expect(migrateSettings({ alwaysShowHandles: true, handleVisibility: 'hidden' }).handleVisibility).toBe('hidden');
+        // legacy field is dropped after migration
+        expect('alwaysShowHandles' in migrateSettings({ alwaysShowHandles: true })).toBe(false);
+    });
+
+    it('migrates legacy selectionVisualStyle "none" with highlights off', () => {
+        const result = migrateSettings({ selectionVisualStyle: 'none' });
+        expect(result.selectionVisualStyle).toBe('outline');
+        expect(result.enableBlockSelectionHighlight).toBe(false);
+        expect(result.enableListDropHighlight).toBe(false);
+    });
+
+    it('does not override explicit highlight toggles when migrating "none"', () => {
+        const result = migrateSettings({
+            selectionVisualStyle: 'none',
+            enableBlockSelectionHighlight: true,
+            enableListDropHighlight: true,
+        });
+        expect(result.selectionVisualStyle).toBe('outline');
+        expect(result.enableBlockSelectionHighlight).toBe(true);
+        expect(result.enableListDropHighlight).toBe(true);
+    });
+
+    it('drops removed requireMobileDragMode field', () => {
+        expect('requireMobileDragMode' in migrateSettings({ requireMobileDragMode: true })).toBe(false);
+    });
+
+    it('clamps out-of-range numeric values into their valid range', () => {
+        expect(migrateSettings({ handleSize: 9999 }).handleSize).toBe(40);
+        expect(migrateSettings({ handleSize: 1 }).handleSize).toBe(10);
+        expect(migrateSettings({ handleHorizontalOffsetPx: -500 }).handleHorizontalOffsetPx).toBe(-80);
+        expect(migrateSettings({ autoScrollMaxSpeedPx: 1000 }).autoScrollMaxSpeedPx).toBe(60);
+    });
+
+    it('rounds fractional numeric values', () => {
+        expect(migrateSettings({ handleSize: 20.7 }).handleSize).toBe(21);
+    });
+
+    it('falls back to default for non-finite/non-numeric values', () => {
+        expect(migrateSettings({ handleSize: 'big' }).handleSize).toBe(DEFAULT_SETTINGS.handleSize);
+        expect(migrateSettings({ handleSize: NaN }).handleSize).toBe(DEFAULT_SETTINGS.handleSize);
+        expect(migrateSettings({ autoScrollEdgeZonePx: null }).autoScrollEdgeZonePx).toBe(DEFAULT_SETTINGS.autoScrollEdgeZonePx);
+    });
+
+    it('leaves in-range numeric values untouched', () => {
+        expect(migrateSettings({ handleSize: 24 }).handleSize).toBe(24);
+    });
+
+    it('does not re-run v0 migrations when already at current version', () => {
+        // legacy field present but version already current: left untouched, not migrated
+        const result = migrateSettings({ schemaVersion: 1, alwaysShowHandles: true });
+        expect(result.handleVisibility).toBe(DEFAULT_SETTINGS.handleVisibility);
+        expect(result.schemaVersion).toBe(1);
+    });
+});

@@ -2,12 +2,10 @@ import { App, Platform, PluginSettingTab, Setting } from 'obsidian';
 import DragNDropPlugin from './main';
 import { t } from './i18n';
 import {
-    DEFAULT_HANDLE_SIZE_PX,
-    MAX_HANDLE_SIZE_PX,
-    MIN_HANDLE_SIZE_PX,
-} from '../shared/constants';
+    DEFAULT_SETTINGS,
+    NUMERIC_SETTING_RANGES,
+} from './settings-types';
 import type {
-    DragNDropSettings,
     BlockSelectionVisualStyle,
     HandleGutterPosition,
     HandleIconStyle,
@@ -15,6 +13,10 @@ import type {
     MobileDragModeToggleLocation,
 } from './settings-types';
 
+export {
+    DEFAULT_SETTINGS,
+    DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS,
+} from './settings-types';
 export type {
     DragNDropSettings,
     BlockSelectionVisualStyle,
@@ -23,68 +25,6 @@ export type {
     HandleVisibilityMode,
     MobileDragModeToggleLocation,
 } from './settings-types';
-
-export const DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS = 900;
-const MIN_MULTI_LINE_SELECTION_LONG_PRESS_MS = 300;
-const MAX_MULTI_LINE_SELECTION_LONG_PRESS_MS = 2000;
-
-export function normalizeMultiLineSelectionLongPressMs(value: unknown): number {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-        return DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS;
-    }
-    return Math.max(
-        MIN_MULTI_LINE_SELECTION_LONG_PRESS_MS,
-        Math.min(MAX_MULTI_LINE_SELECTION_LONG_PRESS_MS, Math.round(value))
-    );
-}
-
-export const DEFAULT_SETTINGS: DragNDropSettings = {
-    handleColorMode: 'theme',
-    handleColor: '#8a8a8a',
-    handleVisibility: 'hover',
-    handleIcon: 'grip-dots',
-    handleSize: DEFAULT_HANDLE_SIZE_PX,
-    indicatorColorMode: 'theme',
-    indicatorColor: '#7a7a7a',
-    enableCrossFileDrag: true,
-    enableMultiLineSelection: true,
-    multiLineSelectionLongPressMs: DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS,
-    mobileDragLongPressMs: 200,
-    mouseRangeSelectLongPressMs: 260,
-    autoScrollEdgeZonePx: 88,
-    autoScrollMaxSpeedPx: 22,
-    disableMobileDragModeAfterDrop: true,
-    enableMobileTextLongPressDrag: true,
-    mobileDragModeToggleLocations: ['view-action'],
-    enableBlockSelectionHighlight: true,
-    enableListDropHighlight: true,
-    selectionVisualStyle: 'subtle',
-    handleHorizontalOffsetPx: -8,
-    handleGutterPosition: 'left',
-};
-
-export function normalizeHandleGutterPosition(value: unknown): HandleGutterPosition {
-    return value === 'right' ? 'right' : 'left';
-}
-
-export function normalizeBlockSelectionVisualStyle(value: unknown): BlockSelectionVisualStyle {
-    if (value === 'outline' || value === 'subtle' || value === 'filled') {
-        return value;
-    }
-    // Legacy migration: old "none" is mapped to minimal-but-on style.
-    if (value === 'none') {
-        return 'outline';
-    }
-    return 'subtle';
-}
-
-export function normalizeMobileDragModeToggleLocations(value: unknown): MobileDragModeToggleLocation[] {
-    if (!Array.isArray(value)) return [...DEFAULT_SETTINGS.mobileDragModeToggleLocations];
-    const locations = value.filter((entry): entry is MobileDragModeToggleLocation => (
-        entry === 'view-action' || entry === 'toolbar-command'
-    ));
-    return Array.from(new Set(locations));
-}
 
 export class DragNDropSettingTab extends PluginSettingTab {
     plugin: DragNDropPlugin;
@@ -166,7 +106,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
 
         this.addNumericSetting(containerEl, {
             name: i.handleSize, desc: i.handleSizeDesc,
-            min: MIN_HANDLE_SIZE_PX, max: MAX_HANDLE_SIZE_PX, step: 2,
+            ...NUMERIC_SETTING_RANGES.handleSize,
             value: this.plugin.settings.handleSize,
             defaultValue: DEFAULT_SETTINGS.handleSize,
             onChange: async (v) => { this.plugin.settings.handleSize = v; await this.plugin.saveSettings(); },
@@ -199,7 +139,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
 
         this.addNumericSetting(containerEl, {
             name: i.handleOffset, desc: i.handleOffsetDesc,
-            min: -80, max: 80, step: 1,
+            ...NUMERIC_SETTING_RANGES.handleHorizontalOffsetPx,
             value: this.plugin.settings.handleHorizontalOffsetPx,
             defaultValue: DEFAULT_SETTINGS.handleHorizontalOffsetPx,
             onChange: async (v) => { this.plugin.settings.handleHorizontalOffsetPx = v; await this.plugin.saveSettings(); },
@@ -279,7 +219,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
 
         this.addNumericSetting(containerEl, {
             name: i.multiLineSelectionLongPressMs, desc: i.multiLineSelectionLongPressMsDesc,
-            min: MIN_MULTI_LINE_SELECTION_LONG_PRESS_MS, max: MAX_MULTI_LINE_SELECTION_LONG_PRESS_MS, step: 50,
+            ...NUMERIC_SETTING_RANGES.multiLineSelectionLongPressMs,
             value: this.plugin.settings.multiLineSelectionLongPressMs,
             defaultValue: DEFAULT_SETTINGS.multiLineSelectionLongPressMs,
             onChange: async (v) => { this.plugin.settings.multiLineSelectionLongPressMs = v; await this.plugin.saveSettings(); },
@@ -297,7 +237,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
 
         this.addNumericSetting(containerEl, {
             name: i.mobileDragLongPressMs, desc: i.mobileDragLongPressMsDesc,
-            min: 50, max: 800, step: 10,
+            ...NUMERIC_SETTING_RANGES.mobileDragLongPressMs,
             value: this.plugin.settings.mobileDragLongPressMs,
             defaultValue: DEFAULT_SETTINGS.mobileDragLongPressMs,
             onChange: async (v) => { this.plugin.settings.mobileDragLongPressMs = v; await this.plugin.saveSettings(); },
@@ -305,7 +245,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
 
         this.addNumericSetting(containerEl, {
             name: i.mouseRangeSelectLongPressMs, desc: i.mouseRangeSelectLongPressMsDesc,
-            min: 50, max: 800, step: 10,
+            ...NUMERIC_SETTING_RANGES.mouseRangeSelectLongPressMs,
             value: this.plugin.settings.mouseRangeSelectLongPressMs,
             defaultValue: DEFAULT_SETTINGS.mouseRangeSelectLongPressMs,
             onChange: async (v) => { this.plugin.settings.mouseRangeSelectLongPressMs = v; await this.plugin.saveSettings(); },
@@ -313,7 +253,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
 
         this.addNumericSetting(containerEl, {
             name: i.autoScrollEdgeZonePx, desc: i.autoScrollEdgeZonePxDesc,
-            min: 20, max: 200, step: 4,
+            ...NUMERIC_SETTING_RANGES.autoScrollEdgeZonePx,
             value: this.plugin.settings.autoScrollEdgeZonePx,
             defaultValue: DEFAULT_SETTINGS.autoScrollEdgeZonePx,
             onChange: async (v) => { this.plugin.settings.autoScrollEdgeZonePx = v; await this.plugin.saveSettings(); },
@@ -321,7 +261,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
 
         this.addNumericSetting(containerEl, {
             name: i.autoScrollMaxSpeedPx, desc: i.autoScrollMaxSpeedPxDesc,
-            min: 4, max: 60, step: 2,
+            ...NUMERIC_SETTING_RANGES.autoScrollMaxSpeedPx,
             value: this.plugin.settings.autoScrollMaxSpeedPx,
             defaultValue: DEFAULT_SETTINGS.autoScrollMaxSpeedPx,
             onChange: async (v) => { this.plugin.settings.autoScrollMaxSpeedPx = v; await this.plugin.saveSettings(); },

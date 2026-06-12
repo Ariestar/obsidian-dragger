@@ -2,11 +2,8 @@ import { MarkdownView, Platform, Plugin, setIcon } from 'obsidian';
 import { dragHandleExtension } from '../platform/codemirror/extension/editor-extension';
 import { ExternalFileDropController } from '../platform/obsidian/external-file-drop-controller';
 import {
-    DEFAULT_HANDLE_SIZE_PX,
     HANDLE_CORE_SIZE_RATIO,
     GRIP_DOTS_CORE_SIZE_RATIO,
-    MAX_HANDLE_SIZE_PX,
-    MIN_HANDLE_SIZE_PX,
     setHandleHorizontalOffsetPx,
     setHandleSizePx,
 } from '../shared/constants';
@@ -18,14 +15,10 @@ import {
 } from '../shared/dom-attrs';
 import {
     DragNDropSettings,
-    DEFAULT_SETTINGS,
     DragNDropSettingTab,
     HandleVisibilityMode,
-    normalizeHandleGutterPosition,
-    normalizeMultiLineSelectionLongPressMs,
-    normalizeBlockSelectionVisualStyle,
-    normalizeMobileDragModeToggleLocations,
 } from './settings';
+import { migrateSettings } from './settings-migrations';
 import { DragLifecycleEvent, DragLifecycleListener } from '../drag/pipeline/pipeline-output';
 import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
 
@@ -63,34 +56,7 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     async loadSettings() {
-        const saved = await this.loadData() as (Partial<DragNDropSettings> & Record<string, unknown>) | null;
-        const savedRecord: Record<string, unknown> = saved ?? {};
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, savedRecord as Partial<DragNDropSettings>);
-        // Migrate legacy alwaysShowHandles boolean
-        if ('alwaysShowHandles' in savedRecord && !('handleVisibility' in savedRecord)) {
-            this.settings.handleVisibility = (savedRecord as { alwaysShowHandles?: boolean }).alwaysShowHandles ? 'always' : 'hover';
-        }
-        // Legacy migration: old "none" style implied both highlights were effectively off.
-        if (savedRecord.selectionVisualStyle === 'none') {
-            if (!('enableBlockSelectionHighlight' in savedRecord)) {
-                this.settings.enableBlockSelectionHighlight = false;
-            }
-            if (!('enableListDropHighlight' in savedRecord)) {
-                this.settings.enableListDropHighlight = false;
-            }
-        }
-        this.settings.enableBlockSelectionHighlight = this.settings.enableBlockSelectionHighlight !== false;
-        this.settings.enableListDropHighlight = this.settings.enableListDropHighlight !== false;
-        this.settings.enableCrossFileDrag = this.settings.enableCrossFileDrag === true;
-        this.settings.disableMobileDragModeAfterDrop = this.settings.disableMobileDragModeAfterDrop !== false;
-        this.settings.mobileDragModeToggleLocations = normalizeMobileDragModeToggleLocations(
-            this.settings.mobileDragModeToggleLocations
-        );
-        this.settings.multiLineSelectionLongPressMs = normalizeMultiLineSelectionLongPressMs(
-            this.settings.multiLineSelectionLongPressMs
-        );
-        this.settings.handleGutterPosition = normalizeHandleGutterPosition(this.settings.handleGutterPosition);
-        delete (this.settings as DragNDropSettings & Record<string, unknown>).requireMobileDragMode;
+        this.settings = migrateSettings(await this.loadData());
         await this.saveData(this.settings);
         this.applySettings();
     }
@@ -105,30 +71,18 @@ export default class DragNDropPlugin extends Plugin {
         if (!this.settings.enableMobileTextLongPressDrag) {
             this.mobileDragModeEnabled = false;
         }
-        const visibility: HandleVisibilityMode = this.settings.handleVisibility ?? 'hover';
+        const visibility: HandleVisibilityMode = this.settings.handleVisibility;
         body.classList.toggle('dnd-handles-always', visibility === 'always');
         body.classList.toggle('dnd-handles-hidden', visibility === 'hidden');
         body.classList.toggle('dnd-mobile-handles-hidden', Platform.isMobile && !this.settings.enableMobileTextLongPressDrag);
         body.classList.toggle('dnd-mobile-drag-mode-enabled', this.mobileDragModeEnabled);
-        this.settings.multiLineSelectionLongPressMs = normalizeMultiLineSelectionLongPressMs(
-            this.settings.multiLineSelectionLongPressMs
-        );
-        this.settings.mobileDragModeToggleLocations = normalizeMobileDragModeToggleLocations(
-            this.settings.mobileDragModeToggleLocations
-        );
 
-        const selectionVisualStyle = normalizeBlockSelectionVisualStyle(this.settings.selectionVisualStyle);
-        this.settings.selectionVisualStyle = selectionVisualStyle;
+        const selectionVisualStyle = this.settings.selectionVisualStyle;
         body.setAttribute(DND_DRAG_SOURCE_STYLE_ATTR, selectionVisualStyle);
         body.setAttribute(DND_DRAG_SOURCE_HIGHLIGHT_ATTR, this.settings.enableBlockSelectionHighlight ? 'on' : 'off');
         body.setAttribute(DND_LIST_DROP_HIGHLIGHT_ATTR, this.settings.enableListDropHighlight ? 'on' : 'off');
 
-        const rawHandleOffset = Number(this.settings.handleHorizontalOffsetPx);
-        const handleOffset = Number.isFinite(rawHandleOffset)
-            ? Math.max(-80, Math.min(80, Math.round(rawHandleOffset)))
-            : DEFAULT_SETTINGS.handleHorizontalOffsetPx;
-        this.settings.handleHorizontalOffsetPx = handleOffset;
-        this.settings.handleGutterPosition = normalizeHandleGutterPosition(this.settings.handleGutterPosition);
+        const handleOffset = this.settings.handleHorizontalOffsetPx;
         setHandleHorizontalOffsetPx(handleOffset);
         body.setCssProps({
             '--dnd-handle-horizontal-offset-px': `${handleOffset}px`,
@@ -170,17 +124,14 @@ export default class DragNDropPlugin extends Plugin {
             });
         }
 
-        const handleSize = Math.max(
-            MIN_HANDLE_SIZE_PX,
-            Math.min(MAX_HANDLE_SIZE_PX, this.settings.handleSize ?? DEFAULT_HANDLE_SIZE_PX)
-        );
+        const handleSize = this.settings.handleSize;
         setHandleSizePx(handleSize);
         body.setCssProps({
             '--dnd-handle-size': `${handleSize}px`,
             '--dnd-handle-core-size': `${Math.round(handleSize * HANDLE_CORE_SIZE_RATIO)}px`,
             '--dnd-grip-dots-core-size': `${Math.round(handleSize * GRIP_DOTS_CORE_SIZE_RATIO)}px`,
         });
-        body.setAttribute(DND_HANDLE_ICON_ATTR, this.settings.handleIcon ?? 'grip-dots');
+        body.setAttribute(DND_HANDLE_ICON_ATTR, this.settings.handleIcon);
 
         window.dispatchEvent(new Event('dnd:settings-updated'));
         this.syncMobileDragModeActionVisibility();
