@@ -16,27 +16,7 @@ function getActiveEditorView(app: App): EditorView | null {
 export function registerMobileToolbarCommands(plugin: {
     app: App;
     addCommand: (command: Command) => Command;
-    toggleMobileDragMode: () => boolean;
-    isMobileDragModeToolbarCommandEnabled: () => boolean;
 }): void {
-    plugin.addCommand({
-        id: 'toggle-mobile-drag-mode',
-        name: 'Toggle drag mode',
-        icon: 'hand',
-        mobileOnly: true,
-        checkCallback: (checking) => {
-            if (!platform.isMobile) return false;
-            if (!plugin.isMobileDragModeToolbarCommandEnabled()) return false;
-            const view = getActiveEditorView(plugin.app);
-            if (!view) return false;
-            if (!checking) {
-                const enabled = plugin.toggleMobileDragMode();
-                new Notice(enabled ? 'Drag mode enabled.' : 'Drag mode disabled.');
-            }
-            return true;
-        },
-    });
-
     plugin.addCommand({
         id: 'open-current-block-type-menu',
         name: 'Change current block type',

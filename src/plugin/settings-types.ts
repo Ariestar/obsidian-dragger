@@ -4,7 +4,7 @@ export type HandleVisibilityMode = 'always' | 'hover' | 'hidden';
 export type HandleIconStyle = 'dot' | 'grip-dots' | 'grip-lines' | 'square';
 export type BlockSelectionVisualStyle = 'outline' | 'subtle' | 'filled';
 export type HandleGutterPosition = 'left' | 'right';
-export type MobileDragModeToggleLocation = 'view-action' | 'toolbar-command';
+export type MobileDragModeToggleLocation = 'view-action';
 
 export interface DragNDropSettings {
     handleColorMode: 'theme' | 'custom';

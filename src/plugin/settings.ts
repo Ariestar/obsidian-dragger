@@ -303,12 +303,6 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 .addToggle(toggle => toggle
                     .setValue(this.plugin.settings.mobileDragModeToggleLocations.includes('view-action'))
                     .onChange((value) => toggleLocation('view-action', value)));
-
-            new Setting(containerEl)
-                .setName(i.optionMobileDragModeToggleToolbarCommand)
-                .addToggle(toggle => toggle
-                    .setValue(this.plugin.settings.mobileDragModeToggleLocations.includes('toolbar-command'))
-                    .onChange((value) => toggleLocation('toolbar-command', value)));
         }
 
         new Setting(containerEl)

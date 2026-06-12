@@ -169,10 +169,6 @@ export default class DragNDropPlugin extends Plugin {
         return this.mobileDragModeEnabled;
     }
 
-    isMobileDragModeToolbarCommandEnabled(): boolean {
-        return this.isMobileDragModeToggleLocationEnabled('toolbar-command');
-    }
-
     private setMobileDragModeEnabled(enabled: boolean): void {
         if (this.mobileDragModeEnabled === enabled) return;
         this.mobileDragModeEnabled = enabled;
@@ -279,7 +275,7 @@ export default class DragNDropPlugin extends Plugin {
         return this.mobileDragModeEnabled ? 'Drag mode enabled' : 'Drag mode disabled';
     }
 
-    private isMobileDragModeToggleLocationEnabled(location: 'view-action' | 'toolbar-command'): boolean {
+    private isMobileDragModeToggleLocationEnabled(location: 'view-action'): boolean {
         return this.settings.enableMobileTextLongPressDrag
             && this.settings.mobileDragModeToggleLocations.includes(location);
     }

@@ -66,7 +66,6 @@ export const en: ZhCnStrings = {
     mobileDragModeToggleLocations: 'Toggle button placement',
     mobileDragModeToggleLocationsDesc: 'Choose where to show the mobile drag mode toggle. Multiple or none can be selected',
     optionMobileDragModeToggleViewAction: 'View actions',
-    optionMobileDragModeToggleToolbarCommand: 'Bottom toolbar',
     enableCrossFileDrag: 'Cross-file drag',
     enableCrossFileDragDesc: 'Allow dragging blocks into open editors, internal links, and file explorer notes',
     mobileOnlyNotice: '⚠️ These settings can only be modified on mobile',

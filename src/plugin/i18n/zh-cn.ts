@@ -72,7 +72,6 @@ export const zhCn = {
     mobileDragModeToggleLocations: 'Toggle 按钮位置',
     mobileDragModeToggleLocationsDesc: '选择移动端拖拽模式开关显示在哪些入口，可多选或不选',
     optionMobileDragModeToggleViewAction: '视图操作栏',
-    optionMobileDragModeToggleToolbarCommand: '底部工具栏',
     enableCrossFileDrag: '跨文件拖拽',
     enableCrossFileDragDesc: '允许将块拖拽到已打开编辑器、内部链接或文件列表笔记中',
     mobileOnlyNotice: '⚠️ 以下设置仅在移动端可修改',
