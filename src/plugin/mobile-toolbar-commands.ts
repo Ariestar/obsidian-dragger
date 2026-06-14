@@ -16,6 +16,7 @@ function getActiveEditorView(app: App): EditorView | null {
 export function registerMobileToolbarCommands(plugin: {
     app: App;
     addCommand: (command: Command) => Command;
+    toggleMobileDragMode: () => boolean;
 }): void {
     plugin.addCommand({
         id: 'open-current-block-type-menu',
@@ -51,6 +52,20 @@ export function registerMobileToolbarCommands(plugin: {
                 if (!event.detail.handled) {
                     new Notice('Unable to enter block selection mode.');
                 }
+            }
+            return true;
+        },
+    });
+
+    plugin.addCommand({
+        id: 'toggle-mobile-drag-mode',
+        name: 'Toggle mobile drag mode',
+        icon: 'hand',
+        mobileOnly: true,
+        checkCallback: (checking) => {
+            if (!platform.isMobile) return false;
+            if (!checking) {
+                plugin.toggleMobileDragMode();
             }
             return true;
         },

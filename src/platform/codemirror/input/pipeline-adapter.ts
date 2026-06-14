@@ -278,6 +278,10 @@ export class PipelineAdapter {
         initialRangeSelectState.longPressReady = skipLongPress;
 
         const allowSecondaryDrag = options?.allowSecondaryDrag !== false;
+        const canDelayDesktopHandleDrag = !platform.isMobile
+            && skipLongPress
+            && allowSecondaryDrag
+            && (options?.sourceKind ?? 'handle') === 'handle';
         let dragTimeoutId: number | null = null;
         if (platform.isMobile && allowSecondaryDrag) {
             dragTimeoutId = window.setTimeout(() => {
@@ -288,6 +292,15 @@ export class PipelineAdapter {
                 state.dragReady = true;
                 this.activateMouseRangeSelectInterception(state);
             }, this.deps.getMobileDragLongPressMs?.() ?? MOBILE_DRAG_LONG_PRESS_MS);
+        } else if (canDelayDesktopHandleDrag) {
+            initialRangeSelectState.dragReady = false;
+            dragTimeoutId = window.setTimeout(() => {
+                const state = this.rangePointerSession;
+                if (!state) return;
+                if (state.pipelineStarted && this.pipelineState.type !== 'selecting') return;
+                if (state.pointerId !== e.pointerId) return;
+                state.dragReady = true;
+            }, config.longPressMs);
         }
         if (!waitForMouseLongPress) {
             e.preventDefault();
@@ -405,6 +418,9 @@ export class PipelineAdapter {
         const startMoveThresholdPx = skipLongPress
             ? 2
             : (platform.isMobile ? 8 : 4);
+        const cancelMoveThresholdPx = platform.isMobile || skipLongPress
+            ? MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX
+            : Number.POSITIVE_INFINITY;
 
         this.pressSession = {
             sessionId,
@@ -416,7 +432,7 @@ export class PipelineAdapter {
             pointerType,
             longPressReady: skipLongPress,
             timeoutId,
-            cancelMoveThresholdPx: MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX,
+            cancelMoveThresholdPx,
             startMoveThresholdPx,
         };
         this.pointer.attachPointerListeners();

@@ -184,6 +184,23 @@ function handleRangeSelectionPointerMove(
         return;
     }
 
+    if (shouldStartDesktopSelectedHandleDrag(host, state, distance)) {
+        const source = host.resolveBlockSelection({
+            kind: 'selection',
+            doc: host.view.state.doc,
+            blocks: state.baseSelectedBlocks,
+            templateBlock: state.sourceSelection.anchorBlock,
+        });
+        if (source) {
+            e.preventDefault();
+            e.stopPropagation();
+            const pointerId = state.pointerId;
+            host.clearMouseRangeSelectState();
+            host.enterDraggingState(source, pointerId, e.clientX, e.clientY, pointerType, state.sourceKind);
+            return;
+        }
+    }
+
     host.activateMouseRangeSelectInterception(state);
     e.preventDefault();
     e.stopPropagation();
@@ -200,6 +217,18 @@ function handleRangeSelectionPointerMove(
         host.deps.getAutoScrollEdgeZonePx?.(),
         host.deps.getAutoScrollMaxSpeedPx?.(),
     );
+}
+
+function shouldStartDesktopSelectedHandleDrag(
+    host: PointerMoveHost,
+    state: MouseRangeSelectState,
+    distance: number
+): boolean {
+    if (platform.isMobile) return false;
+    if (!state.dragReady || state.sourceKind !== 'handle') return false;
+    if (distance < MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX) return false;
+    if (host.pipelineState.type !== 'selecting') return false;
+    return host.pipelineState.selection.rangeState?.operation === 'remove';
 }
 
 function resolveHandleRangeBoundaryAtPoint(

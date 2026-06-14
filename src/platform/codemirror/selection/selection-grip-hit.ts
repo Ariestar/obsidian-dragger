@@ -11,8 +11,6 @@ import {
 import { platform } from '../../../plugin/platform';
 
 export const RANGE_SELECTION_GRIP_HIT_PADDING_PX = 20;
-export const RANGE_SELECTION_GRIP_HIT_X_PADDING_PX = 28;
-
 type AnchorSpan = {
     x: number;
     topY: number;
@@ -64,11 +62,6 @@ export function isRangeSelectionGripHit(options: IsRangeSelectionGripHitOptions)
     for (const segment of segments) {
         const anchorSpan = options.resolveAnchorSpan(segment);
         if (!anchorSpan) continue;
-        if (!platform.isMobile) {
-            if (Math.abs(options.clientX - anchorSpan.x) > RANGE_SELECTION_GRIP_HIT_X_PADDING_PX) {
-                continue;
-            }
-        }
         const top = anchorSpan.topY - RANGE_SELECTION_GRIP_HIT_PADDING_PX;
         const bottom = anchorSpan.bottomY + RANGE_SELECTION_GRIP_HIT_PADDING_PX;
         if (options.clientY >= top && options.clientY <= bottom) {

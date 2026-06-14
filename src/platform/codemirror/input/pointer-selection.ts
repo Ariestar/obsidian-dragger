@@ -324,7 +324,7 @@ function resolveHandleRangeSelectionPolicy(
 function decideRangeSelectionFromHandleWhileSelecting(
     context: PointerSelectionContext,
     handle: HTMLElement,
-    e: PointerEvent
+    _e: PointerEvent
 ): PointerDownDecision {
     if (context.pipelineState.type !== 'selecting' || context.pipelineState.selection.phase !== 'passive') return { type: 'none' };
     if (!platform.isMobile) return { type: 'none' };
@@ -382,7 +382,7 @@ function decideTextRangeSelection(
 function decideRetargetRangeSelectionFromHandleWhileSelecting(
     context: PointerSelectionContext,
     handle: HTMLElement,
-    e: PointerEvent
+    _e: PointerEvent
 ): PointerDownDecision {
     if (context.pipelineState.type !== 'selecting') return { type: 'none' };
     if (!platform.isMobile) return { type: 'none' };

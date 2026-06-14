@@ -311,15 +311,17 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
-    it('does not start committed selection drag from a selected desktop handle', () => {
+    it('drags committed selection from a selected desktop handle after long-press', () => {
         const view = createViewStub(8);
         const handle = appendHandleForBlockStart(view, 1);
+        appendHandleForBlockStart(view, 5);
 
         const sourceBlock = createBlock('- item', 1, 1);
+        const endBlock = createBlock('line 6', 5, 5);
         const beginPointerDragSession = vi.fn();
         const onDropPreview = vi.fn();
         const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
-            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: () => null }),
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: () => sourceBlock, point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
             beginPointerDragSession,
             finishDragSession: vi.fn(),
@@ -383,8 +385,13 @@ describe('PipelineAdapter Range Selection', () => {
             clientY: 80,
         });
 
-        expect(beginPointerDragSession).toHaveBeenCalledTimes(0);
-        expect(onDropPreview).not.toHaveBeenCalled();
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(onDropPreview).toHaveBeenCalledWith(90, 80, expect.objectContaining({
+            ranges: [expect.objectContaining({
+                startLine: 1,
+                endLine: 5,
+            })],
+        }), 'mouse');
         handler.destroy();
     });
 
@@ -460,7 +467,7 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
-    it('removes selected desktop handles by sliding from an already-selected handle', () => {
+    it('does not start drag from a selected desktop handle before long-press', () => {
         const view = createViewStub(8);
         const startHandle = appendHandleForBlockStart(view, 1);
         const endHandle = appendHandleForBlockStart(view, 5);
@@ -534,19 +541,20 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
-    it('does not create drag overlay when sliding from a selected desktop handle', () => {
+    it('drags committed desktop selection from a selected handle after long-press', () => {
         const view = createViewStub(8);
         const startHandle = appendHandleForBlockStart(view, 1);
         const endHandle = appendHandleForBlockStart(view, 5);
 
         const sourceBlock = createBlock('- item', 1, 1);
         const endBlock = createBlock('line 6', 5, 5);
+        const beginPointerDragSession = vi.fn();
         const onPlatformCommit = vi.fn();
 
         const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
             resolveBlockSelection: resolveBlockSelectionFromTestBlocks({ handle: (handle) => (handle === endHandle ? endBlock : sourceBlock), point: (_x, y) => (y >= 100 ? endBlock : sourceBlock) }),
             isBlockInsideRenderedTableCell: () => false,
-            beginPointerDragSession: vi.fn(),
+            beginPointerDragSession,
             finishDragSession: vi.fn(),
             onDropPreview: vi.fn(),
             onHideDropPreview: vi.fn(),
@@ -603,9 +611,15 @@ describe('PipelineAdapter Range Selection', () => {
             clientY: 105,
         });
 
-        expect(onPlatformCommit).not.toHaveBeenCalled();
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(beginPointerDragSession).toHaveBeenCalledWith(expect.objectContaining({
+            ranges: [expect.objectContaining({
+                startLine: 1,
+                endLine: 5,
+            })],
+        }));
+        expect(onPlatformCommit).toHaveBeenCalledTimes(1);
         expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
-        expect(endHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
         handler.destroy();
     });
 
@@ -676,9 +690,13 @@ describe('PipelineAdapter Range Selection', () => {
             clientY: 105,
         });
 
-        expect(beginPointerDragSession).not.toHaveBeenCalled();
-        expect(onDropPreview).not.toHaveBeenCalled();
-        expect(endHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(onDropPreview).toHaveBeenCalledWith(90, 105, expect.objectContaining({
+            ranges: [expect.objectContaining({
+                startLine: 1,
+                endLine: 5,
+            })],
+        }), 'mouse');
         handler.destroy();
     });
 
@@ -709,7 +727,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(120);
         dispatchPointer(window, 'pointermove', {
             pointerId: 191,
             pointerType: 'mouse',
@@ -734,7 +752,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 105,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(120);
         dispatchPointer(window, 'pointerup', {
             pointerId: 192,
             pointerType: 'mouse',
@@ -2891,8 +2909,4 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 });
-
-
-
-
 

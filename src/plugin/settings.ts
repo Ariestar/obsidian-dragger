@@ -289,6 +289,16 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 }));
 
         if (this.plugin.settings.enableMobileTextLongPressDrag && isMobile) {
+            new Setting(containerEl)
+                .setName(i.disableMobileDragModeAfterDrop)
+                .setDesc(i.disableMobileDragModeAfterDropDesc)
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.disableMobileDragModeAfterDrop)
+                    .onChange(async (value) => {
+                        this.plugin.settings.disableMobileDragModeAfterDrop = value;
+                        await this.plugin.saveSettings();
+                    }));
+
             new Setting(containerEl).setName(i.mobileDragModeToggleLocations).setHeading();
 
             const toggleLocation = async (location: MobileDragModeToggleLocation, enabled: boolean) => {
@@ -304,17 +314,6 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     .setValue(this.plugin.settings.mobileDragModeToggleLocations.includes('view-action'))
                     .onChange((value) => toggleLocation('view-action', value)));
         }
-
-        new Setting(containerEl)
-            .setName(i.disableMobileDragModeAfterDrop)
-            .setDesc(i.disableMobileDragModeAfterDropDesc)
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.disableMobileDragModeAfterDrop)
-                .setDisabled(!isMobile)
-                .onChange(async (value) => {
-                    this.plugin.settings.disableMobileDragModeAfterDrop = value;
-                    await this.plugin.saveSettings();
-                }));
     }
 
     private addNumericSetting(
