@@ -4,9 +4,9 @@ import { DEFAULT_SETTINGS } from './settings-types';
 
 describe('migrateSettings', () => {
     it('returns full defaults for empty/absent data', () => {
-        expect(migrateSettings(null)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 1 });
-        expect(migrateSettings(undefined)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 1 });
-        expect(migrateSettings({})).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 1 });
+        expect(migrateSettings(null)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 2 });
+        expect(migrateSettings(undefined)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 2 });
+        expect(migrateSettings({})).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 2 });
     });
 
     it('preserves user values and backfills new fields from defaults', () => {
@@ -15,7 +15,7 @@ describe('migrateSettings', () => {
         expect(result.handleVisibility).toBe('always');
         // untouched field falls back to default
         expect(result.enableCrossFileDrag).toBe(DEFAULT_SETTINGS.enableCrossFileDrag);
-        expect(result.schemaVersion).toBe(1);
+        expect(result.schemaVersion).toBe(2);
     });
 
     it('migrates legacy alwaysShowHandles -> handleVisibility', () => {
@@ -49,6 +49,29 @@ describe('migrateSettings', () => {
         expect('requireMobileDragMode' in migrateSettings({ requireMobileDragMode: true })).toBe(false);
     });
 
+    it('migrates legacy auto-scroll defaults to the current defaults', () => {
+        const result = migrateSettings({
+            schemaVersion: 1,
+            autoScrollEdgeZonePx: 88,
+            autoScrollMaxSpeedPx: 22,
+        });
+
+        expect(result.autoScrollEdgeZonePx).toBe(DEFAULT_SETTINGS.autoScrollEdgeZonePx);
+        expect(result.autoScrollMaxSpeedPx).toBe(DEFAULT_SETTINGS.autoScrollMaxSpeedPx);
+        expect(result.schemaVersion).toBe(2);
+    });
+
+    it('preserves custom auto-scroll values during default migration', () => {
+        const result = migrateSettings({
+            schemaVersion: 1,
+            autoScrollEdgeZonePx: 120,
+            autoScrollMaxSpeedPx: 8,
+        });
+
+        expect(result.autoScrollEdgeZonePx).toBe(120);
+        expect(result.autoScrollMaxSpeedPx).toBe(8);
+    });
+
     it('clamps out-of-range numeric values into their valid range', () => {
         expect(migrateSettings({ handleSize: 9999 }).handleSize).toBe(40);
         expect(migrateSettings({ handleSize: 1 }).handleSize).toBe(10);
@@ -72,8 +95,8 @@ describe('migrateSettings', () => {
 
     it('does not re-run v0 migrations when already at current version', () => {
         // legacy field present but version already current: left untouched, not migrated
-        const result = migrateSettings({ schemaVersion: 1, alwaysShowHandles: true });
+        const result = migrateSettings({ schemaVersion: 2, alwaysShowHandles: true });
         expect(result.handleVisibility).toBe(DEFAULT_SETTINGS.handleVisibility);
-        expect(result.schemaVersion).toBe(1);
+        expect(result.schemaVersion).toBe(2);
     });
 });

@@ -189,15 +189,17 @@ export function shouldStartMobilePressDrag(e: PointerEvent): boolean {
 export function autoScrollNearViewportEdge(
     scroller: HTMLElement,
     clientY: number,
-    edgeZone = 88,
-    maxSpeed = 22,
+    edgeZone = 60,
+    maxSpeed = 12,
 ): boolean {
     const rect = scroller.getBoundingClientRect();
     let delta = 0;
     if (clientY < rect.top + edgeZone) {
-        delta = -Math.min(maxSpeed, ((rect.top + edgeZone) - clientY) * 0.35 + 2);
+        const depth = (rect.top + edgeZone) - clientY;
+        delta = -maxSpeed * Math.min(1, depth / edgeZone);
     } else if (clientY > rect.bottom - edgeZone) {
-        delta = Math.min(maxSpeed, (clientY - (rect.bottom - edgeZone)) * 0.35 + 2);
+        const depth = clientY - (rect.bottom - edgeZone);
+        delta = maxSpeed * Math.min(1, depth / edgeZone);
     }
     if (delta === 0) return false;
     const previousScrollTop = scroller.scrollTop;

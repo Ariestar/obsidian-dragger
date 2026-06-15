@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BlockInfo } from '../../../domain/block/block-types';
 import {
+    autoScrollNearViewportEdge,
     hidePointerDropPreviews,
     buildPointerBlockCommandAtPoint,
     registerPointerHitTestClient,
@@ -19,6 +20,23 @@ function createClient(name: string, hitRect: { left: number; top: number; right:
         buildBlockCommandAtPoint: vi.fn(() => ({ type: 'platform_commit', drop: { target: null, rejectReason: null } })),
         applyBlockCommand: vi.fn(),
     } satisfies PointerHitTestClient & { name?: string };
+}
+
+function createScroller(top: number, bottom: number, scrollTop = 100): HTMLElement {
+    return {
+        scrollTop,
+        getBoundingClientRect: () => ({
+            left: 0,
+            top,
+            right: 400,
+            bottom,
+            width: 400,
+            height: bottom - top,
+            x: 0,
+            y: top,
+            toJSON: () => ({}),
+        }),
+    } as HTMLElement;
 }
 
 const sourceBlock = { startLine: 1, endLine: 1 } as BlockInfo;
@@ -68,5 +86,16 @@ describe('pointer-hit-test', () => {
 
         expect(fallback.hideDropPreview).toHaveBeenCalledTimes(1);
         expect(other.hideDropPreview).toHaveBeenCalledTimes(1);
+    });
+
+    it('scales auto-scroll distance from the configured max speed', () => {
+        const slowScroller = createScroller(0, 200);
+        const fastScroller = createScroller(0, 200);
+
+        autoScrollNearViewportEdge(slowScroller, 170, 60, 12);
+        autoScrollNearViewportEdge(fastScroller, 170, 60, 60);
+
+        expect(slowScroller.scrollTop).toBeCloseTo(106);
+        expect(fastScroller.scrollTop).toBeCloseTo(130);
     });
 });

@@ -16,7 +16,7 @@ import type { DragNDropSettings, NumericSettingKey } from './settings-types';
  */
 
 const SCHEMA_VERSION_KEY = 'schemaVersion';
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 
 type RawSettings = Record<string, unknown>;
 
@@ -47,6 +47,19 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
         // `requireMobileDragMode` was removed entirely.
         delete next.requireMobileDragMode;
 
+        return next;
+    },
+    // v1 -> v2: retune auto-scroll defaults. Existing installs persisted a
+    // complete data.json on load, so legacy default values need an explicit
+    // migration; custom values are left untouched.
+    (data) => {
+        const next = { ...data };
+        if (next.autoScrollEdgeZonePx === 88) {
+            next.autoScrollEdgeZonePx = DEFAULT_SETTINGS.autoScrollEdgeZonePx;
+        }
+        if (next.autoScrollMaxSpeedPx === 22) {
+            next.autoScrollMaxSpeedPx = DEFAULT_SETTINGS.autoScrollMaxSpeedPx;
+        }
         return next;
     },
 ];
