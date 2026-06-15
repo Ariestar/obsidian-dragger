@@ -4,9 +4,9 @@ import { DEFAULT_SETTINGS } from './settings-types';
 
 describe('migrateSettings', () => {
     it('returns full defaults for empty/absent data', () => {
-        expect(migrateSettings(null)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 2 });
-        expect(migrateSettings(undefined)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 2 });
-        expect(migrateSettings({})).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 2 });
+        expect(migrateSettings(null)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 3 });
+        expect(migrateSettings(undefined)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 3 });
+        expect(migrateSettings({})).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 3 });
     });
 
     it('preserves user values and backfills new fields from defaults', () => {
@@ -15,7 +15,7 @@ describe('migrateSettings', () => {
         expect(result.handleVisibility).toBe('always');
         // untouched field falls back to default
         expect(result.enableCrossFileDrag).toBe(DEFAULT_SETTINGS.enableCrossFileDrag);
-        expect(result.schemaVersion).toBe(2);
+        expect(result.schemaVersion).toBe(3);
     });
 
     it('migrates legacy alwaysShowHandles -> handleVisibility', () => {
@@ -58,7 +58,7 @@ describe('migrateSettings', () => {
 
         expect(result.autoScrollEdgeZonePx).toBe(DEFAULT_SETTINGS.autoScrollEdgeZonePx);
         expect(result.autoScrollMaxSpeedPx).toBe(DEFAULT_SETTINGS.autoScrollMaxSpeedPx);
-        expect(result.schemaVersion).toBe(2);
+        expect(result.schemaVersion).toBe(3);
     });
 
     it('preserves custom auto-scroll values during default migration', () => {
@@ -93,10 +93,30 @@ describe('migrateSettings', () => {
         expect(migrateSettings({ handleSize: 24 }).handleSize).toBe(24);
     });
 
+    it('migrates legacy desktop range-select long-press default to the current default', () => {
+        const result = migrateSettings({
+            schemaVersion: 2,
+            mouseRangeSelectLongPressMs: 260,
+        });
+
+        expect(result.mouseRangeSelectLongPressMs).toBe(DEFAULT_SETTINGS.mouseRangeSelectLongPressMs);
+        expect(result.schemaVersion).toBe(3);
+    });
+
+    it('preserves custom desktop range-select long-press values during default migration', () => {
+        const result = migrateSettings({
+            schemaVersion: 2,
+            mouseRangeSelectLongPressMs: 420,
+        });
+
+        expect(result.mouseRangeSelectLongPressMs).toBe(420);
+        expect(result.schemaVersion).toBe(3);
+    });
+
     it('does not re-run v0 migrations when already at current version', () => {
         // legacy field present but version already current: left untouched, not migrated
-        const result = migrateSettings({ schemaVersion: 2, alwaysShowHandles: true });
+        const result = migrateSettings({ schemaVersion: 3, alwaysShowHandles: true });
         expect(result.handleVisibility).toBe(DEFAULT_SETTINGS.handleVisibility);
-        expect(result.schemaVersion).toBe(2);
+        expect(result.schemaVersion).toBe(3);
     });
 });

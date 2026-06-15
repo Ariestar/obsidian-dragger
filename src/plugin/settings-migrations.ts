@@ -16,7 +16,7 @@ import type { DragNDropSettings, NumericSettingKey } from './settings-types';
  */
 
 const SCHEMA_VERSION_KEY = 'schemaVersion';
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 type RawSettings = Record<string, unknown>;
 
@@ -59,6 +59,16 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
         }
         if (next.autoScrollMaxSpeedPx === 22) {
             next.autoScrollMaxSpeedPx = DEFAULT_SETTINGS.autoScrollMaxSpeedPx;
+        }
+        return next;
+    },
+    // v2 -> v3: reduce accidental desktop multi-select entry during normal
+    // handle drag. Existing installs persisted the old default value, so only
+    // migrate that value and preserve custom timings.
+    (data) => {
+        const next = { ...data };
+        if (next.mouseRangeSelectLongPressMs === 260) {
+            next.mouseRangeSelectLongPressMs = DEFAULT_SETTINGS.mouseRangeSelectLongPressMs;
         }
         return next;
     },

@@ -51,7 +51,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
 
         dispatchPointer(window, 'pointermove', {
             pointerId: 7,
@@ -132,7 +132,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 72,
             pointerType: 'mouse',
@@ -194,7 +194,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 73,
             pointerType: 'mouse',
@@ -246,7 +246,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 74,
             pointerType: 'mouse',
@@ -291,7 +291,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 76,
             pointerType: 'mouse',
@@ -338,7 +338,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 70,
             pointerType: 'mouse',
@@ -376,7 +376,7 @@ describe('PipelineAdapter Range Selection', () => {
         expect(beginPointerDragSession).toHaveBeenCalledTimes(0);
         expect(onDropPreview).not.toHaveBeenCalled();
 
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 71,
             pointerType: 'mouse',
@@ -422,7 +422,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 171,
             pointerType: 'mouse',
@@ -495,7 +495,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 181,
             pointerType: 'mouse',
@@ -569,7 +569,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 281,
             pointerType: 'mouse',
@@ -594,7 +594,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 105,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 282,
             pointerType: 'mouse',
@@ -651,7 +651,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 281,
             pointerType: 'mouse',
@@ -681,7 +681,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 14,
             clientY: 106,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 282,
             pointerType: 'mouse',
@@ -791,7 +791,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 75,
             pointerType: 'mouse',
@@ -1035,7 +1035,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 41,
             pointerType: 'mouse',
@@ -1158,7 +1158,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 53,
             pointerType: 'mouse',
@@ -1204,7 +1204,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 61,
             pointerType: 'mouse',
@@ -1271,7 +1271,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 43,
             pointerType: 'mouse',
@@ -1336,7 +1336,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 440,
             pointerType: 'mouse',
@@ -1412,7 +1412,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 10,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 9,
             pointerType: 'mouse',
@@ -1518,7 +1518,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 11,
             pointerType: 'mouse',
@@ -1588,7 +1588,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 30,
             pointerType: 'mouse',
@@ -1611,7 +1611,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 150,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 31,
             pointerType: 'mouse',
@@ -1677,7 +1677,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 120,
             clientY: 30,
         });
-        vi.advanceTimersByTime(400);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointerup', {
             pointerId: 8,
             pointerType: 'mouse',
@@ -1727,7 +1727,7 @@ describe('PipelineAdapter Range Selection', () => {
         expect(handler.pipelineState.type).toBe('idle');
         expect(view.dom.querySelector('.dnd-range-selected-handle')).toBeNull();
 
-        vi.advanceTimersByTime(259);
+        vi.advanceTimersByTime(499);
         expect(handler.pipelineState.type).toBe('idle');
 
         vi.advanceTimersByTime(1);
@@ -2837,7 +2837,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 401,
             pointerType: 'mouse',
@@ -2889,7 +2889,7 @@ describe('PipelineAdapter Range Selection', () => {
             clientX: 12,
             clientY: 30,
         });
-        vi.advanceTimersByTime(280);
+        vi.advanceTimersByTime(520);
         dispatchPointer(window, 'pointermove', {
             pointerId: 402,
             pointerType: 'mouse',

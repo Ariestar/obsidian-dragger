@@ -65,7 +65,7 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     enableMultiLineSelection: true,
     multiLineSelectionLongPressMs: DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS,
     mobileDragLongPressMs: 200,
-    mouseRangeSelectLongPressMs: 260,
+    mouseRangeSelectLongPressMs: 500,
     autoScrollEdgeZonePx: 60,
     autoScrollMaxSpeedPx: 12,
     disableMobileDragModeAfterDrop: true,
