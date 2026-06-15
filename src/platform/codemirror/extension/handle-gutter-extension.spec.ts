@@ -60,5 +60,27 @@ describe('createHandleGutterExtension', () => {
         const gutter = view.dom.querySelector<HTMLElement>(`.${HANDLE_GUTTER_CLASS}`);
         expect(gutter).not.toBeNull();
         expect(gutter?.parentElement).toBe(view.contentDOM.parentElement);
+        expect(gutter?.previousSibling).toBe(view.contentDOM);
+    });
+
+    it('moves the handle gutter before the content when configured on the left', () => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+
+        const view = new EditorView({
+            state: EditorState.create({
+                doc: 'alpha\nbeta',
+                extensions: [createHandleGutterExtension()],
+            }),
+            parent: host,
+        });
+        mountedViews.push(view);
+
+        placeHandleGutterForConfiguredSide(view, 'left');
+
+        const gutter = view.dom.querySelector<HTMLElement>(`.${HANDLE_GUTTER_CLASS}`);
+        expect(gutter).not.toBeNull();
+        expect(gutter?.parentElement).toBe(view.contentDOM.parentElement);
+        expect(gutter?.nextSibling).toBe(view.contentDOM);
     });
 });
