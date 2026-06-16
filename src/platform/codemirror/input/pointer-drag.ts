@@ -1,17 +1,12 @@
 import { platform } from '../../../plugin/platform';
-import { DRAG_HANDLE_CLASS, EMBED_HANDLE_CLASS } from '../../../shared/dom-selectors';
 import {
     autoScrollEditorNearViewportEdge,
     readPointerInput,
-    resolveRangeBoundaryAtPoint,
 } from './pointer-hit-test';
-import {
-    buildRangeSelectionBoundaryFromBlock,
-    type RangeSelectionBoundary,
-} from '../../../domain/selection/range-selection';
 import type { MouseRangeSelectState } from './range-selection-gesture-state';
 import type { PipelineAdapter } from './pipeline-adapter';
 import type { PointerPressSession, PointerTerminalMode } from './pointer-session';
+import { resolveRangeSelectionBoundaryAtVerticalPosition } from '../selection/block-boundary-resolver';
 import {
     MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX,
     MOBILE_DRAG_START_MOVE_THRESHOLD_PX,
@@ -238,8 +233,7 @@ function handleRangeSelectionPointerMove(
     e.preventDefault();
     e.stopPropagation();
 
-    const targetBoundary = resolveHandleRangeBoundaryAtPoint(host, e.clientX, e.clientY)
-        ?? resolveRangeBoundaryAtPoint(host.view, e.clientX, e.clientY, (x, y) => host.resolveBlockSelection({ kind: 'point', clientX: x, clientY: y })?.anchorBlock ?? null);
+    const targetBoundary = resolveRangeSelectionBoundaryAtVerticalPosition(host.view, e.clientY);
     if (targetBoundary) {
         host.updateMouseRangeSelection(state, targetBoundary);
     }
@@ -262,26 +256,6 @@ function shouldStartDesktopSelectedHandleDrag(
     if (distance < MOUSE_SECONDARY_DRAG_START_MOVE_THRESHOLD_PX) return false;
     if (host.pipelineState.type !== 'selecting') return false;
     return host.pipelineState.selection.rangeState?.operation === 'remove';
-}
-
-function resolveHandleRangeBoundaryAtPoint(
-    host: PointerMoveHost,
-    clientX: number,
-    clientY: number
-): RangeSelectionBoundary | null {
-    if (typeof activeDocument.elementFromPoint !== 'function') {
-        return null;
-    }
-    const hit = activeDocument.elementFromPoint(clientX, clientY);
-    if (!hit?.instanceOf(HTMLElement)) return null;
-
-    const handle = hit.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
-    if (!handle || handle.classList.contains(EMBED_HANDLE_CLASS)) return null;
-    if (!host.view.dom.contains(handle)) return null;
-
-    const source = host.resolveBlockSelection({ kind: 'handle', handle });
-    if (!source) return null;
-    return buildRangeSelectionBoundaryFromBlock(host.view.state.doc, source.anchorBlock);
 }
 
 export function handlePointerUp(host: PipelineAdapter, e: PointerEvent): void {

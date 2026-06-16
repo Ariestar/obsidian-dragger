@@ -636,6 +636,268 @@ describe('PipelineAdapter Range Selection', () => {
         handler.destroy();
     });
 
+    it('toggles rendered desktop blocks from selected-handle vertical brush even when point lookup misses', () => {
+        const view = createViewStub([
+            'intro',
+            'anchor',
+            'before',
+            '---',
+            'after',
+        ]);
+        const startHandle = appendHandleForBlockStart(view, 1);
+        const hrHandle = appendHandleForBlockStart(view, 3);
+
+        const sourceBlock = createBlock('anchor', 1, 1);
+        const hrBlock = createBlock('---', 3, 3);
+        const beginPointerDragSession = vi.fn();
+        const onDropPreview = vi.fn();
+
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
+                handle: (handle) => {
+                    if (handle === hrHandle) return hrBlock;
+                    return sourceBlock;
+                },
+                point: (x) => (x < 40 ? null : hrBlock),
+            }),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            onDropPreview,
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
+
+        handler.attach();
+        dispatchPointer(startHandle, 'pointerdown', {
+            pointerId: 185,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(520);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 185,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 70,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 185,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 70,
+        });
+
+        expect(hrHandle.classList.contains('dnd-range-selected-handle')).toBe(true);
+
+        dispatchPointer(hrHandle, 'pointerdown', {
+            pointerId: 186,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 70,
+        });
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 186,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 66,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 186,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 66,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(onDropPreview).not.toHaveBeenCalled();
+        expect(hrHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
+        handler.destroy();
+    });
+
+    it('toggles rendered table blocks from selected-handle vertical brush even when point lookup misses', () => {
+        const view = createViewStub([
+            'intro',
+            'anchor',
+            'before',
+            '| h |',
+            '| - |',
+            '| v |',
+            'after',
+        ]);
+        const startHandle = appendHandleForBlockStart(view, 1);
+        const tableHandle = appendHandleForBlockStart(view, 3, undefined, 5);
+
+        const sourceBlock = createBlock('anchor', 1, 1);
+        const tableBlock = createBlock('| h |\n| - |\n| v |', 3, 5);
+        const beginPointerDragSession = vi.fn();
+        const onDropPreview = vi.fn();
+
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
+                handle: (handle) => {
+                    if (handle === tableHandle) return tableBlock;
+                    return sourceBlock;
+                },
+                point: (x) => (x < 40 ? null : tableBlock),
+            }),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            onDropPreview,
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
+
+        handler.attach();
+        dispatchPointer(startHandle, 'pointerdown', {
+            pointerId: 187,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(520);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 187,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 70,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 187,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 70,
+        });
+
+        expect(tableHandle.classList.contains('dnd-range-selected-handle')).toBe(true);
+
+        dispatchPointer(tableHandle, 'pointerdown', {
+            pointerId: 188,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 70,
+        });
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 188,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 76,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 188,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 76,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(onDropPreview).not.toHaveBeenCalled();
+        expect(tableHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
+        handler.destroy();
+    });
+
+    it('toggles rendered math blocks from selected-handle vertical brush even when point lookup misses', () => {
+        const view = createViewStub([
+            'intro',
+            'anchor',
+            'before',
+            '$$',
+            'x^2',
+            '$$',
+            'after',
+        ]);
+        const startHandle = appendHandleForBlockStart(view, 1);
+        const mathHandle = appendHandleForBlockStart(view, 3, undefined, 5);
+
+        const sourceBlock = createBlock('anchor', 1, 1);
+        const mathBlock = createBlock('$$\nx^2\n$$', 3, 5);
+        const beginPointerDragSession = vi.fn();
+        const onDropPreview = vi.fn();
+
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
+                handle: (handle) => {
+                    if (handle === mathHandle) return mathBlock;
+                    return sourceBlock;
+                },
+                point: (x) => (x < 40 ? null : mathBlock),
+            }),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            onDropPreview,
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
+
+        handler.attach();
+        dispatchPointer(startHandle, 'pointerdown', {
+            pointerId: 189,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 30,
+        });
+        vi.advanceTimersByTime(520);
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 189,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 70,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 189,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 70,
+        });
+
+        expect(mathHandle.classList.contains('dnd-range-selected-handle')).toBe(true);
+
+        dispatchPointer(mathHandle, 'pointerdown', {
+            pointerId: 190,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 70,
+        });
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 190,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 76,
+        });
+        dispatchPointer(window, 'pointerup', {
+            pointerId: 190,
+            pointerType: 'mouse',
+            shiftKey: true,
+            clientX: 12,
+            clientY: 76,
+        });
+
+        expect(beginPointerDragSession).not.toHaveBeenCalled();
+        expect(onDropPreview).not.toHaveBeenCalled();
+        expect(mathHandle.classList.contains('dnd-range-selected-handle')).toBe(false);
+        handler.destroy();
+    });
+
     it('drags committed desktop selection from a selected handle after long-press', () => {
         const view = createViewStub(8);
         const startHandle = appendHandleForBlockStart(view, 1);

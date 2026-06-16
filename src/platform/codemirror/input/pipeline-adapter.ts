@@ -40,7 +40,10 @@ import {
     type RangeSelectionPointerSession,
 } from './pointer-session';
 import { readFocusInput, readKeyboardInput, readPointerInput, readVisibilityInput } from './pointer-hit-test';
-import { createRangeSelectionBoundaryResolver } from '../selection/block-boundary-resolver';
+import {
+    createRangeSelectionBoundaryResolver,
+    resolveRangeSelectionBoundaryAtVerticalPosition,
+} from '../selection/block-boundary-resolver';
 import { type BlockSelectionRequest } from '../selection/block-selection-resolver';
 import {
     INPUT_GUARD_MOBILE_DRAG_GESTURE,
@@ -791,26 +794,15 @@ export class PipelineAdapter {
     }
 
     toggleRangeSelectionTargetsBetween(
-        startX: number,
+        _startX: number,
         startY: number,
-        endX: number,
+        _endX: number,
         endY: number,
         toggledKeys: Set<string>
     ): boolean {
-        const startBoundary = this.resolveRangeToggleBoundaryAtPoint(startX, startY);
-        const endBoundary = this.resolveRangeToggleBoundaryAtPoint(endX, endY);
-        if (!startBoundary || !endBoundary) {
-            const target = this.resolveBlockSelection({ kind: 'point', clientX: endX, clientY: endY });
-            if (!target) return false;
-            const key = keyForSelectedBlockRange({
-                startLineNumber: target.anchorBlock.startLine + 1,
-                endLineNumber: target.anchorBlock.endLine + 1,
-            });
-            if (toggledKeys.has(key)) return false;
-            if (!this.toggleRangeSelectionTarget(target)) return false;
-            toggledKeys.add(key);
-            return true;
-        }
+        const startBoundary = resolveRangeSelectionBoundaryAtVerticalPosition(this.view, startY);
+        const endBoundary = resolveRangeSelectionBoundaryAtVerticalPosition(this.view, endY);
+        if (!startBoundary || !endBoundary) return false;
 
         const resolveBoundary = createRangeSelectionBoundaryResolver(this.view.state);
         let didToggle = false;
@@ -846,17 +838,6 @@ export class PipelineAdapter {
         });
         this.pipeline.enter({ type: 'selection_finish' });
         return true;
-    }
-
-    private resolveRangeToggleBoundaryAtPoint(clientX: number, clientY: number): RangeSelectionBoundary | null {
-        const pos = this.view.posAtCoords({ x: clientX, y: clientY });
-        if (pos === null) return null;
-        const lineNumber = this.view.state.doc.lineAt(pos).number;
-        const boundary = createRangeSelectionBoundaryResolver(this.view.state)(lineNumber);
-        return {
-            ...boundary,
-            representativeLineNumber: lineNumber,
-        };
     }
 
     finishPointerPressSession(): void {

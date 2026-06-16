@@ -204,6 +204,12 @@ export function createViewStub(lineCountOrLines: number | string[] = 1): EditorV
             const top = (line.number - 1) * 20;
             return { from: line.from, to: line.to, top, bottom: top + 20 };
         },
+        lineBlockAtHeight: (height: number) => {
+            const lineNumber = Math.max(1, Math.min(state.doc.lines, Math.floor(height / 20) + 1));
+            const line = state.doc.line(lineNumber);
+            const top = (line.number - 1) * 20;
+            return { from: line.from, to: line.to, top, bottom: top + 20 };
+        },
         domAtPos: (pos: number) => {
             const line = state.doc.lineAt(pos);
             const node = lineElements[Math.max(0, line.number - 1)] ?? content;
