@@ -4,7 +4,10 @@ import type { BlockCommand } from '../../../domain/command/block-command';
 import type { BlockSelection, RangeSelectionOperation } from '../../../domain/selection/block-selection';
 import type { SelectedBlockRange } from '../../../domain/selection/block-ranges';
 import type { RangeSelectionBoundary, RangeSelectionBoundaryResolver } from '../../../domain/selection/range-selection';
-import { buildRangeSelectionBoundaryFromBlock } from '../../../domain/selection/range-selection';
+import {
+    buildRangeSelectionBoundaryFromBlock,
+    collectSelectedBlocksBetween,
+} from '../../../domain/selection/range-selection';
 import type { DragDropSnapshot } from '../../../drag/pipeline/pipeline-drop';
 import type { DragCancelReason, GuardId } from '../../../drag/pipeline/pipeline-event';
 import { createDragPipeline, type DragPipeline } from '../../../drag/pipeline/drag-pipeline';
@@ -394,6 +397,7 @@ export class PipelineAdapter {
             longPressMs?: number;
             skipLongPress?: boolean;
             sourceKind?: HoldTarget['source'];
+            shortPressSelectionToggle?: BlockSelection;
         }
     ): void {
         const pointerType = e.pointerType || null;
@@ -434,6 +438,7 @@ export class PipelineAdapter {
             timeoutId,
             cancelMoveThresholdPx,
             startMoveThresholdPx,
+            shortPressSelectionToggle: options?.shortPressSelectionToggle,
         };
         this.pointer.attachPointerListeners();
         this.pipeline.enter({
@@ -779,6 +784,98 @@ export class PipelineAdapter {
         }
     }
 
+    toggleRangeSelectionTarget(source: BlockSelection): boolean {
+        return this.toggleRangeSelectionBoundary(
+            buildRangeSelectionBoundaryFromBlock(this.view.state.doc, source.anchorBlock)
+        );
+    }
+
+    toggleRangeSelectionTargetsBetween(
+        startX: number,
+        startY: number,
+        endX: number,
+        endY: number,
+        toggledKeys: Set<string>
+    ): boolean {
+        const startBoundary = this.resolveRangeToggleBoundaryAtPoint(startX, startY);
+        const endBoundary = this.resolveRangeToggleBoundaryAtPoint(endX, endY);
+        if (!startBoundary || !endBoundary) {
+            const target = this.resolveBlockSelection({ kind: 'point', clientX: endX, clientY: endY });
+            if (!target) return false;
+            const key = keyForSelectedBlockRange({
+                startLineNumber: target.anchorBlock.startLine + 1,
+                endLineNumber: target.anchorBlock.endLine + 1,
+            });
+            if (toggledKeys.has(key)) return false;
+            if (!this.toggleRangeSelectionTarget(target)) return false;
+            toggledKeys.add(key);
+            return true;
+        }
+
+        const resolveBoundary = createRangeSelectionBoundaryResolver(this.view.state);
+        let didToggle = false;
+        for (const block of collectSelectedBlocksBetween(
+            this.view.state.doc.lines,
+            startBoundary.startLineNumber,
+            startBoundary.endLineNumber,
+            endBoundary.startLineNumber,
+            endBoundary.endLineNumber,
+            resolveBoundary
+        )) {
+            const key = keyForSelectedBlockRange(block);
+            if (toggledKeys.has(key)) continue;
+            if (!this.toggleRangeSelectionBoundary(boundaryFromSelectedBlockRange(block), resolveBoundary)) continue;
+            toggledKeys.add(key);
+            didToggle = true;
+        }
+        return didToggle;
+    }
+
+    private toggleRangeSelectionBoundary(
+        boundary: RangeSelectionBoundary,
+        resolveBoundary = createRangeSelectionBoundaryResolver(this.view.state)
+    ): boolean {
+        const selection = this.getToggleBaseSelection();
+        if (!selection) return false;
+        this.enterRangeSelection({
+            sourceSelection: selection.selection,
+            anchorBoundary: boundary,
+            selectedBlocks: selectedBlocksFromSelection(selection.selection),
+            guardDeps: selection.guardDeps,
+            resolveBoundary,
+        });
+        this.pipeline.enter({ type: 'selection_finish' });
+        return true;
+    }
+
+    private resolveRangeToggleBoundaryAtPoint(clientX: number, clientY: number): RangeSelectionBoundary | null {
+        const pos = this.view.posAtCoords({ x: clientX, y: clientY });
+        if (pos === null) return null;
+        const lineNumber = this.view.state.doc.lineAt(pos).number;
+        const boundary = createRangeSelectionBoundaryResolver(this.view.state)(lineNumber);
+        return {
+            ...boundary,
+            representativeLineNumber: lineNumber,
+        };
+    }
+
+    finishPointerPressSession(): void {
+        this.clearPointerPressState();
+        this.pointer.detachPointerListeners();
+        this.pointer.releasePointerCapture();
+        this.mobile.clearInputGuardMode();
+    }
+
+    private getToggleBaseSelection(): { selection: BlockSelection; guardDeps: GuardId[] } | null {
+        if (this.pipelineState.type === 'holding' || this.pipelineState.type === 'ready_to_drag') {
+            return this.pipelineState.hold.retainedSelection ?? null;
+        }
+        if (this.pipelineState.type === 'selecting' && this.pipelineState.selection.phase === 'passive') {
+            return this.pipelineState.selection;
+        }
+        return null;
+    }
+
     private getPassivePipelineSelection(): BlockSelection | null {
         return this.pipelineState.type === 'selecting' && this.pipelineState.selection.phase === 'passive'
             ? this.pipelineState.selection.selection
@@ -1046,4 +1143,16 @@ function selectedBlocksFromSelection(selection: BlockSelection): SelectedBlockRa
         startLineNumber: range.startLine + 1,
         endLineNumber: range.endLine + 1,
     }));
+}
+
+function boundaryFromSelectedBlockRange(block: SelectedBlockRange): RangeSelectionBoundary {
+    return {
+        startLineNumber: block.startLineNumber,
+        endLineNumber: block.endLineNumber,
+        representativeLineNumber: block.endLineNumber,
+    };
+}
+
+function keyForSelectedBlockRange(block: SelectedBlockRange): string {
+    return `${block.startLineNumber}:${block.endLineNumber}`;
 }

@@ -79,6 +79,7 @@ export type PointerDownDecision =
             longPressMs?: number;
             skipLongPress?: boolean;
             sourceKind?: HoldTarget['source'];
+            shortPressSelectionToggle?: BlockSelection;
         };
     }
     | {
@@ -247,12 +248,11 @@ function decidePassiveSelectionDrag(
     if (!passiveSource) return { type: 'none' };
 
     const pointerType = e.pointerType || null;
-    const selectedHandleHit = !!target.closest(`.${RANGE_SELECTED_HANDLE_CLASS}`);
-    if (!platform.isMobile && selectedHandleHit) return { type: 'none' };
+    const selectedHandle = target.closest<HTMLElement>(`.${RANGE_SELECTED_HANDLE_CLASS}`);
     if (!context.isSelectionDragGripHit(target, e.clientX, e.clientY, pointerType)) {
         return { type: 'none' };
     }
-    const sourceKind: HoldTarget['source'] = selectedHandleHit ? 'handle' : 'selected_text';
+    const sourceKind: HoldTarget['source'] = selectedHandle ? 'handle' : 'selected_text';
     if (!context.canStartDragForPointer(sourceKind)) return { type: 'none' };
 
     if (context.pipelineState.type === 'selecting' && context.hasActiveRangePointerSession) {
@@ -261,10 +261,13 @@ function decidePassiveSelectionDrag(
     const longPressMs = platform.isMobile
         ? MOBILE_SELECTED_RANGE_DRAG_LONG_PRESS_MS
         : undefined;
+    const shortPressSelectionToggle = selectedHandle && !platform.isMobile
+        ? context.resolveBlockSelection({ kind: 'handle', handle: selectedHandle }) ?? undefined
+        : undefined;
     return {
         type: 'start_press_drag',
         source: passiveSource,
-        options: { sourceKind, longPressMs },
+        options: { sourceKind, longPressMs, shortPressSelectionToggle },
     };
 }
 

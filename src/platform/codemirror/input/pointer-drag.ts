@@ -11,7 +11,7 @@ import {
 } from '../../../domain/selection/range-selection';
 import type { MouseRangeSelectState } from './range-selection-gesture-state';
 import type { PipelineAdapter } from './pipeline-adapter';
-import type { PointerTerminalMode } from './pointer-session';
+import type { PointerPressSession, PointerTerminalMode } from './pointer-session';
 import {
     MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX,
     MOBILE_DRAG_START_MOVE_THRESHOLD_PX,
@@ -22,6 +22,10 @@ export type PointerMoveHost = PipelineAdapter;
 
 export function handlePointerMove(host: PointerMoveHost, e: PointerEvent): void {
     readPointerInput('move', e);
+    if (host.pressSession?.selectionToggleBrush) {
+        handlePressPendingPointerMove(host, e);
+        return;
+    }
     switch (host.pipelineState.type) {
         case 'dragging':
             handleDraggingPointerMove(host, e);
@@ -111,6 +115,8 @@ function handlePressPendingPointerMove(host: PointerMoveHost, e: PointerEvent): 
     if (!pressState) return;
     if (e.pointerId !== pressState.pointerId) return;
 
+    const previousX = pressState.latestX;
+    const previousY = pressState.latestY;
     pressState.latestX = e.clientX;
     pressState.latestY = e.clientY;
 
@@ -119,6 +125,14 @@ function handlePressPendingPointerMove(host: PointerMoveHost, e: PointerEvent): 
     const distance = Math.hypot(dx, dy);
 
     if (!pressState.longPressReady) {
+        if (pressState.shortPressSelectionToggle && distance >= pressState.startMoveThresholdPx) {
+            const didToggle = toggleBrushTargetsBetween(host, pressState, previousX, previousY, e.clientX, e.clientY);
+            if (didToggle) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+        }
         if (distance > pressState.cancelMoveThresholdPx) {
             host.abortForGestureCancel('press_cancelled', e.pointerType || null);
         }
@@ -134,6 +148,25 @@ function handlePressPendingPointerMove(host: PointerMoveHost, e: PointerEvent): 
     const sourceKind = host.pipelineState.hold.target.source;
     const pointerId = pressState.pointerId;
     host.enterDraggingState(source, pointerId, e.clientX, e.clientY, e.pointerType || null, sourceKind);
+}
+
+function toggleBrushTargetsBetween(
+    host: PointerMoveHost,
+    pressState: PointerPressSession,
+    startX: number,
+    startY: number,
+    clientX: number,
+    clientY: number
+): boolean {
+    const brush = pressState.selectionToggleBrush ?? {
+        toggledKeys: new Set<string>(),
+    };
+    pressState.selectionToggleBrush = brush;
+    if (pressState.timeoutId !== null) {
+        window.clearTimeout(pressState.timeoutId);
+        pressState.timeoutId = null;
+    }
+    return host.toggleRangeSelectionTargetsBetween(startX, startY, clientX, clientY, brush.toggledKeys);
 }
 
 function handleRangeSelectionPointerMove(
@@ -266,6 +299,10 @@ function handlePointerTerminal(
     e: PointerEvent,
     mode: PointerTerminalMode
 ): void {
+    if (host.pressSession?.selectionToggleBrush) {
+        finishPressPendingPointer(host, e, mode);
+        return;
+    }
     switch (host.pipelineState.type) {
         case 'dragging':
             finishPointerDrag(host, e, mode === 'up');
@@ -384,6 +421,31 @@ function finishPressPendingPointer(
     const pressState = host.pressSession;
     if (!pressState) return;
     if (e.pointerId !== pressState.pointerId) return;
+    if (pressState.selectionToggleBrush) {
+        e.preventDefault();
+        e.stopPropagation();
+        host.finishPointerPressSession();
+        return;
+    }
+    const pressDistance = Math.hypot(
+        pressState.latestX - pressState.startX,
+        pressState.latestY - pressState.startY
+    );
+    if (
+        mode === 'up'
+        && !pressState.longPressReady
+        && pressDistance < pressState.startMoveThresholdPx
+        && (host.pipelineState.type === 'holding' || host.pipelineState.type === 'ready_to_drag')
+        && host.pipelineState.hold.retainedSelection
+        && pressState.shortPressSelectionToggle
+    ) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (host.toggleRangeSelectionTarget(pressState.shortPressSelectionToggle)) {
+            host.finishPointerPressSession();
+            return;
+        }
+    }
     if (
         mode === 'up'
         && !pressState.longPressReady

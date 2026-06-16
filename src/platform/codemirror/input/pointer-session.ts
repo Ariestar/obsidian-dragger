@@ -1,4 +1,5 @@
 import { EditorView } from '@codemirror/view';
+import type { BlockSelection } from '../../../domain/selection/block-selection';
 
 export type ActivePointerDrag = {
     sessionId: string;
@@ -19,6 +20,10 @@ export type PointerPressSession = {
     timeoutId: number | null;
     cancelMoveThresholdPx: number;
     startMoveThresholdPx: number;
+    shortPressSelectionToggle?: BlockSelection;
+    selectionToggleBrush?: {
+        toggledKeys: Set<string>;
+    };
 };
 
 export type PointerTerminalMode = 'up' | 'cancel';
