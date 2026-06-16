@@ -51,7 +51,7 @@
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter .cm-gutterElement.dnd-handle-gutter-marker > .dnd-drag-handle.dnd-handle-gutter-bound {
     display: inline-flex;
     vertical-align: middle;
-    transform: translateX(var(--dnd-handle-horizontal-offset-px, 0px));
+    transform: translateX(calc(var(--dnd-handle-horizontal-offset-px, 0px) - 50%));
     pointer-events: auto;
 }
 

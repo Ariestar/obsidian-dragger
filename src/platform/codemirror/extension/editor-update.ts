@@ -30,7 +30,7 @@ export function applyViewUpdate(update: ViewUpdate, deps: ViewUpdateFlowDeps): v
         deps.refreshDecorationsAndEmbeds();
     }
 
-    if (update.docChanged || update.geometryChanged) {
+    if (update.docChanged || update.geometryChanged || update.selectionSet) {
         deps.pipelineAdapter.refreshSelectionVisual();
         deps.handleVisibility.refreshGrabVisualState();
     }
