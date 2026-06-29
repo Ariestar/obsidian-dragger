@@ -125,10 +125,18 @@ export function createBlock(content = '- item', startLine = 0, endLine = startLi
 
 export function resolveBlockSelectionFromTestBlocks(params: {
     handle?: ((handle: HTMLElement) => BlockInfo | null) | BlockInfo | null;
+    nativeSelection?: ((handle: HTMLElement) => BlockSelection | null) | BlockSelection | null;
     point?: ((clientX: number, clientY: number) => BlockInfo | null) | BlockInfo | null;
 }): (request: BlockSelectionRequest) => BlockSelection | null {
     return (request) => {
         const resolveBlock = (value: ((...args: never[]) => BlockInfo | null) | BlockInfo | null | undefined, args: never[]): BlockInfo | null => {
+            if (typeof value === 'function') return value(...args);
+            return value ?? null;
+        };
+        const resolveSelection = (
+            value: ((...args: never[]) => BlockSelection | null) | BlockSelection | null | undefined,
+            args: never[]
+        ): BlockSelection | null => {
             if (typeof value === 'function') return value(...args);
             return value ?? null;
         };
@@ -137,6 +145,8 @@ export function resolveBlockSelectionFromTestBlocks(params: {
                 const block = resolveBlock(params.handle, [request.handle as never]);
                 return block ? makeBlockSelection(block, buildSingleBlockSelectionRanges(block)) : null;
             }
+            case 'native-selection':
+                return resolveSelection(params.nativeSelection, [request.handle as never]);
             case 'point': {
                 const block = resolveBlock(params.point, [request.clientX as never, request.clientY as never]);
                 return block ? makeBlockSelection(block, buildSingleBlockSelectionRanges(block)) : null;
@@ -335,4 +345,3 @@ export function registerMouseHandlerTestHooks(): void {
         });
     });
 }
-

@@ -20,13 +20,16 @@ import {
     mergeSelectedBlocks,
     type SelectedBlockRange,
 } from '../../../domain/selection/block-ranges';
+import { collectSelectedBlocksBetween } from '../../../domain/selection/range-selection';
 import { normalizeCompositeRanges } from '../../../domain/selection/selection-ranges';
 import { clampLineNumber } from '../../../domain/markdown/line-number';
+import { createRangeSelectionBoundaryResolver } from './block-boundary-resolver';
 
 export type { BlockSelection, BlockSelectionRange };
 
 export type BlockSelectionRequest =
     | { kind: 'handle'; handle: HTMLElement }
+    | { kind: 'native-selection'; handle: HTMLElement }
     | { kind: 'point'; clientX: number; clientY: number }
     | { kind: 'block'; block: BlockInfo }
     | {
@@ -106,6 +109,9 @@ export class BlockSelectionResolver {
     resolveSelection(request: BlockSelectionRequest): BlockSelection | null {
         if (request.kind === 'selection') {
             return buildSelectionFromSelectedBlocks(request.doc, request.blocks, request.templateBlock);
+        }
+        if (request.kind === 'native-selection') {
+            return this.resolveNativeSelectionForHandle(request.handle);
         }
 
         const block = this.resolveRequestedBlock(request);
@@ -223,6 +229,63 @@ export class BlockSelectionResolver {
             requireDirectWithinRoot: true,
             normalizeToEmbedRoot: true,
         });
+    }
+
+    private resolveNativeSelectionForHandle(handle: HTMLElement): BlockSelection | null {
+        const handleBlock = this.getBlockInfoForHandle(handle);
+        if (!handleBlock) return null;
+
+        const nativeSelection = this.collectNativeSelectionBlocks();
+        if (nativeSelection.blocks.length === 0) return null;
+
+        const handleLineNumber = handleBlock.startLine + 1;
+        const selectedHandleBlock = nativeSelection.blocks.find((block) => (
+            handleLineNumber >= block.startLineNumber
+            && handleLineNumber <= block.endLineNumber
+        ));
+        if (!selectedHandleBlock) return null;
+
+        const selectedMultipleBlocks = nativeSelection.blocks.length > 1;
+        const selectedContainerBlock = selectedHandleBlock.startLineNumber !== handleBlock.startLine + 1
+            || selectedHandleBlock.endLineNumber !== handleBlock.endLine + 1;
+        if (!selectedMultipleBlocks && (!nativeSelection.spansMultipleLines || !selectedContainerBlock)) {
+            return null;
+        }
+
+        return buildSelectionFromSelectedBlocks(this.view.state.doc, nativeSelection.blocks, handleBlock);
+    }
+
+    private collectNativeSelectionBlocks(): { blocks: SelectedBlockRange[]; spansMultipleLines: boolean } {
+        const state = this.view.state;
+        const doc = state.doc;
+        const resolveBoundary = createRangeSelectionBoundaryResolver(state);
+        const blocks: SelectedBlockRange[] = [];
+        let spansMultipleLines = false;
+
+        for (const range of state.selection.ranges) {
+            if (range.empty) continue;
+
+            const from = Math.min(range.from, range.to);
+            const to = Math.max(range.from, range.to);
+            const endPos = Math.max(from, to - 1);
+            const startLineNumber = doc.lineAt(from).number;
+            const endLineNumber = doc.lineAt(endPos).number;
+            spansMultipleLines = spansMultipleLines || startLineNumber !== endLineNumber;
+
+            blocks.push(...collectSelectedBlocksBetween(
+                doc.lines,
+                startLineNumber,
+                startLineNumber,
+                endLineNumber,
+                endLineNumber,
+                resolveBoundary
+            ));
+        }
+
+        return {
+            blocks: mergeSelectedBlocks(doc.lines, blocks),
+            spansMultipleLines,
+        };
     }
 
     private expandHeadingBlockIfCollapsed(block: BlockInfo): BlockInfo {

@@ -284,10 +284,24 @@ function decideHandlePointerDown(
         if (retarget.type !== 'none') return retarget;
     }
 
-    const source = context.resolveBlockSelection({ kind: 'handle', handle });
+    const nativeSelectionSource = !platform.isMobile && context.isMultiLineSelectionEnabled
+        ? context.resolveBlockSelection({ kind: 'native-selection', handle })
+        : null;
+    const source = nativeSelectionSource ?? context.resolveBlockSelection({ kind: 'handle', handle });
     if (!source) return { type: 'handled' };
     const blockInfo = source.anchorBlock;
     if (context.isBlockInsideRenderedTableCell(blockInfo)) return { type: 'handled' };
+
+    if (nativeSelectionSource) {
+        return {
+            type: 'start_press_drag',
+            source: nativeSelectionSource,
+            options: {
+                sourceKind: 'handle',
+                longPressMs: 0,
+            },
+        };
+    }
 
     const rangePolicy = resolveHandleRangeSelectionPolicy(context, e);
     if (rangePolicy) {

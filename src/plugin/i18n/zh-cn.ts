@@ -52,9 +52,9 @@ export const zhCn = {
     indicatorColor: '指示器颜色',
     indicatorColorDesc: '跟随主题强调色或自定义颜色',
 
-    // Multi-line selection
-    multiLineSelection: '多行选取',
-    multiLineSelectionDesc: '关闭后仅保留单块拖拽，不进入多行选取流程',
+    // Multi-select drag
+    multiLineSelection: '多选拖拽',
+    multiLineSelectionDesc: '使用手柄或原生文本选区选择多个块，然后整组拖拽',
     multiLineSelectionLongPressMs: '多选模式长按时长',
     multiLineSelectionLongPressMsDesc: '输入毫秒数（300-2000），移动端长按达到该时长后进入多文本块选择模式',
     mobileDragLongPressMs: '拖拽启动长按时长',

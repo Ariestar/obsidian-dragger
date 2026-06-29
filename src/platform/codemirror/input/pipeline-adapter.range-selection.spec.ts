@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from '../../../domain/block/block-types';
-import { type BlockSelection } from '../../../domain/selection/block-selection';
+import { createBlockSelection, type BlockSelection } from '../../../domain/selection/block-selection';
 import { PipelineAdapter } from './pipeline-adapter';
 import { platform } from '../../../plugin/platform';
 import {
@@ -1173,6 +1173,64 @@ describe('PipelineAdapter Range Selection', () => {
         });
 
         expect(view.dom.querySelectorAll('.dnd-range-selected-handle')).toHaveLength(0);
+        handler.destroy();
+    });
+
+    it('drags a native editor multi-selection from a handle inside the selected blocks', () => {
+        const view = createViewStub([
+            '- parent',
+            '  - nested',
+            '    - deep',
+            'paragraph',
+            'tail',
+        ]);
+        const nestedHandle = appendHandleForBlockStart(view, 1, () => 22, 2);
+        appendHandleForBlockStart(view, 3, () => 62);
+
+        const nestedBlock = createBlock('  - nested\n    - deep', 1, 2);
+        const nativeSelection = createBlockSelection(nestedBlock, [
+            { startLine: 1, endLine: 2 },
+            { startLine: 3, endLine: 3 },
+        ]);
+        const beginPointerDragSession = vi.fn();
+        const onDropPreview = vi.fn();
+
+        const handler = new PipelineAdapter(view, createPipelineAdapterDeps({
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
+                handle: () => nestedBlock,
+                nativeSelection: (handle) => (handle === nestedHandle ? nativeSelection : null),
+                point: () => null,
+            }),
+            isBlockInsideRenderedTableCell: () => false,
+            beginPointerDragSession,
+            finishDragSession: vi.fn(),
+            onDropPreview,
+            onHideDropPreview: vi.fn(),
+            onPlatformCommit: vi.fn(),
+        }));
+
+        handler.attach();
+        dispatchPointer(nestedHandle, 'pointerdown', {
+            pointerId: 91,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 30,
+        });
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 91,
+            pointerType: 'mouse',
+            clientX: 90,
+            clientY: 30,
+        });
+
+        expect(beginPointerDragSession).toHaveBeenCalledTimes(1);
+        expect(onDropPreview).toHaveBeenCalledWith(90, 30, expect.objectContaining({
+            ranges: [
+                expect.objectContaining({ startLine: 1, endLine: 2 }),
+                expect.objectContaining({ startLine: 3, endLine: 3 }),
+            ],
+        }), 'mouse');
+        expect(view.dom.querySelector('.dnd-selection-rail')).toBeNull();
         handler.destroy();
     });
 

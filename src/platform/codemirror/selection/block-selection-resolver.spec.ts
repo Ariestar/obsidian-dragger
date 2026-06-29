@@ -121,6 +121,67 @@ describe('BlockSelectionResolver', () => {
         });
     });
 
+    it('resolves native editor selections from a nested handle inside the selected blocks', () => {
+        const baseState = EditorState.create({
+            doc: '- parent\n  - nested\n    - deep\nparagraph\ntail',
+        });
+        const state = baseState.update({
+            selection: {
+                anchor: baseState.doc.line(2).from,
+                head: baseState.doc.line(4).to,
+            },
+        }).state;
+        const handle = document.createElement('span');
+        handle.setAttribute('data-block-start', '1');
+
+        const view = { state } as unknown as EditorView;
+
+        const resolver = new BlockSelectionResolver(view);
+        const source = resolver.resolveSelection({ kind: 'native-selection', handle });
+        expect(source).not.toBeNull();
+        expect(source?.ranges).toEqual([{ startLine: 1, endLine: 3 }]);
+        expect(source?.anchorBlock.startLine).toBe(1);
+        expect(source?.anchorBlock.content).toBe('  - nested\n    - deep\nparagraph');
+    });
+
+    it('ignores native editor selections when the grabbed handle is outside the selection', () => {
+        const baseState = EditorState.create({
+            doc: '- parent\n  - nested\n    - deep\nparagraph\ntail',
+        });
+        const state = baseState.update({
+            selection: {
+                anchor: baseState.doc.line(2).from,
+                head: baseState.doc.line(4).to,
+            },
+        }).state;
+        const handle = document.createElement('span');
+        handle.setAttribute('data-block-start', '0');
+
+        const view = { state } as unknown as EditorView;
+
+        const resolver = new BlockSelectionResolver(view);
+        expect(resolver.resolveSelection({ kind: 'native-selection', handle })).toBeNull();
+    });
+
+    it('keeps single-line native text selections on the normal handle drag path', () => {
+        const baseState = EditorState.create({
+            doc: 'alpha beta\ngamma',
+        });
+        const state = baseState.update({
+            selection: {
+                anchor: baseState.doc.line(1).from,
+                head: baseState.doc.line(1).from + 5,
+            },
+        }).state;
+        const handle = document.createElement('span');
+        handle.setAttribute('data-block-start', '0');
+
+        const view = { state } as unknown as EditorView;
+
+        const resolver = new BlockSelectionResolver(view);
+        expect(resolver.resolveSelection({ kind: 'native-selection', handle })).toBeNull();
+    });
+
     it('uses data attributes when DOM lookup fails', () => {
         const state = EditorState.create({
             doc: 'first\nsecond\nthird',
@@ -359,4 +420,3 @@ describe('BlockSelectionResolver', () => {
         expect(block?.endLine).toBe(1);
     });
 });
-

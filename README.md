@@ -12,7 +12,7 @@
 
 - 🧱 **Block-level drag & drop** — paragraphs, headings, lists, tasks, blockquotes, callouts, tables, code blocks, math blocks
 - 📐 **Nested drag** — horizontal position controls indent level; vertical position controls insertion row
-- 🔗 **Multi-line selection drag** — click or long-press to select a range, then drag as a group; native checkboxes mark selected blocks on desktop
+- 🔗 **Multi-select drag** — select blocks with handles or native text selection, then drag any selected handle to move the group
 - 🎨 **Customizable handles** — 4 icon styles (dot / grip-dots / grip-lines / square), adjustable size, color, and horizontal offset
 - 📍 **Visual drop indicator** — glowing line shows exactly where the block will land
 - 📱 **Mobile support** — long-press drag mode, bottom toolbar block type conversion, edge auto-scroll during drag
@@ -69,7 +69,7 @@ For another editor platform, adapt host events into core values:
 
 **Nested lists & blockquotes:** move the cursor horizontally while dragging to control indent level.
 
-**Multi-line selection:** long-press (touch) or click multiple handles to select a range, then drag the entire selection. Press **Escape** to exit multi-select.
+**Multi-select drag:** long-press (touch), click multiple handles, or use native text selection across blocks, then drag any selected handle to move the entire selection. Press **Escape** to exit multi-select.
 
 **Mobile text long-press drag:** when enabled, long-press a text line or rendered block content to drag a single block directly without reaching for the left handle.
 
@@ -87,7 +87,7 @@ For another editor platform, adapt host events into core values:
 | **Handle size** | 12 – 28 px | 20 px |
 | **Handle horizontal offset** | Shift handle left (−80) or right (+80) px | 0 px |
 | **Indicator color** | Follow theme accent or pick a custom color | Theme |
-| **Multi-line selection** | Enable range-select-then-drag workflow | On |
+| **Multi-select drag** | Enable handle and native text selection group dragging | On |
 | **Mobile text long-press drag** | On mobile, long-press a text line or rendered block content to drag a single block directly | On |
 | **Cross-file drag** | Allow dragging blocks into another open file editor | Off |
 | **Drag source visual style** | Shared style set used by drag-source and list-drop highlights (Outline only / Subtle highlight / Filled highlight) | Subtle highlight |
@@ -112,7 +112,7 @@ For another editor platform, adapt host events into core values:
 npm install
 npm run dev       # watch mode with hot reload
 npm run build     # production build
-npm run test      # run Vitest suite (229 tests)
+npm run test      # run Vitest suite
 npm run typecheck # TypeScript type checking
 npm run lint -- --max-warnings=0
 ```
