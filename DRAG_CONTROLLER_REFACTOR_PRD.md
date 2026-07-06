@@ -281,10 +281,10 @@ dragger.selectRange({
 当某个 guard 事实失效时，平台调用：
 
 ```ts
-dragger.guardUnavailable('mobile-text-drag-mode');
+dragger.guardUnavailable('active-selection-mode');
 ```
 
-`guardId` 是普通字符串事实。controller 不知道 mobile、desktop、CodeMirror 或 Obsidian，只负责结束依赖该 guard 的交互状态。
+`guardId` 是普通字符串事实。controller 不知道设备类型、编辑器实现、CodeMirror 或 Obsidian，只负责结束依赖该 guard 的交互状态。平台可以用自己的命名，但这些命名不能进入 `src/drag/controller` 的分支逻辑。
 
 ### 5.1 Press Snapshot
 
@@ -341,9 +341,14 @@ export type DraggerDropSnapshot<TPreview = unknown> = {
   placement?: DropTarget['placement'] | null;
   blockBefore?: BlockInfo | null;
   blockAfter?: BlockInfo | null;
-  container?: DragContainerSnapshot | null;
+  markdown?: DraggerMarkdownDropFacts | null;
   rejectReason?: DragCancelReason | null;
   previewData?: TPreview;
+};
+
+export type DraggerMarkdownDropFacts = {
+  slotContext?: InsertionSlotContext | null;
+  documentRelation?: 'same_document' | 'different_document' | null;
 };
 ```
 
@@ -364,7 +369,7 @@ commit(input, context) {
 }
 ```
 
-controller 不自己构造 `move` command。这样 CodeMirror/Obsidian 可以保留 cross-editor、cross-document、container validation 等平台事实，而不需要在平台层保存 active point 再绕回 controller。
+controller 不自己构造 `move` command。这样 CodeMirror/Obsidian 可以保留 cross-editor、cross-document、Markdown document structure validation 等平台事实，而不需要在平台层保存 active point 再绕回 controller。
 
 ### 5.5 Document Snapshot
 

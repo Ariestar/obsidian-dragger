@@ -36,6 +36,70 @@ function readNpm(args, options = {}) {
     });
 }
 
+function runtimeSmokeSource(imports, label) {
+    return `
+${imports}
+const block = { type: BlockType.Paragraph, startLine: 0, endLine: 0, from: 0, to: 5, indentLevel: 0, content: "alpha" };
+const selection = createSingleBlockSelection(block);
+const drop = { target: { targetLineNumber: 2, placement: "before" }, rejectReason: null };
+const pipeline = createDragPipeline();
+const next = pipeline.enter({ type: "hold_start", sessionId: "s1", target: { selection, source: "handle" } });
+if (next.current.type !== "holding") throw new Error("missing drag pipeline");
+if (typeof DraggerController !== "function") throw new Error("missing dragger controller");
+if (!Array.isArray(defaultMarkdownDragRules())) throw new Error("missing markdown drag rules");
+if (BlockType.Paragraph !== "paragraph") throw new Error("missing domain export");
+if (parseLineWithQuote("alpha", 4).content !== "alpha") throw new Error("missing markdown export");
+let pressHandler;
+let moveHandler;
+let releaseHandler;
+const applied = [];
+const controller = new DraggerController({
+    input: {
+        onPress: (handler) => {
+            pressHandler = handler;
+            return () => {
+                pressHandler = undefined;
+            };
+        },
+        onMove: (handler) => {
+            moveHandler = handler;
+            return () => {
+                moveHandler = undefined;
+            };
+        },
+        onRelease: (handler) => {
+            releaseHandler = handler;
+            return () => {
+                releaseHandler = undefined;
+            };
+        },
+    },
+    inspect: {
+        press: () => ({ zone: "handle", block, selection, skipLongPress: true }),
+        drop: () => drop,
+        commit: (_input, context) => ({
+            type: "command",
+            command: createMoveCommand(context.selection, drop.target),
+            drop,
+        }),
+        document: () => ({ lineCount: 3 }),
+    },
+    effects: {
+        applyCommand: (command) => applied.push(command),
+    },
+    rules: defaultMarkdownDragRules(),
+    config: { dragStartMoveThresholdPx: 1 },
+});
+controller.mount();
+pressHandler({ point: { x: 0, y: 0 }, pointer: { id: 1, type: "mouse" } });
+moveHandler({ point: { x: 2, y: 0 }, pointer: { id: 1, type: "mouse" } });
+releaseHandler({ point: { x: 2, y: 0 }, pointer: { id: 1, type: "mouse" } });
+controller.destroy();
+if (applied.length !== 1) throw new Error("missing controller command");
+console.log("${label} ok");
+`;
+}
+
 try {
     const packJson = readNpm(["pack", "--json"]);
     const [{ filename }] = JSON.parse(packJson);
@@ -53,36 +117,31 @@ try {
         },
     }, null, 2));
 
-    fs.writeFileSync(path.join(tempDir, "esm.mjs"), `
-import { createDragPipeline } from "${packageName}/drag";
-import { BlockType } from "${packageName}/domain";
+    fs.writeFileSync(path.join(tempDir, "esm.mjs"), runtimeSmokeSource(`
+import { createDragPipeline, DraggerController, defaultMarkdownDragRules } from "${packageName}/drag";
+import { BlockType, createMoveCommand, createSingleBlockSelection } from "${packageName}/domain";
 import { parseLineWithQuote } from "${packageName}/markdown";
-const block = { type: BlockType.Paragraph, startLine: 0, endLine: 0, from: 0, to: 5, indentLevel: 0, content: "alpha" };
-const selection = { anchorBlock: block, focusBlock: block, ranges: [{ startLine: 0, endLine: 0 }] };
-const pipeline = createDragPipeline();
-const next = pipeline.enter({ type: "hold_start", sessionId: "s1", target: { selection, source: "handle" } });
-if (next.current.type !== "holding") throw new Error("missing drag pipeline");
-if (BlockType.Paragraph !== "paragraph") throw new Error("missing domain export");
-if (parseLineWithQuote("alpha", 4).content !== "alpha") throw new Error("missing markdown export");
-console.log("esm ok");
-`);
+`, "esm"));
 
-    fs.writeFileSync(path.join(tempDir, "cjs.cjs"), `
-const { createDragPipeline } = require("${packageName}/drag");
-const { BlockType } = require("${packageName}/domain");
+    fs.writeFileSync(path.join(tempDir, "cjs.cjs"), runtimeSmokeSource(`
+const { createDragPipeline, DraggerController, defaultMarkdownDragRules } = require("${packageName}/drag");
+const { BlockType, createMoveCommand, createSingleBlockSelection } = require("${packageName}/domain");
 const { parseLineWithQuote } = require("${packageName}/markdown");
-const block = { type: BlockType.Paragraph, startLine: 0, endLine: 0, from: 0, to: 5, indentLevel: 0, content: "alpha" };
-const selection = { anchorBlock: block, focusBlock: block, ranges: [{ startLine: 0, endLine: 0 }] };
-const pipeline = createDragPipeline();
-const next = pipeline.enter({ type: "hold_start", sessionId: "s1", target: { selection, source: "handle" } });
-if (next.current.type !== "holding") throw new Error("missing drag pipeline");
-if (BlockType.Paragraph !== "paragraph") throw new Error("missing domain export");
-if (parseLineWithQuote("alpha", 4).content !== "alpha") throw new Error("missing markdown export");
-console.log("cjs ok");
-`);
+`, "cjs"));
 
     fs.writeFileSync(path.join(tempDir, "typecheck.ts"), `
-import { createDragPipeline, type DragDropSnapshot, type DropResolution, type PipelineOutput } from "${packageName}/drag";
+import {
+    createDragPipeline,
+    DraggerController,
+    defaultMarkdownDragRules,
+    type DragDropSnapshot,
+    type DraggerControllerOptions,
+    type DraggerMoveInput,
+    type DraggerPressInput,
+    type DraggerReleaseInput,
+    type DropResolution,
+    type PipelineOutput,
+} from "${packageName}/drag";
 import { BlockType, createMoveCommand, createSingleBlockSelection } from "${packageName}/domain";
 
 type PreviewData = { marker: string };
@@ -111,6 +170,59 @@ const resolution: DropResolution<PreviewData> = {
 const committed = pipeline.enter({ type: "drop", sessionId: "s1", resolution, pointerType: "mouse" });
 const outputs: PipelineOutput<PreviewData>[] = committed.outputs;
 if (!outputs.some((output) => output.type === "command_ready")) throw new Error("missing command output");
+
+let pressHandler: ((input: DraggerPressInput) => void) | undefined;
+let moveHandler: ((input: DraggerMoveInput) => void) | undefined;
+let releaseHandler: ((input: DraggerReleaseInput) => void) | undefined;
+const applied: unknown[] = [];
+const controllerOptions: DraggerControllerOptions<PreviewData> = {
+    input: {
+        onPress: (handler) => {
+            pressHandler = handler;
+            return () => {
+                pressHandler = undefined;
+            };
+        },
+        onMove: (handler) => {
+            moveHandler = handler;
+            return () => {
+                moveHandler = undefined;
+            };
+        },
+        onRelease: (handler) => {
+            releaseHandler = handler;
+            return () => {
+                releaseHandler = undefined;
+            };
+        },
+    },
+    inspect: {
+        press: () => ({ zone: "handle", block, selection, skipLongPress: true }),
+        drop: () => drop,
+        commit: (_input, context) => ({
+            type: "command",
+            command: createMoveCommand(context.selection, drop.target!),
+            drop,
+        }),
+        document: () => ({ lineCount: 3 }),
+    },
+    effects: {
+        applyCommand: (command) => applied.push(command),
+    },
+    rules: defaultMarkdownDragRules<PreviewData>(),
+    config: {
+        longPressMs: 0,
+        dragStartMoveThresholdPx: 1,
+        dragCancelMoveThresholdPx: 100,
+    },
+};
+const controller = new DraggerController(controllerOptions);
+controller.mount();
+pressHandler?.({ point: { x: 0, y: 0 }, pointer: { id: 1, type: "mouse" } });
+moveHandler?.({ point: { x: 2, y: 0 }, pointer: { id: 1, type: "mouse" } });
+releaseHandler?.({ point: { x: 2, y: 0 }, pointer: { id: 1, type: "mouse" } });
+controller.destroy();
+if (applied.length !== 1) throw new Error("missing controller command");
 `);
 
     fs.writeFileSync(path.join(tempDir, "tsconfig.json"), JSON.stringify({

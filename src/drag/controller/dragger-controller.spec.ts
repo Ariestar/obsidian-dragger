@@ -9,6 +9,7 @@ import type {
 } from './dragger-controller-types';
 import { DraggerController } from './dragger-controller';
 import type { DocLikeWithRange } from '../../domain/markdown/document-types';
+import { defaultMarkdownDragRules } from './default-markdown-drag-rules';
 
 const block: BlockInfo = {
     type: BlockType.Paragraph,
@@ -219,6 +220,56 @@ describe('DraggerController', () => {
 
         expect(applyCommand).not.toHaveBeenCalled();
         expect(hideDropPreview).toHaveBeenCalled();
+        vi.useRealTimers();
+    });
+
+    it('applies default markdown rules from controller drop facts', () => {
+        vi.useFakeTimers();
+        const input: TestInput = {};
+        const applyCommand = vi.fn();
+        const controller = new DraggerController(createControllerOptions(input, {
+            inspect: {
+                press: () => ({
+                    zone: 'handle',
+                    block,
+                    selection: null,
+                }),
+                drop: () => ({
+                    target,
+                    rejectReason: null,
+                    markdown: { slotContext: 'inside_list' },
+                }),
+                commit: (_input, context) => ({
+                    type: 'command',
+                    command: {
+                        type: 'move',
+                        selection: context.selection,
+                        target,
+                    },
+                    drop: context.drop ?? { target, rejectReason: null },
+                }),
+                document: () => ({ lineCount: 3 }),
+            },
+            effects: { applyCommand },
+            rules: defaultMarkdownDragRules(),
+        }));
+
+        controller.mount();
+        input.press?.({
+            point: { x: 0, y: 0 },
+            pointer: { id: 1, type: 'mouse' },
+        });
+        vi.advanceTimersByTime(10);
+        input.move?.({
+            point: { x: 4, y: 0 },
+            pointer: { id: 1, type: 'mouse' },
+        });
+        input.release?.({
+            point: { x: 4, y: 0 },
+            pointer: { id: 1, type: 'mouse' },
+        });
+
+        expect(applyCommand).not.toHaveBeenCalled();
         vi.useRealTimers();
     });
 

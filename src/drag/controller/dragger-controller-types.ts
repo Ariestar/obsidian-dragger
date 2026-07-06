@@ -5,6 +5,7 @@ import type { BlockSelection, RangeSelectionOperation } from '../../domain/selec
 import type { RangeSelectionBoundary, RangeSelectionBoundaryResolver } from '../../domain/selection/range-selection';
 import type { SelectedBlockRange } from '../../domain/selection/block-ranges';
 import type { DocLikeWithRange } from '../../domain/markdown/document-types';
+import type { InsertionSlotContext } from '../../domain/rules/insertion-rules';
 import type { DragDropSnapshot, DropResolution } from '../pipeline/pipeline-drop';
 import type { DragCancelReason, GuardId } from '../pipeline/pipeline-event';
 import type { DragLifecycleEvent } from '../pipeline/pipeline-output';
@@ -110,7 +111,12 @@ export type DraggerDropSnapshot<TPreview = unknown> = DragDropSnapshot<TPreview>
     placement?: DropTarget['placement'] | null;
     blockBefore?: BlockInfo | null;
     blockAfter?: BlockInfo | null;
-    container?: unknown;
+    markdown?: DraggerMarkdownDropFacts | null;
+};
+
+export type DraggerMarkdownDropFacts = {
+    slotContext?: InsertionSlotContext | null;
+    documentRelation?: 'same_document' | 'different_document' | null;
 };
 
 export type DraggerDropInspectContext<TPreview = unknown> = {
