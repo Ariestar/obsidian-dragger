@@ -570,9 +570,12 @@ export class DraggerController<TPreview = unknown> {
     }
 
     private config(): DraggerControllerConfig {
+        const config = typeof this.options.config === 'function'
+            ? this.options.config()
+            : this.options.config;
         return {
             ...DEFAULT_CONFIG,
-            ...this.options.config,
+            ...config,
         };
     }
 

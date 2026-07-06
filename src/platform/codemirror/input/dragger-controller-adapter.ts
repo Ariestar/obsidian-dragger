@@ -7,7 +7,12 @@ import {
     type SelectedBlockRange,
 } from '../../../domain/selection/block-ranges';
 import { buildRangeSelectionBoundaryFromBlock, type RangeSelectionBoundary } from '../../../domain/selection/range-selection';
-import { DraggerController, type DraggerPressInput, type DraggerRangeStart } from '../../../drag/controller';
+import {
+    DraggerController,
+    type DraggerControllerConfig,
+    type DraggerPressInput,
+    type DraggerRangeStart,
+} from '../../../drag/controller';
 import type { DragDropSnapshot } from '../../../drag/pipeline/pipeline-drop';
 import type { DragLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
 import type { PipelineState } from '../../../drag/pipeline/pipeline-state';
@@ -184,15 +189,7 @@ export class DraggerControllerAdapter {
                     );
                 },
             },
-            config: {
-                longPressMs: this.isMobileInput()
-                    ? (this.deps.getMobileDragLongPressMs?.() ?? MOBILE_DRAG_LONG_PRESS_MS)
-                    : (this.deps.getMouseRangeSelectLongPressMs?.() ?? MOUSE_RANGE_SELECT_LONG_PRESS_MS),
-                dragStartMoveThresholdPx: this.isMobileInput() ? MOBILE_DRAG_START_MOVE_THRESHOLD_PX : 4,
-                dragCancelMoveThresholdPx: this.isMobileInput() ? MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX : Number.POSITIVE_INFINITY,
-                textLongPressDragEnabled: this.deps.isMobileTextLongPressDragEnabled?.() !== false,
-                multiLineSelectionEnabled: this.isMultiLineSelectionEnabled(),
-            },
+            config: () => this.controllerConfig(),
         });
     }
 
@@ -336,6 +333,18 @@ export class DraggerControllerAdapter {
 
     private isMultiLineSelectionEnabled(): boolean {
         return this.deps.isMultiLineSelectionEnabled?.() !== false;
+    }
+
+    private controllerConfig(): Partial<DraggerControllerConfig> {
+        return {
+            longPressMs: this.isMobileInput()
+                ? (this.deps.getMobileDragLongPressMs?.() ?? MOBILE_DRAG_LONG_PRESS_MS)
+                : (this.deps.getMouseRangeSelectLongPressMs?.() ?? MOUSE_RANGE_SELECT_LONG_PRESS_MS),
+            dragStartMoveThresholdPx: this.isMobileInput() ? MOBILE_DRAG_START_MOVE_THRESHOLD_PX : 4,
+            dragCancelMoveThresholdPx: this.isMobileInput() ? MOBILE_DRAG_CANCEL_MOVE_THRESHOLD_PX : Number.POSITIVE_INFINITY,
+            textLongPressDragEnabled: this.deps.isMobileTextLongPressDragEnabled?.() !== false,
+            multiLineSelectionEnabled: this.isMultiLineSelectionEnabled(),
+        };
     }
 
     private getPassiveSelection(): BlockSelection | null {

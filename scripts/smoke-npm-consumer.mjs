@@ -210,11 +210,11 @@ const controllerOptions: DraggerControllerOptions<PreviewData> = {
         applyCommand: (command) => applied.push(command),
     },
     rules: defaultMarkdownDragRules<PreviewData>(),
-    config: {
+    config: () => ({
         longPressMs: 0,
         dragStartMoveThresholdPx: 1,
         dragCancelMoveThresholdPx: 100,
-    },
+    }),
 };
 const controller = new DraggerController(controllerOptions);
 controller.mount();

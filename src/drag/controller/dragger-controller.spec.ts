@@ -187,6 +187,40 @@ describe('DraggerController', () => {
         vi.useRealTimers();
     });
 
+    it('reads config at runtime when config is a function', () => {
+        vi.useFakeTimers();
+        const input: TestInput = {};
+        const applyCommand = vi.fn();
+        let dragStartMoveThresholdPx = 100;
+        const controller = new DraggerController(createControllerOptions(input, {
+            effects: { applyCommand },
+            config: () => ({
+                longPressMs: 10,
+                dragStartMoveThresholdPx,
+                dragCancelMoveThresholdPx: 100,
+            }),
+        }));
+
+        controller.mount();
+        input.press?.({
+            point: { x: 0, y: 0 },
+            pointer: { id: 1, type: 'mouse' },
+        });
+        vi.advanceTimersByTime(10);
+        dragStartMoveThresholdPx = 1;
+        input.move?.({
+            point: { x: 4, y: 0 },
+            pointer: { id: 1, type: 'mouse' },
+        });
+        input.release?.({
+            point: { x: 4, y: 0 },
+            pointer: { id: 1, type: 'mouse' },
+        });
+
+        expect(applyCommand).toHaveBeenCalledTimes(1);
+        vi.useRealTimers();
+    });
+
     it('rejects drops through rules inside the controller', () => {
         vi.useFakeTimers();
         const input: TestInput = {};

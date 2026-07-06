@@ -94,6 +94,72 @@ describe('DraggerControllerAdapter', () => {
         adapter.destroy();
     });
 
+    it('reads gesture config dynamically from platform settings', () => {
+        const view = createViewStub(6);
+        const handle = appendHandleForBlockStart(view, 0);
+        const sourceBlock = createBlock('- item', 0, 0);
+        let mobileInput = false;
+        const showDropPreview = vi.fn();
+        const adapter = new DraggerControllerAdapter(view, {
+            resolveBlockSelection: resolveBlockSelectionFromTestBlocks({
+                handle: () => sourceBlock,
+                point: () => sourceBlock,
+            }),
+            isBlockInsideRenderedTableCell: () => false,
+            isMobileInput: () => mobileInput,
+            isMobileDragModeEnabled: () => true,
+            getMobileDragLongPressMs: () => 0,
+            getMouseRangeSelectLongPressMs: () => 0,
+            beginPointerDragSession: vi.fn(),
+            finishDragSession: vi.fn(),
+            resolveDropSnapshotAtPoint: () => ({
+                target: { targetLineNumber: 2, placement: 'before' },
+                rejectReason: null,
+            }),
+            buildBlockCommandAtPoint: () => ({
+                type: 'cancel',
+                drop: { target: null, rejectReason: 'no_target' },
+                reason: 'no_target',
+            }),
+            output: {
+                showDropPreview,
+                hideDropPreview: vi.fn(),
+                applyCommand: vi.fn(),
+                emitLifecycle: vi.fn(),
+            },
+        });
+
+        adapter.attach();
+        dispatchPointer(handle, 'pointerdown', {
+            pointerId: 11,
+            pointerType: 'mouse',
+            clientX: 12,
+            clientY: 10,
+        });
+        mobileInput = true;
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 11,
+            pointerType: 'mouse',
+            clientX: 17,
+            clientY: 10,
+        });
+        expect(showDropPreview).not.toHaveBeenCalled();
+
+        dispatchPointer(window, 'pointermove', {
+            pointerId: 11,
+            pointerType: 'mouse',
+            clientX: 21,
+            clientY: 10,
+        });
+
+        expect(showDropPreview).toHaveBeenCalledWith(expect.objectContaining({
+            ranges: [{ startLine: 0, endLine: 0 }],
+        }), expect.objectContaining({
+            target: { targetLineNumber: 2, placement: 'before' },
+        }), 'mouse');
+        adapter.destroy();
+    });
+
     it('drives shift-handle range selection through DraggerController', () => {
         const view = createViewStub(6);
         const handle0 = appendHandleForBlockStart(view, 0);

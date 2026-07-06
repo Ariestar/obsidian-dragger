@@ -153,11 +153,17 @@ export type DraggerControllerOptions<TPreview = unknown> = {
   inspect: DraggerInspector<TPreview>;
   effects: DraggerEffects<TPreview>;
   rules?: DragRule<TPreview> | DragRule<TPreview>[];
-  config?: Partial<DraggerControllerConfig>;
+  config?: DraggerControllerConfigInput;
   setTimer?: (callback: () => void, delayMs: number) => DragTimerToken;
   clearTimer?: (token: DragTimerToken) => void;
 };
+
+export type DraggerControllerConfigInput =
+  | Partial<DraggerControllerConfig>
+  | (() => Partial<DraggerControllerConfig>);
 ```
+
+如果平台设置会在 controller 生命周期内变化，直接传 `config: () => ({ ...currentSettings })`。controller 在需要判断 threshold、long press 或 feature flag 时读取当前值，不要求平台重建 controller。
 
 不再提供：
 

@@ -196,12 +196,16 @@ export type DraggerControllerConfig = {
     multiLineSelectionEnabled: boolean;
 };
 
+export type DraggerControllerConfigInput =
+    | Partial<DraggerControllerConfig>
+    | (() => Partial<DraggerControllerConfig>);
+
 export type DraggerControllerOptions<TPreview = unknown> = {
     input: DraggerInputSource;
     inspect: DraggerInspector<TPreview>;
     effects?: DraggerEffects<TPreview>;
     rules?: DragRule<TPreview> | DragRule<TPreview>[];
-    config?: Partial<DraggerControllerConfig>;
+    config?: DraggerControllerConfigInput;
     setTimer?: (callback: () => void, delayMs: number) => DragTimerToken;
     clearTimer?: (token: DragTimerToken) => void;
 };
