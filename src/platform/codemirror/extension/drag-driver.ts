@@ -17,7 +17,7 @@ import type { DropValidationResult } from '../drop/codemirror-drop-snapshot';
 import { DropIndicatorManager } from '../preview/drop-indicator';
 import { getVisibleHandleForBlockStart } from '../preview/handle-renderer';
 import { HandleVisibilityController } from '../preview/handle-visibility-controller';
-import { PipelineAdapter, type PipelineOutputExecutor } from '../input/pipeline-adapter';
+import { DraggerControllerAdapter, type DraggerControllerOutput } from '../input/dragger-controller-adapter';
 import { buildIdleLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
@@ -89,7 +89,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private readonly dropIndicator: DropIndicatorManager;
         private readonly dropTargetResolver: DropTargetResolver;
         private readonly moveCommandDeps: MoveCommandApplierDeps;
-        private readonly pipelineAdapter: PipelineAdapter;
+        private readonly dragController: DraggerControllerAdapter;
         private readonly handleVisibility: HandleVisibilityController;
         private readonly lifecycleEmitter = new DragLifecycleEmitter(
             (event) => plugin.emitDragLifecycleEvent(event)
@@ -174,7 +174,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 applyBlockCommand: (command) => this.applyBlockCommand(command),
             };
             this.unregisterPointerHitTestClient = registerPointerHitTestClient(this.pointerHitTestClient);
-            const pipelineOutputExecutor: PipelineOutputExecutor = {
+            const controllerOutput: DraggerControllerOutput = {
                 showDropPreview: (selection, drop, pointerType) =>
                     showPointerDropPreview(
                         this.pointerHitTestClient,
@@ -190,18 +190,16 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     this.emitDragLifecycle(event);
                 },
             };
-            this.pipelineAdapter = new PipelineAdapter(this.view, {
+            this.dragController = new DraggerControllerAdapter(this.view, {
                 resolveBlockSelection: (request) => this.context.selection.resolveSelection(request),
                 getVisibleHandleForBlockStart: (blockStart) =>
                     getVisibleHandleForBlockStart(this.view, blockStart),
                 isBlockInsideRenderedTableCell: (blockInfo) =>
                     isPosInsideRenderedTableCell(this.view, blockInfo.from, { skipLayoutRead: true }),
                 isMultiLineSelectionEnabled: () => plugin.settings.enableMultiLineSelection,
-                getMultiLineSelectionLongPressMs: () => plugin.settings.multiLineSelectionLongPressMs,
+                isMobileInput: () => plugin.isMobilePlatform(),
                 getMobileDragLongPressMs: () => plugin.settings.mobileDragLongPressMs,
                 getMouseRangeSelectLongPressMs: () => plugin.settings.mouseRangeSelectLongPressMs,
-                getAutoScrollEdgeZonePx: () => plugin.settings.autoScrollEdgeZonePx,
-                getAutoScrollMaxSpeedPx: () => plugin.settings.autoScrollMaxSpeedPx,
                 isMobileDragModeEnabled: () => plugin.isMobileDragModeEnabled(),
                 isMobileTextLongPressDragEnabled: () => plugin.settings.enableMobileTextLongPressDrag,
                 beginPointerDragSession: (source) => {
@@ -232,7 +230,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                         clientY,
                         pointerType ?? null
                     ),
-                pipelineOutputExecutor,
+                output: controllerOutput,
                 openBlockTypeMenu: (blockInfo, event) => {
                     const anchor = Math.max(0, Math.min(this.view.state.doc.length, blockInfo.from));
                     this.view.dispatch({ selection: { anchor }, scrollIntoView: false });
@@ -251,7 +249,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
 
             startViewLifecycle({
                 view: this.view,
-                pipelineAdapter: this.pipelineAdapter,
+                dragController: this.dragController,
                 pointerMoveClient: this.pointerMoveClient,
                 onSettingsUpdated: this.onSettingsUpdated,
             });
@@ -263,7 +261,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             this.syncViewDomState();
             applyViewUpdate(update, {
                 refreshDecorationsAndEmbeds: () => this.refreshDecorationsAndEmbeds(),
-                pipelineAdapter: this.pipelineAdapter,
+                dragController: this.dragController,
                 handleVisibility: this.handleVisibility,
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
                 reResolveActiveHandle: () => {
@@ -283,7 +281,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
                 pointerMoveClient: this.pointerMoveClient,
                 onSettingsUpdated: this.onSettingsUpdated,
-                pipelineAdapter: this.pipelineAdapter,
+                dragController: this.dragController,
             });
             this.handleVisibility.clearGrabbedLineNumbers();
             this.handleVisibility.setActiveVisibleHandle(null);
@@ -417,7 +415,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 this.handleVisibility.setActiveVisibleHandle(null);
                 return;
             }
-            if (this.pipelineAdapter.isGestureActive()) {
+            if (this.dragController.isGestureActive()) {
                 this.handleVisibility.setActiveVisibleHandle(this.handleVisibility.getActiveHandle());
                 return;
             }
@@ -463,11 +461,11 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private handleSettingsUpdated(): void {
             this.cachedHandleGutterSide = this.resolveConfiguredHandleGutterSide();
             this.syncViewDomState();
-            this.pipelineAdapter.handleMobileDragAvailabilityChanged(
+            this.dragController.handleMobileDragAvailabilityChanged(
                 plugin.isMobileDragModeEnabled()
             );
             this.refreshDecorationsAndEmbeds();
-            this.pipelineAdapter.refreshSelectionVisual();
+            this.dragController.refreshSelectionVisual();
             this.handleVisibility.refreshGrabVisualState();
         }
 

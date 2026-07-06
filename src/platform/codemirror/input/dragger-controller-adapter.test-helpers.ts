@@ -5,11 +5,6 @@ import { BlockInfo, BlockType } from '../../../domain/block/block-types';
 import { makeBlockSelection, type BlockSelection } from '../selection/block-selection-resolver';
 import type { BlockSelectionRequest } from '../selection/block-selection-resolver';
 import { buildSelectionFromSelectedBlocks, buildSingleBlockSelectionRanges } from '../selection/block-selection-resolver';
-import type { BlockCommand } from '../../../domain/command/block-command';
-import type { DragDropSnapshot } from '../../../drag/pipeline/pipeline-drop';
-import type { DragLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
-import type { PointerDropCommitResolution } from './pointer-hit-test';
-import type { PipelineOutputExecutor, PipelineAdapterDeps } from './pipeline-adapter';
 import { DRAG_HANDLE_CLASS, LINE_HANDLE_CLASS } from '../../../shared/dom-selectors';
 
 type RectLike = {
@@ -26,74 +21,6 @@ type RectLike = {
 
 const originalVibrate = (navigator as Navigator & { vibrate?: (pattern: number | number[]) => boolean }).vibrate;
 let originalElementFromPoint: ((this: void, x: number, y: number) => Element | null) | undefined;
-
-type PipelineAdapterTestDeps = Omit<
-    Partial<PipelineAdapterDeps>,
-    'resolveDropSnapshotAtPoint' | 'buildBlockCommandAtPoint' | 'pipelineOutputExecutor'
-> & {
-    resolveBlockSelection: PipelineAdapterDeps['resolveBlockSelection'];
-    isBlockInsideRenderedTableCell: PipelineAdapterDeps['isBlockInsideRenderedTableCell'];
-    beginPointerDragSession: PipelineAdapterDeps['beginPointerDragSession'];
-    finishDragSession: PipelineAdapterDeps['finishDragSession'];
-    resolveDropSnapshotAtPoint?: (clientX: number, clientY: number, source: BlockSelection, pointerType: string | null) => DragDropSnapshot;
-    buildBlockCommandAtPoint?: (source: BlockSelection, clientX: number, clientY: number, pointerType: string | null) => PointerDropCommitResolution;
-    pipelineOutputExecutor?: PipelineOutputExecutor;
-    onDropPreview?: (clientX: number, clientY: number, source: BlockSelection | null, pointerType: string | null) => void;
-    onHideDropPreview?: () => void;
-    applyBlockCommand?: (command: BlockCommand) => void;
-    onPlatformCommit?: (source: BlockSelection, clientX: number, clientY: number, pointerType: string | null) => void;
-    onDragLifecycleEvent?: (event: DragLifecycleEvent) => void;
-};
-
-export function createPipelineAdapterDeps(deps: PipelineAdapterTestDeps): PipelineAdapterDeps {
-    let lastDropPoint: { clientX: number; clientY: number } | null = null;
-    const resolveDropSnapshotAtPoint = (
-        clientX: number,
-        clientY: number,
-        source: BlockSelection,
-        pointerType: string | null
-    ): DragDropSnapshot => {
-        lastDropPoint = { clientX, clientY };
-        return deps.resolveDropSnapshotAtPoint?.(clientX, clientY, source, pointerType)
-            ?? { target: null, rejectReason: null };
-    };
-    const buildBlockCommandAtPoint = (
-        source: BlockSelection,
-        clientX: number,
-        clientY: number,
-        pointerType: string | null
-    ): PointerDropCommitResolution => {
-        if (deps.buildBlockCommandAtPoint) {
-            return deps.buildBlockCommandAtPoint(source, clientX, clientY, pointerType);
-        }
-        if (deps.onPlatformCommit) {
-            deps.onPlatformCommit(source, clientX, clientY, pointerType);
-            return { type: 'platform_commit', drop: { target: null, rejectReason: null } };
-        }
-        return { type: 'cancel', drop: { target: null, rejectReason: 'no_target' }, reason: 'no_target' };
-    };
-    const pipelineOutputExecutor = deps.pipelineOutputExecutor ?? {
-        showDropPreview: (selection, _drop, pointerType) => {
-            if (!lastDropPoint) return;
-            deps.onDropPreview?.(lastDropPoint.clientX, lastDropPoint.clientY, selection, pointerType);
-        },
-        hideDropPreview: () => deps.onHideDropPreview?.(),
-        applyCommand: (command) => deps.applyBlockCommand?.(command),
-        emitLifecycle: (event) => deps.onDragLifecycleEvent?.(event),
-    } satisfies PipelineOutputExecutor;
-
-    return {
-        ...deps,
-        isMobileDragModeEnabled: deps.isMobileDragModeEnabled ?? (() => true),
-        getVisibleHandleForBlockStart: deps.getVisibleHandleForBlockStart
-            ?? ((blockStart) => activeDocument.querySelector<HTMLElement>(
-                `.${DRAG_HANDLE_CLASS}.${LINE_HANDLE_CLASS}[data-block-start="${blockStart}"]`
-            )),
-        resolveDropSnapshotAtPoint,
-        buildBlockCommandAtPoint,
-        pipelineOutputExecutor,
-    };
-}
 
 export function createRect(left: number, top: number, width: number, height: number): RectLike {
     return {

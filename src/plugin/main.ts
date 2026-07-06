@@ -160,6 +160,10 @@ export default class DragNDropPlugin extends Plugin {
         return this.mobileDragModeEnabled;
     }
 
+    isMobilePlatform(): boolean {
+        return platform.isMobile;
+    }
+
     toggleMobileDragMode(): boolean {
         if (!this.settings.enableMobileTextLongPressDrag) {
             this.setMobileDragModeEnabled(false);

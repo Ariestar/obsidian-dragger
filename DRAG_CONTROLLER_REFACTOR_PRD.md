@@ -8,10 +8,17 @@
 
 把 Dragger 做成一个可通过 npm 复用的 headless drag runtime。
 
-最终接入方不需要写复杂 adapter 类，只需要把平台事实和平台副作用以 callbacks 传给 `DraggerController`：
+最终接入方不需要写平台自己的 controller，也不需要复制 `PipelineAdapter` 这类复杂 adapter。平台只提供：
+
+- input：输入来源。
+- inspect：只读事实快照。
+- effects：平台副作用。
+- rules：可选规则扩展。
+
+controller 负责完整拖拽决策、session 管理和 pipeline event 编排。
 
 ```ts
-import { DraggerController } from 'md-dragger/drag';
+import { DraggerController, defaultMarkdownDragRules } from 'md-dragger/drag';
 
 const dragger = new DraggerController({
   input: {
@@ -21,21 +28,27 @@ const dragger = new DraggerController({
     onCancel,
     onEscape,
   },
-  read: {
-    lineAt,
-    lineCount,
-    lineText,
-    blockAt,
+  inspect: {
+    press,
+    range,
+    drop,
+    commit,
+    document,
   },
-  canStartDrag,
-  move,
-  view: {
+  effects: {
     showDropPreview,
     hideDropPreview,
     showSelection,
     showDragSource,
+    applyCommand,
     emitLifecycle,
   },
+  rules: defaultMarkdownDragRules({
+    allowNestedListDrop: true,
+    allowQuoteDrop: true,
+    allowCalloutDrop: true,
+  }),
+  config,
 });
 
 dragger.mount();
@@ -43,14 +56,14 @@ dragger.mount();
 
 核心原则：
 
-- `DragPipeline` 是现有平台无关状态机，继续保持简单好用。
-- `DraggerController` 是通用输入适配器，负责把平台输入翻译成 pipeline events。
-- 平台只传 callbacks，不需要实现大 adapter 类。
-- `read` 是只读查询接口，不是把整篇文档交给 controller。
-- 文档修改只通过平台的 `move` 回调执行。
+- `DragPipeline` 继续作为平台无关状态机，保持简单好用。
+- `DraggerController` 是最终公共 controller，不是 pipeline 包装器。
+- 平台只提供事实和副作用，不判断拖拽阶段。
+- controller 内部决定 hold、ready、range selection、drag、drop、cancel。
+- Markdown drop rule 默认内置，可通过 `rules` 扩展或覆盖。
+- rendering、DOM、CodeMirror geometry、Obsidian transaction 留在平台层。
 - 直接 `new DraggerController(...)`，不提供重复 factory。
 - 不保留降级兼容 wrapper。
-- 不把 Obsidian/CodeMirror 逻辑写进 `src/drag`。
 
 ## 2. Final Class Model
 
@@ -70,17 +83,16 @@ src/drag/pipeline/drag-pipeline.ts
 - 接收 `PipelineEvent`。
 - 执行 `holding / ready_to_drag / selecting / dragging / idle` 状态转换。
 - 产出 `PipelineOutput`。
-- 统一单块、多块、多区域拖拽状态模型。
 - 统一 selection、drag、drop、cancel、guard、terminal outputs。
 
 它不关心：
 
-- 点击事件。
-- 移动距离。
+- pointer listener。
+- movement threshold。
 - long press timer。
-- pointer capture。
 - DOM hit-test。
-- platform listener。
+- CodeMirror geometry。
+- 平台渲染和平台 transaction。
 
 ### 2.2 `DraggerController`
 
@@ -93,80 +105,32 @@ src/drag/controller/dragger-controller.ts
 职责：
 
 - 创建并持有 `DragPipeline`。
-- 监听平台归一化输入。
-- 管理 press session、range session、active drag session 等平台无关技术会话。
-- 管理 long press、drag ready、movement threshold。
-- 根据平台 callbacks 查询事实。
-- 将平台输入翻译成 `PipelineEvent`。
-- 将 pipeline outputs 分发到 `view` handlers。
+- 订阅平台归一化输入。
+- 管理 press session、range session、active drag session。
+- 管理 long press、secondary drag ready、movement threshold。
+- 调用 `inspect` 获取只读事实快照。
+- 调用 `rules` 判断 drop 合法性。
+- 将输入和决策翻译成 `PipelineEvent`。
+- 消费 `PipelineOutput` 并调用 `effects`。
 - 管理 `mount()` / `destroy()` cleanup。
 
 它不负责：
 
-- pipeline 状态转换本身。
-- Markdown/block 纯算法。
+- pipeline reducer 状态转换本身。
 - DOM 查询。
-- CodeMirror geometry。
+- CodeMirror line/block geometry。
 - Obsidian transaction。
-- 直接修改文档。
-- UI rendering。
+- preview rendering。
+- 平台 pointer capture 的具体实现。
 
 一句话：
 
 ```text
 DragPipeline = pipeline event state machine
-DraggerController = platform input -> pipeline event adapter
+DraggerController = platform facts + input -> drag decisions -> pipeline events
 ```
 
-## 3. Why This Shape
-
-现有 `DragPipeline` 已经是一个好用状态机。它的问题不是能力弱，而是输入层级较低：调用者必须自己决定什么时候发送：
-
-```text
-hold_start
-hold_ready
-selection_start
-selection_change
-selection_finish
-drag_start
-drag_over
-drop
-cancel
-guard_unavailable
-destroy
-```
-
-现在这层翻译主要散在 `src/platform/codemirror/input/PipelineAdapter`、`pointer-drag.ts`、`pointer-selection.ts`。这些文件里混合了两类逻辑。
-
-平台相关逻辑：
-
-- DOM target 解析。
-- CodeMirror line geometry。
-- PointerEvent 读取。
-- pointer capture。
-- preventDefault / stopPropagation。
-- focus suppression。
-- scroll lock。
-- haptic feedback。
-- Obsidian menu / command / settings。
-- CodeMirror transaction。
-
-平台无关控制逻辑：
-
-- press pending session。
-- long press ready。
-- drag ready。
-- movement threshold。
-- range selection gesture。
-- active drag session。
-- selected text drag。
-- passive selection retention。
-- stale session ignore。
-- terminal cleanup sequencing。
-
-`DraggerController` 要抽的是第二类逻辑。第一类逻辑通过 callbacks 注入。
-
-## 4. Public API
+## 3. API Shape
 
 ```ts
 export class DraggerController<TPreview = unknown> {
@@ -175,59 +139,44 @@ export class DraggerController<TPreview = unknown> {
   get state(): PipelineState;
 
   mount(): void;
+  selectRange(range: DraggerRangeStart): void;
+  guardUnavailable(guardId: GuardId): void;
   destroy(): void;
 }
 ```
 
-`DraggerControllerOptions` 不是运行时包装，也不是 adapter/ports 对象；它只是 TypeScript 类型，用来描述 `new DraggerController(...)` 直接接收的 callbacks。实现里不要再包一层 options adapter。
+`DraggerControllerOptions` 只是 constructor 参数类型，不是 runtime wrapper，不创建 adapter class。
 
 ```ts
 export type DraggerControllerOptions<TPreview = unknown> = {
-  input: DraggerInputListeners;
-  read: DraggerDocumentReader;
-  move: (selection: BlockSelection, target: DraggerDropTarget<TPreview>) => void;
-  view?: DraggerViewHandlers<TPreview>;
-  selection?: DraggerSelectionOptions;
-  canStartDrag?: (point: DragPoint, target: unknown) => boolean;
-  isBlockedPoint?: (point: DragPoint) => boolean;
-  canDrop?: (
-    selection: BlockSelection,
-    target: DraggerDropTarget<TPreview>,
-    context: DraggerDropContext,
-    fallback: DraggerCanDrop<TPreview>
-  ) => DraggerDropDecision;
-  adjustDropTarget?: (
-    selection: BlockSelection,
-    target: DraggerDropTarget<TPreview>,
-    context: DraggerDropContext
-  ) => DraggerDropTarget<TPreview>;
+  input: DraggerInputSource;
+  inspect: DraggerInspector<TPreview>;
+  effects: DraggerEffects<TPreview>;
+  rules?: DragRule<TPreview> | DragRule<TPreview>[];
   config?: Partial<DraggerControllerConfig>;
   setTimer?: (callback: () => void, delayMs: number) => DragTimerToken;
   clearTimer?: (token: DragTimerToken) => void;
 };
 ```
 
-必填项只保留拖拽闭环需要的能力：
+不再提供：
 
-- `input`：平台输入来源，按 press/move/release/cancel/escape 分开传入。
-- `read`：只读文档事实查询。
-- `move`：平台执行最终移动。
+- `createDraggerController()`。
+- `HostAdapter` / `HostCallbacks`。
+- `read`。
+- `move`。
+- `view`。
+- `resolvePress`。
+- `resolveCommit`。
 
-`read` 不表示 controller 持有整篇文档。它只是一组查询函数，真实文档仍由平台/editor 持有。controller 不直接修改文档；drop 成功时只调用 `move(selection, target)`。
+这些名字会让平台继续写 controller 逻辑，或把平台能力拆碎后再由 controller 重新拼装。
 
-```ts
-export type DraggerDocumentReader = {
-  lineAt: (point: DragPoint) => number | null;
-  lineCount: () => number;
-  lineText: (lineNumber: number) => string;
-  blockAt: (lineNumber: number) => BlockInfo | null;
-};
-```
+## 4. Input
 
-输入不要求传 root，也不暴露统一 `emit`。平台直接提供 controller 需要的输入 listener：press、move、release、cancel、escape。controller 内部知道这些 listener 对应哪类输入，不需要平台重复传 `type: 'press'`。
+`input` 只提供输入来源。平台不传 root，不传 DOM 给 controller，不需要统一 `emit({ type })`。
 
 ```ts
-export type DraggerInputListeners = {
+export type DraggerInputSource = {
   onPress: (handler: (input: DraggerPressInput) => void) => DraggerDisposable;
   onMove: (handler: (input: DraggerMoveInput) => void) => DraggerDisposable;
   onRelease: (handler: (input: DraggerReleaseInput) => void) => DraggerDisposable;
@@ -236,193 +185,328 @@ export type DraggerInputListeners = {
 };
 ```
 
-- 不传 root / target。
-- 不传 `emit`。
-- 不要求平台有统一 `onPointer`。
-- 如果平台已有统一 pointer stream，可以在这些 listener 中做极薄转接。
-
-渲染和 lifecycle 不放进 controller，也不强制塞进一个大 `render()`。`view` 是一组可选 handler，平台可以在不同模块分别实现，贴近现有平台层 pipeline 接入方式。
-
-```ts
-export type DraggerViewHandlers<TPreview = unknown> = {
-  showDropPreview?: (target: DraggerDropTarget<TPreview>, context: DraggerDropContext) => void;
-  hideDropPreview?: () => void;
-  showSelection?: (selection: BlockSelection | null) => void;
-  showDragSource?: (selection: BlockSelection | null) => void;
-  emitLifecycle?: (event: DragLifecycleEvent) => void;
-  onCancel?: (reason: DragCancelReason) => void;
-};
-```
-
-这些 input 都是普通数据形状，不是运行时模块。
+输入数据只包含 controller 做 session 判断所需的事实，以及平台提供给 controller 调用的输入副作用。
 
 ```ts
 export type DraggerPressInput = {
   point: DragPoint;
   pointer: DragPointer;
-  target?: unknown;
+  button?: number;
+  modifiers?: DragModifiers;
+  native?: unknown;
+  claim?: () => void;
+  capture?: () => void;
+  releaseCapture?: () => void;
 };
 
 export type DraggerMoveInput = {
   point: DragPoint;
   pointer: DragPointer;
+  native?: unknown;
+  claim?: () => void;
 };
 
 export type DraggerReleaseInput = {
   point: DragPoint;
   pointer: DragPointer;
+  native?: unknown;
+  claim?: () => void;
+  releaseCapture?: () => void;
 };
 
 export type DraggerCancelInput = {
   pointer: DragPointer;
   reason: DragCancelReason;
+  native?: unknown;
+  releaseCapture?: () => void;
 };
 ```
 
-`target?: unknown` 允许 DOM 平台把原始 target 带给 `canStartDrag`，但 `src/drag` 不能读取 DOM API，只能原样转交。
+`native` 是平台原始输入上下文的透明透传字段。controller 不读取它，只把它原样传给 `inspect` 和 `effects`，避免平台为了菜单、commit 或调试私藏 last event。
 
-controller 默认用 `read.lineAt(point)` 和 `read.blockAt(line)` 组装 drag source。如果传了 `canStartDrag`，controller 会先用它判断这个位置是否允许开始拖；不传则默认整行可拖。
+`claim`、`capture`、`releaseCapture` 是可选能力。controller 决定什么时候调用，平台只执行对应事件副作用，例如 `preventDefault / stopPropagation / setPointerCapture / releasePointerCapture`。
 
-controller 默认用 `read.lineAt(point)` 生成 line-based drop target，并用内置 Markdown rules 判断是否合法。复杂平台可以通过顶层可选 callbacks 覆盖差异：
+## 5. Inspect
 
-- `isBlockedPoint`：例如 table cell / embed / 不可编辑区域。
-- `canDrop`：覆盖或扩展内置 Markdown drop rule。
-- `adjustDropTarget`：把 line-based raw target 调整成平台最终 target。
+`inspect` 是平台只读事实层。这个名字的含义是：controller 检查当前平台状态，但不让平台决定拖拽流程。
+
+平台实现 `inspect` 时只回答：
+
+- 这个点下面是什么。
+- 当前 selection 是什么。
+- 当前 drop target 周围有哪些文档事实。
+- 是否处在平台禁区。
+
+平台不回答：
+
+- 是否应该进入 dragging。
+- 是否应该进入 range selection。
+- 是否应该 cancel。
+- 是否应该发送哪个 pipeline event。
 
 ```ts
-export type DraggerDropContext = {
-  selection: BlockSelection;
-  pointer: DragPointer;
-  lineNumber: number;
+export type DraggerInspector<TPreview = unknown> = {
+  press: (input: DraggerPressInput) => DraggerPressSnapshot;
+  drop: (
+    input: DraggerMoveInput | DraggerReleaseInput,
+    context: DraggerDropInspectContext
+  ) => DraggerDropSnapshot<TPreview>;
+  commit: (
+    input: DraggerReleaseInput,
+    context: DraggerDropInspectContext
+  ) => DropResolution<TPreview>;
+  range?: (
+    input: DraggerMoveInput,
+    context: DraggerRangeInspectContext
+  ) => RangeSelectionBoundary | null;
+  document: () => DraggerDocumentSnapshot;
 };
+```
 
-export type DraggerDropTarget<TPreview = unknown> = {
-  lineNumber: number;
-  placement: 'before' | 'after';
-  value?: unknown;
-  previewData?: TPreview;
+非 pointer 入口也必须走 controller。比如 toolbar、keyboard command、context menu 想进入 block range selection 时，平台先把当前 editor 状态解析成 `DraggerRangeStart`，再调用：
+
+```ts
+dragger.selectRange({
+  selection,
+  rangeBoundary,
+  rangeDoc,
+  rangeBoundaryResolver,
+  selectedBlocks,
+  guardDeps,
+});
+```
+
+这不是 adapter/factory，也不是平台自己发送 pipeline event；它只是把“range selection start facts”交给 controller，由 controller 完成 selection runtime。
+
+当某个 guard 事实失效时，平台调用：
+
+```ts
+dragger.guardUnavailable('mobile-text-drag-mode');
+```
+
+`guardId` 是普通字符串事实。controller 不知道 mobile、desktop、CodeMirror 或 Obsidian，只负责结束依赖该 guard 的交互状态。
+
+### 5.1 Press Snapshot
+
+`inspect.press` 返回 press 点位的事实快照。
+
+```ts
+export type DraggerPressSnapshot = {
+  zone:
+    | 'handle'
+    | 'text'
+    | 'selected_text'
+    | 'selection_grip'
+    | 'block_menu'
+    | 'none';
+  block: BlockInfo | null;
+  selection: BlockSelection | null;
+  passiveSelection?: BlockSelection | null;
+  rangeBoundary?: RangeSelectionBoundary | null;
+  initialRangeBoundary?: RangeSelectionBoundary | null;
+  rangeDoc?: DocLikeWithRange;
+  rangeOperation?: RangeSelectionOperation;
+  rangeBoundaryResolver?: RangeSelectionBoundaryResolver;
+  selectedBlocks?: SelectedBlockRange[];
+  blockedReason?: DragCancelReason | null;
+};
+```
+
+controller 根据这个 snapshot 决定：
+
+- `zone: 'handle'` 是否开始 block drag hold。
+- `zone: 'text'` 是否进入 text long press drag 或 block menu。
+- `zone: 'selected_text'` 是否拖动 passive selection。
+- `zone: 'selection_grip'` 是否进入 range selection。
+- `blockedReason` 是否 cancel 或忽略。
+
+### 5.2 Range Snapshot
+
+`inspect.range` 返回当前 move 点位对应的 range boundary。controller 负责判断 session、调用 `selection_start/change/finish`，平台不直接发送 pipeline selection events。
+
+```ts
+range(input, context) {
+  return resolveRangeSelectionBoundaryAtVerticalPosition(input.point.y);
+}
+```
+
+### 5.3 Drop Snapshot
+
+`inspect.drop` 返回 drop 点位和文档上下文事实。
+
+```ts
+export type DraggerDropSnapshot<TPreview = unknown> = {
+  target: DropTarget | null;
+  targetLineNumber: number | null;
+  placement?: DropTarget['placement'] | null;
+  blockBefore?: BlockInfo | null;
+  blockAfter?: BlockInfo | null;
+  container?: DragContainerSnapshot | null;
   rejectReason?: DragCancelReason | null;
+  previewData?: TPreview;
+};
+```
+
+controller 使用内置 rules 判断最终 `DragDropSnapshot`，并把结果送入 pipeline 的 `drag_start / drag_over / drop`。
+
+### 5.4 Commit Resolution
+
+`inspect.commit` 返回 release 点位对应的最终 drop resolution。它是事实解析，不是 controller 决策：controller 决定何时 commit，平台只根据 release input 和当前 drop context 构造平台正确的 `DropResolution`。
+
+```ts
+commit(input, context) {
+  return buildBlockCommandAtPoint(
+    context.selection,
+    input.point.x,
+    input.point.y,
+    input.pointer.type
+  );
+}
+```
+
+controller 不自己构造 `move` command。这样 CodeMirror/Obsidian 可以保留 cross-editor、cross-document、container validation 等平台事实，而不需要在平台层保存 active point 再绕回 controller。
+
+### 5.5 Document Snapshot
+
+```ts
+export type DraggerDocumentSnapshot = {
+  lineCount: number;
+};
+```
+
+后续如果内置 Markdown rules 需要更多只读文档事实，应扩展 snapshot，而不是让平台写 controller 决策。
+
+## 6. Rules
+
+Markdown drop 规则默认内置，平台不需要每次自己写。
+
+```ts
+export function defaultMarkdownDragRules(options?: {
+  allowNestedListDrop?: boolean;
+  allowQuoteDrop?: boolean;
+  allowCalloutDrop?: boolean;
+  allowCrossDocumentDrop?: boolean;
+}): DragRule[];
+```
+
+规则只接收 controller 已经拿到的事实快照。
+
+```ts
+export type DragRuleContext<TPreview = unknown> = {
+  selection: BlockSelection;
+  source: HoldTarget['source'];
+  document: DraggerDocumentSnapshot;
+  drop: DraggerDropSnapshot<TPreview>;
 };
 
-export type DraggerDropDecision = {
+export type DragRuleResult = {
   allowed: boolean;
   reason?: DragCancelReason;
 };
 
-export type DraggerCanDrop<TPreview = unknown> = (
-  selection: BlockSelection,
-  target: DraggerDropTarget<TPreview>,
-  context: DraggerDropContext
-) => DraggerDropDecision;
+export type DragRule<TPreview = unknown> = (
+  context: DragRuleContext<TPreview>
+) => DragRuleResult;
 ```
 
-多选相关能力单独挂在 `selection` 下。没有多选的平台不用传。
+平台特殊规则通过 `rules` 扩展，而不是塞回 controller 分支。
 
 ```ts
-export type DraggerSelectionOptions = {
-  getBoundaryAtPoint: (point: DragPoint) => RangeSelectionBoundary | null;
-  getDocumentLineCount: () => number;
+const dragger = new DraggerController({
+  input,
+  inspect,
+  effects,
+  rules: [
+    ...defaultMarkdownDragRules(),
+    obsidianEmbedRules(),
+  ],
+});
+```
+
+如果某个点位天然不可用，例如 table cell、embed、readonly 区域，优先放在 `inspect.press/drop` 的 `blockedReason/rejectReason` 中。这是事实，不是流程决策。
+
+## 7. Effects
+
+`effects` 只执行平台副作用。平台不消费 pipeline state，不决定下一步事件。
+
+```ts
+export type DraggerEffects<TPreview = unknown> = {
+  showDropPreview?: (
+    drop: DraggerDropSnapshot<TPreview>,
+    context: DraggerDropEffectContext
+  ) => void;
+  hideDropPreview?: () => void;
+  showSelection?: (selection: BlockSelection | null) => void;
+  showDragSource?: (selection: BlockSelection | null) => void;
+  applyCommand?: (command: BlockCommand) => void;
+  emitLifecycle?: (event: DragLifecycleEvent) => void;
+  finishDragSession?: () => void;
+  openBlockMenu?: (selection: BlockSelection, input: DraggerPressInput | DraggerReleaseInput) => void;
 };
 ```
 
-`src/drag` 中不允许出现：
+controller 内部消费 pipeline outputs：
 
-- `PointerEvent`
-- `MouseEvent`
-- `TouchEvent`
-- `HTMLElement`
-- `EditorView`
-- `window`
-- `document`
+- `drag_over` -> `effects.showDropPreview(...)` 或 `effects.hideDropPreview()`。
+- `selection_changed` -> `effects.showSelection(...)`。
+- `drag_source_changed` -> `effects.showDragSource(...)`。
+- `command_ready` -> `effects.applyCommand(...)`。
+- `lifecycle` -> `effects.emitLifecycle(...)`。
+- terminal output -> cleanup + optional `finishDragSession()`。
 
-`config` 是普通对象，不是 wrapper。平台层负责把宿主设置映射成这个对象，controller 合并默认值。
+这样平台不需要写重复的 `switch(output.type)` 胶水。
 
-```ts
-export type DraggerControllerConfig = {
-  multiLineSelectionEnabled: boolean;
-  mobileLikeInput: boolean;
-  textLongPressDragEnabled: boolean;
-  mobileTextDragGuardEnabled: boolean;
-  longPressMs: number;
-  rangeSelectionLongPressMs: number;
-  dragStartMoveThresholdPx: number;
-  dragCancelMoveThresholdPx: number;
-  mouseRangeSelectLongPressMs: number;
-  touchRangeSelectLongPressMs: number;
-};
-```
+## 8. What Belongs Where
 
-`setTimer` / `clearTimer` 只在特殊 runtime 或测试中需要覆盖。默认使用 `globalThis.setTimeout` / `globalThis.clearTimeout`。不提供 `requestAnimationFrame`，渲染和滚动帧属于平台。
-
-## 5. What Belongs in `DraggerController`
-
-`DraggerController` 应该包含所有平台无关输入控制逻辑：
+属于 `DraggerController`：
 
 - mounted input subscription。
 - session id generation。
 - press session。
 - range pointer session。
 - active drag session。
-- long press ready timer。
+- long press timer。
 - secondary drag ready timer。
 - movement threshold 判断。
 - stale pointer/session ignore。
+- selected text drag。
+- passive selection drag。
+- block menu short tap 判断。
 - guard unavailable handling。
-- input -> `PipelineEvent` sequencing。
-- pipeline output dispatch。
+- input + inspect snapshot + rules -> `PipelineEvent`。
+- pipeline output -> `effects`。
 - destroy cleanup。
 
-它不应该包含：
+属于平台 `inspect`：
 
-- `transitionPipelineState` 逻辑。
-- selection range merge/subtract 纯算法。
-- CodeMirror/DOM hit-test。
-- drop target geometry。
-- command transaction implementation。
+- point -> handle/text/selected_text/selection_grip/block_menu zone。
+- point -> block。
+- point -> range boundary。
+- range selection doc / boundary resolver。
+- current passive selection。
+- point -> drop target。
+- release input + drop context -> drop resolution。
+- CodeMirror geometry。
+- table cell / embed / readonly 区域事实。
+- document line count。
+
+属于平台 `effects`：
+
 - preview rendering。
-- platform settings object。
+- range selection visual rendering。
+- drag source visual rendering。
+- CodeMirror transaction。
+- Obsidian command/menu。
+- lifecycle event forwarding。
+- pointer capture 的具体执行。
 
-## 6. What Belongs in Platform Callbacks
+属于 `DragPipeline`：
 
-平台 callbacks 只回答事实和执行副作用。
+- 单个 pipeline event 的状态转换。
+- pipeline outputs。
+- terminal output decoration。
 
-Examples:
-
-- `input.onPress`：监听按下输入。
-- `input.onMove`：监听移动输入。
-- `input.onRelease`：监听释放输入。
-- `input.onCancel`：监听取消输入。
-- `input.onEscape`：监听 Escape 输入。
-- `read.lineAt`：根据坐标返回行号。
-- `read.lineCount`：返回文档行数。
-- `read.lineText`：返回行文本。
-- `read.blockAt`：返回某行所属 block。
-- `canStartDrag`：可选，判断按下位置是否允许开始拖。
-- `isBlockedPoint`：可选，判断 table cell / embed / 不可编辑区域等禁区。
-- `canDrop`：可选，覆盖或扩展内置 Markdown drop rule。
-- `adjustDropTarget`：可选，调整 line-based raw target。
-- `move`：执行宿主移动操作。
-- `view.showDropPreview`：显示 drop preview。
-- `view.hideDropPreview`：隐藏 drop preview。
-- `view.showSelection`：显示或清除 selection visual。
-- `view.showDragSource`：显示或清除 drag source visual。
-- `view.emitLifecycle`：转发 lifecycle event。
-- `selection.getBoundaryAtPoint`：根据点位解析 range boundary。
-- `selection.getDocumentLineCount`：返回文档行数。
-- `config`：平台配置映射后的 controller config。
-
-平台 callbacks 不应该决定：
-
-- 是否从 hold 进入 ready。
-- 是否从 ready 进入 dragging。
-- selected text drag 是否使用整段 passive selection。
-- range selection 何时 finish。
-- guard unavailable 时哪些 pipeline state 退出。
-- terminal outputs 顺序。
-
-controller 不持有完整文档，也不直接修改文档。它只调用 `read.*` 读取必要事实，调用 `move` 把最终写操作交回平台。
-
-## 7. Directory Shape
+## 9. Directory Shape
 
 Final target:
 
@@ -431,7 +515,6 @@ src/drag/
   controller/
     dragger-controller.ts
     dragger-controller-types.ts
-    dragger-controller-input.ts
     index.ts
   pipeline/
     drag-pipeline.ts
@@ -442,20 +525,24 @@ src/drag/
     pipeline-drop.ts
     pipeline-guard.ts
     pipeline-exit.ts
+  rules/
+    markdown-drag-rules.ts
+    index.ts
   selection/
     block-range-selection.ts
   index.ts
 ```
 
-No new top-level `drag/input`, `drag/runtime`, `drag/effects`, or `drag/source` folders unless a real cohesive domain emerges.
+No new top-level `drag/runtime`, `drag/adapter`, `drag/ports`, or `drag/host` folders unless a real cohesive domain emerges.
 
-## 8. Public Exports
+## 10. Public Exports
 
 `src/drag/index.ts` should export:
 
 - `DraggerController`
 - `DraggerControllerOptions`
-- controller input/config/output types
+- controller input/inspect/effects/config types
+- `defaultMarkdownDragRules`
 - existing pipeline public types
 - existing selection public types needed by integration
 
@@ -467,9 +554,7 @@ It should not export:
 - internal reducer helpers。
 - `createDraggerController`。
 
-Direct construction is the final API.
-
-## 9. Testing Requirements
+## 11. Testing Requirements
 
 ### Pipeline Tests
 
@@ -484,30 +569,30 @@ Direct construction is the final API.
 
 ### Controller Tests
 
-`DraggerController` tests cover input translation:
+`DraggerController` tests cover platform-neutral decisions:
 
-- press schedules hold ready。
+- press on handle starts hold。
+- press on selected text uses passive selection。
+- press on selection grip starts range selection。
+- hold ready after timer。
 - move before ready cancels when threshold exceeded。
 - move after ready starts drag。
-- drag move sends drag_over。
-- release sends drop。
-- pointer cancel sends cancel。
-- range selection press/move/release sends selection events。
-- selected text drag uses retained passive selection。
+- drag move calls `inspect.drop` and updates preview。
+- release calls drop resolution and `effects.applyCommand`。
+- blocked press/drop facts cancel or reject correctly。
 - stale pointer events are ignored。
-- destroy clears timers and subscription。
+- destroy clears timers and subscriptions。
 
 No jsdom required.
 
 ### Platform Tests
 
-CodeMirror platform tests should focus on callbacks:
+CodeMirror platform tests focus only on platform facts and effects:
 
-- DOM event -> `DraggerInput`。
-- DOM target -> resolved press target。
-- point -> range boundary。
-- point -> drop snapshot。
-- pipeline output -> CodeMirror side effect。
+- DOM event -> controller input。
+- DOM/CodeMirror point -> `inspect.press` snapshot。
+- DOM/CodeMirror point -> `inspect.drop` snapshot。
+- effects -> CodeMirror preview / transaction / lifecycle。
 
 They should not be the primary tests for platform-neutral controller behavior.
 
@@ -515,27 +600,27 @@ They should not be the primary tests for platform-neutral controller behavior.
 
 Architecture tests should enforce:
 
-- `src/drag` top-level dirs are `controller`, `pipeline`, `selection`。
 - `src/drag` production code does not import CodeMirror, Obsidian, platform, plugin, DOM event types。
+- `src/drag/controller` does not import `src/platform`。
 - `domain` stays below `drag` and never imports it。
 
-## 10. Success Criteria
+## 12. Success Criteria
 
 This architecture is successful when:
 
-- `DragPipeline` remains the simple event state machine it is today。
-- `DraggerController` removes the complex platform-neutral gesture/session code from CodeMirror platform files。
-- Platform integration only passes callbacks to `DraggerController`。
-- New platforms do not need to copy `PipelineAdapter`。
-- `src/drag` remains headless and testable without jsdom。
-- No compatibility wrapper layer is kept around。
+- Platform integrations do not implement controller decisions。
+- New platforms only implement input, inspect, effects, and optional rules。
+- CodeMirror no longer needs a complex `PipelineAdapter` equivalent。
+- `DragPipeline` remains a simple event state machine。
+- `DraggerController` owns the full platform-neutral drag runtime。
 - Existing Obsidian behavior does not regress。
+- No compatibility wrapper layer is kept around。
 
-## 11. Design Guardrails
+## 13. Design Guardrails
 
-- If code transforms normalized input into pipeline events, it belongs in `DraggerController`。
-- If code transitions pipeline state from one pipeline event, it belongs in `DragPipeline`。
-- If code reads DOM, geometry, host editor state, or settings storage, it belongs in platform callbacks。
+- If code decides "what drag phase should happen next", it belongs in `DraggerController`。
+- If code answers "what is under this point", it belongs in `inspect`。
+- If code mutates editor state or renders UI, it belongs in `effects`。
+- If code transitions from one pipeline state to another for one pipeline event, it belongs in `DragPipeline`。
 - Do not add manager classes unless they own a cohesive concept with independent tests。
-- Prefer direct callbacks over nested ports or adapter classes。
 - Do not add factory functions that only call `new`。
