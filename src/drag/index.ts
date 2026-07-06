@@ -6,3 +6,4 @@ export * from './pipeline/pipeline-exit';
 export * from './pipeline/pipeline-guard';
 export * from './pipeline/pipeline-drop';
 export * from './selection/block-range-selection';
+export * from './controller';

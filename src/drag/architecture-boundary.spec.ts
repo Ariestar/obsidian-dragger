@@ -34,6 +34,7 @@ describe('headless drag architecture boundaries', () => {
             .filter((entry) => statSync(join(dragRoot, entry)).isDirectory())
             .sort();
         expect(topLevelDirs).toEqual([
+            'controller',
             'pipeline',
             'selection',
         ]);
