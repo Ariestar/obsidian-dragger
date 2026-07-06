@@ -31,8 +31,6 @@ describe('DraggerControllerAdapter', () => {
                 point: () => sourceBlock,
             }),
             isBlockInsideRenderedTableCell: () => false,
-            beginPointerDragSession,
-            finishDragSession,
             resolveDropSnapshotAtPoint: (_clientX, _clientY) => ({
                 target: { targetLineNumber: 2, placement: 'before' },
                 rejectReason: null,
@@ -54,6 +52,8 @@ describe('DraggerControllerAdapter', () => {
                 hideDropPreview: vi.fn(),
                 applyCommand,
                 emitLifecycle: vi.fn(),
+                beginDragSession: beginPointerDragSession,
+                finishDragSession,
             },
         });
 
@@ -110,8 +110,6 @@ describe('DraggerControllerAdapter', () => {
             isMobileDragModeEnabled: () => true,
             getMobileDragLongPressMs: () => 0,
             getMouseRangeSelectLongPressMs: () => 0,
-            beginPointerDragSession: vi.fn(),
-            finishDragSession: vi.fn(),
             resolveDropSnapshotAtPoint: () => ({
                 target: { targetLineNumber: 2, placement: 'before' },
                 rejectReason: null,
@@ -126,6 +124,8 @@ describe('DraggerControllerAdapter', () => {
                 hideDropPreview: vi.fn(),
                 applyCommand: vi.fn(),
                 emitLifecycle: vi.fn(),
+                beginDragSession: vi.fn(),
+                finishDragSession: vi.fn(),
             },
         });
 
@@ -177,8 +177,6 @@ describe('DraggerControllerAdapter', () => {
             getVisibleHandleForBlockStart: (blockStart) => handles[blockStart] ?? null,
             isBlockInsideRenderedTableCell: () => false,
             isMultiLineSelectionEnabled: () => true,
-            beginPointerDragSession: vi.fn(),
-            finishDragSession: vi.fn(),
             resolveDropSnapshotAtPoint: () => ({ target: null, rejectReason: 'no_target' }),
             buildBlockCommandAtPoint: () => ({ type: 'cancel', drop: { target: null, rejectReason: 'no_target' }, reason: 'no_target' }),
             output: {
@@ -186,6 +184,8 @@ describe('DraggerControllerAdapter', () => {
                 hideDropPreview: vi.fn(),
                 applyCommand: vi.fn(),
                 emitLifecycle: vi.fn(),
+                beginDragSession: vi.fn(),
+                finishDragSession: vi.fn(),
             },
         });
 
@@ -236,8 +236,6 @@ describe('DraggerControllerAdapter', () => {
             getVisibleHandleForBlockStart: (blockStart) => handles[blockStart] ?? null,
             isBlockInsideRenderedTableCell: () => false,
             isMultiLineSelectionEnabled: () => true,
-            beginPointerDragSession,
-            finishDragSession: vi.fn(),
             resolveDropSnapshotAtPoint: () => ({
                 target: { targetLineNumber: 5, placement: 'before' },
                 rejectReason: null,
@@ -259,6 +257,8 @@ describe('DraggerControllerAdapter', () => {
                 hideDropPreview: vi.fn(),
                 applyCommand,
                 emitLifecycle: vi.fn(),
+                beginDragSession: beginPointerDragSession,
+                finishDragSession: vi.fn(),
             },
         });
 
@@ -331,8 +331,6 @@ describe('DraggerControllerAdapter', () => {
             isMultiLineSelectionEnabled: () => true,
             isMobileInput: () => true,
             isMobileDragModeEnabled: () => true,
-            beginPointerDragSession: vi.fn(),
-            finishDragSession: vi.fn(),
             resolveDropSnapshotAtPoint: () => ({ target: null, rejectReason: 'no_target' }),
             buildBlockCommandAtPoint: () => ({ type: 'cancel', drop: { target: null, rejectReason: 'no_target' }, reason: 'no_target' }),
             output: {
@@ -340,6 +338,8 @@ describe('DraggerControllerAdapter', () => {
                 hideDropPreview: vi.fn(),
                 applyCommand: vi.fn(),
                 emitLifecycle: vi.fn(),
+                beginDragSession: vi.fn(),
+                finishDragSession: vi.fn(),
             },
         });
 
@@ -376,8 +376,6 @@ describe('DraggerControllerAdapter', () => {
             isMultiLineSelectionEnabled: () => true,
             isMobileInput: () => true,
             isMobileDragModeEnabled: () => true,
-            beginPointerDragSession: vi.fn(),
-            finishDragSession: vi.fn(),
             resolveDropSnapshotAtPoint: () => ({ target: null, rejectReason: 'no_target' }),
             buildBlockCommandAtPoint: () => ({ type: 'cancel', drop: { target: null, rejectReason: 'no_target' }, reason: 'no_target' }),
             output: {
@@ -385,6 +383,8 @@ describe('DraggerControllerAdapter', () => {
                 hideDropPreview: vi.fn(),
                 applyCommand: vi.fn(),
                 emitLifecycle: vi.fn(),
+                beginDragSession: vi.fn(),
+                finishDragSession: vi.fn(),
             },
         });
 

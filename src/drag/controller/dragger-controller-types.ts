@@ -73,14 +73,6 @@ export type DraggerInputSource = {
     onEscape?: (handler: () => void) => DraggerDisposable;
 };
 
-export type DraggerPressZone =
-    | 'handle'
-    | 'text'
-    | 'selected_text'
-    | 'selection_grip'
-    | 'block_menu'
-    | 'none';
-
 export type DraggerRangeFacts = {
     rangeBoundary?: RangeSelectionBoundary | null;
     initialRangeBoundary?: RangeSelectionBoundary | null;
@@ -95,14 +87,28 @@ export type DraggerRangeStart = DraggerRangeFacts & {
     selection: BlockSelection;
 };
 
-export type DraggerPressSnapshot = DraggerRangeFacts & {
-    zone: DraggerPressZone;
-    block: BlockInfo | null;
-    selection: BlockSelection | null;
-    passiveSelection?: BlockSelection | null;
+export type DraggerPressActivation =
+    | { type: 'hold'; delayMs?: number }
+    | { type: 'immediate' };
+
+export type DraggerPressTargetBase = {
+    block?: BlockInfo | null;
+    selection?: BlockSelection | null;
     source?: HoldTarget['source'];
-    longPressMs?: number;
-    skipLongPress?: boolean;
+    activation?: DraggerPressActivation;
+    guardDeps?: GuardId[];
+};
+
+export type DraggerPressTarget =
+    | ({ kind: 'handle' } & DraggerPressTargetBase)
+    | ({ kind: 'text' } & DraggerPressTargetBase)
+    | ({ kind: 'selected' } & DraggerPressTargetBase)
+    | ({ kind: 'range_grip' } & DraggerPressTargetBase & DraggerRangeFacts)
+    | ({ kind: 'block_menu' } & DraggerPressTargetBase)
+    | { kind: 'none'; block?: BlockInfo | null };
+
+export type DraggerPressSnapshot = {
+    target: DraggerPressTarget;
     blockedReason?: DragCancelReason | null;
 };
 
@@ -135,6 +141,11 @@ export type DraggerDocumentSnapshot = {
     lineCount: number;
 };
 
+/**
+ * Platform read-only facts. The controller drives the drag lifecycle; the
+ * platform only answers "what is under this point" and "what does this release
+ * commit to". It never decides which drag phase comes next.
+ */
 export type DraggerInspector<TPreview = unknown> = {
     press: (input: DraggerPressInput) => DraggerPressSnapshot;
     drop: (

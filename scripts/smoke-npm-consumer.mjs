@@ -75,7 +75,7 @@ const controller = new DraggerController({
         },
     },
     inspect: {
-        press: () => ({ zone: "handle", block, selection, skipLongPress: true }),
+        press: () => ({ target: { kind: "handle", block, selection, activation: { type: "immediate" } } }),
         drop: () => drop,
         commit: (_input, context) => ({
             type: "command",
@@ -197,7 +197,7 @@ const controllerOptions: DraggerControllerOptions<PreviewData> = {
         },
     },
     inspect: {
-        press: () => ({ zone: "handle", block, selection, skipLongPress: true }),
+        press: () => ({ target: { kind: "handle", block, selection, activation: { type: "immediate" } } }),
         drop: () => drop,
         commit: (_input, context) => ({
             type: "command",

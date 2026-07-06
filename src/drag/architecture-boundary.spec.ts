@@ -86,4 +86,11 @@ describe('headless drag architecture boundaries', () => {
         });
         expect(existing).toEqual([]);
     });
+
+    it('keeps press inspection as target facts instead of controller phase hints', () => {
+        const controllerTypes = readFileSync(join(dragRoot, 'controller', 'dragger-controller-types.ts'), 'utf8');
+        expect(controllerTypes).toContain('target: DraggerPressTarget');
+        expect(controllerTypes).toContain("kind: 'handle'");
+        expect(controllerTypes).not.toMatch(/\bDraggerPressZone\b|\bzone:\b|\bskipLongPress\b|\bpassiveSelection\?:/);
+    });
 });

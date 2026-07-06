@@ -72,9 +72,10 @@ function createControllerOptions(
         },
         inspect: {
             press: () => ({
-                zone: 'handle',
-                block,
-                selection: null,
+                target: {
+                    kind: 'handle',
+                    block,
+                },
             }),
             drop: () => ({
                 target,
@@ -187,6 +188,91 @@ describe('DraggerController', () => {
         vi.useRealTimers();
     });
 
+    it('starts drag immediately when press activation is immediate', () => {
+        vi.useFakeTimers();
+        const input: TestInput = {};
+        const applyCommand = vi.fn();
+        const controller = new DraggerController(createControllerOptions(input, {
+            inspect: {
+                ...createControllerOptions(input).inspect,
+                press: () => ({
+                    target: {
+                        kind: 'handle',
+                        block,
+                        activation: { type: 'immediate' },
+                    },
+                }),
+            },
+            effects: { applyCommand },
+        }));
+
+        controller.mount();
+        input.press?.({
+            point: { x: 0, y: 0 },
+            pointer: { id: 1, type: 'mouse' },
+        });
+        input.move?.({
+            point: { x: 4, y: 0 },
+            pointer: { id: 1, type: 'mouse' },
+        });
+        input.release?.({
+            point: { x: 4, y: 0 },
+            pointer: { id: 1, type: 'mouse' },
+        });
+
+        expect(applyCommand).toHaveBeenCalledTimes(1);
+        vi.useRealTimers();
+    });
+
+    it('uses per-press hold activation delay when provided', () => {
+        vi.useFakeTimers();
+        const input: TestInput = {};
+        const applyCommand = vi.fn();
+        const controller = new DraggerController(createControllerOptions(input, {
+            inspect: {
+                ...createControllerOptions(input).inspect,
+                press: () => ({
+                    target: {
+                        kind: 'handle',
+                        block,
+                        activation: { type: 'hold', delayMs: 25 },
+                    },
+                }),
+            },
+            effects: { applyCommand },
+            config: {
+                longPressMs: 100,
+                dragStartMoveThresholdPx: 1,
+                dragCancelMoveThresholdPx: 100,
+            },
+        }));
+
+        controller.mount();
+        input.press?.({
+            point: { x: 0, y: 0 },
+            pointer: { id: 1, type: 'mouse' },
+        });
+        vi.advanceTimersByTime(24);
+        input.move?.({
+            point: { x: 4, y: 0 },
+            pointer: { id: 1, type: 'mouse' },
+        });
+        expect(applyCommand).not.toHaveBeenCalled();
+
+        vi.advanceTimersByTime(1);
+        input.move?.({
+            point: { x: 4, y: 0 },
+            pointer: { id: 1, type: 'mouse' },
+        });
+        input.release?.({
+            point: { x: 4, y: 0 },
+            pointer: { id: 1, type: 'mouse' },
+        });
+
+        expect(applyCommand).toHaveBeenCalledTimes(1);
+        vi.useRealTimers();
+    });
+
     it('reads config at runtime when config is a function', () => {
         vi.useFakeTimers();
         const input: TestInput = {};
@@ -264,9 +350,10 @@ describe('DraggerController', () => {
         const controller = new DraggerController(createControllerOptions(input, {
             inspect: {
                 press: () => ({
-                    zone: 'handle',
-                    block,
-                    selection: null,
+                    target: {
+                        kind: 'handle',
+                        block,
+                    },
                 }),
                 drop: () => ({
                     target,
@@ -313,19 +400,20 @@ describe('DraggerController', () => {
         const controller = new DraggerController(createControllerOptions(input, {
             inspect: {
                 press: () => ({
-                    zone: 'selection_grip',
-                    block,
-                    selection: null,
-                    rangeBoundary: {
-                        startLineNumber: 1,
-                        endLineNumber: 1,
-                        representativeLineNumber: 1,
+                    target: {
+                        kind: 'range_grip',
+                        block,
+                        rangeBoundary: {
+                            startLineNumber: 1,
+                            endLineNumber: 1,
+                            representativeLineNumber: 1,
+                        },
+                        rangeDoc: doc,
+                        rangeBoundaryResolver: (lineNumber) => ({
+                            startLineNumber: lineNumber,
+                            endLineNumber: lineNumber,
+                        }),
                     },
-                    rangeDoc: doc,
-                    rangeBoundaryResolver: (lineNumber) => ({
-                        startLineNumber: lineNumber,
-                        endLineNumber: lineNumber,
-                    }),
                 }),
                 drop: () => ({
                     target,
@@ -387,9 +475,10 @@ describe('DraggerController', () => {
         const controller = new DraggerController(createControllerOptions(input, {
             inspect: {
                 press: () => ({
-                    zone: 'handle',
-                    block,
-                    selection: null,
+                    target: {
+                        kind: 'handle',
+                        block,
+                    },
                 }),
                 drop: () => ({
                     target,
@@ -470,10 +559,11 @@ describe('DraggerController', () => {
         const controller = new DraggerController(createControllerOptions(input, {
             inspect: {
                 press: () => ({
-                    zone: 'handle',
-                    block,
-                    selection: null,
-                    guardDeps: ['drag-mode'],
+                    target: {
+                        kind: 'handle',
+                        block,
+                        guardDeps: ['drag-mode'],
+                    },
                 }),
                 drop: () => ({
                     target,

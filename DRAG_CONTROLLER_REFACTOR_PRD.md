@@ -294,36 +294,42 @@ dragger.guardUnavailable('active-selection-mode');
 
 ### 5.1 Press Snapshot
 
-`inspect.press` 返回 press 点位的事实快照。
+`inspect.press` 返回 press 点位命中的目标事实。平台不返回“下一步流程”，只描述按下了什么，以及这个目标能解析出的 block / selection / range facts。
 
 ```ts
 export type DraggerPressSnapshot = {
-  zone:
-    | 'handle'
-    | 'text'
-    | 'selected_text'
-    | 'selection_grip'
-    | 'block_menu'
-    | 'none';
-  block: BlockInfo | null;
-  selection: BlockSelection | null;
-  passiveSelection?: BlockSelection | null;
-  rangeBoundary?: RangeSelectionBoundary | null;
-  initialRangeBoundary?: RangeSelectionBoundary | null;
-  rangeDoc?: DocLikeWithRange;
-  rangeOperation?: RangeSelectionOperation;
-  rangeBoundaryResolver?: RangeSelectionBoundaryResolver;
-  selectedBlocks?: SelectedBlockRange[];
+  target: DraggerPressTarget;
   blockedReason?: DragCancelReason | null;
 };
+
+export type DraggerPressTarget =
+  | ({ kind: 'handle' } & DraggerPressTargetBase)
+  | ({ kind: 'text' } & DraggerPressTargetBase)
+  | ({ kind: 'selected' } & DraggerPressTargetBase)
+  | ({ kind: 'range_grip' } & DraggerPressTargetBase & DraggerRangeFacts)
+  | ({ kind: 'block_menu' } & DraggerPressTargetBase)
+  | { kind: 'none'; block?: BlockInfo | null };
+
+export type DraggerPressTargetBase = {
+  block?: BlockInfo | null;
+  selection?: BlockSelection | null;
+  source?: HoldTarget['source'];
+  activation?: DraggerPressActivation;
+  guardDeps?: GuardId[];
+};
+
+export type DraggerPressActivation =
+  | { type: 'hold'; delayMs?: number }
+  | { type: 'immediate' };
 ```
 
-controller 根据这个 snapshot 决定：
+controller 根据这个 target 决定：
 
-- `zone: 'handle'` 是否开始 block drag hold。
-- `zone: 'text'` 是否进入 text long press drag 或 block menu。
-- `zone: 'selected_text'` 是否拖动 passive selection。
-- `zone: 'selection_grip'` 是否进入 range selection。
+- `kind: 'handle'` 是否开始 block drag hold。
+- `kind: 'text'` 是否进入 text long press drag。
+- `kind: 'selected'` 是否拖动已有 passive selection。平台不需要传 passive selection，controller 会从 pipeline state 读取。
+- `kind: 'range_grip'` 是否进入 range selection。
+- `kind: 'block_menu'` 是否打开 block menu。
 - `blockedReason` 是否 cancel 或忽略。
 
 ### 5.2 Range Snapshot
@@ -490,7 +496,7 @@ controller 内部消费 pipeline outputs：
 
 属于平台 `inspect`：
 
-- point -> handle/text/selected_text/selection_grip/block_menu zone。
+- point -> handle/text/selected/range_grip/block_menu/none target facts。
 - point -> block。
 - point -> range boundary。
 - range selection doc / boundary resolver。

@@ -10,6 +10,7 @@ import { buildRangeSelectionBoundaryFromBlock, type RangeSelectionBoundary } fro
 import {
     DraggerController,
     type DraggerControllerConfig,
+    type DraggerInputSource,
     type DraggerPressInput,
     type DraggerRangeStart,
 } from '../../../drag/controller';
@@ -46,8 +47,6 @@ export interface DraggerControllerAdapterDeps {
     isMobileTextLongPressDragEnabled?: () => boolean;
     getMobileDragLongPressMs?: () => number;
     getMouseRangeSelectLongPressMs?: () => number;
-    beginPointerDragSession: (source: BlockSelection) => void;
-    finishDragSession: () => void;
     resolveDropSnapshotAtPoint: (clientX: number, clientY: number, source: BlockSelection, pointerType: string | null) => DragDropSnapshot;
     buildBlockCommandAtPoint: (source: BlockSelection, clientX: number, clientY: number, pointerType: string | null) => PointerDropCommitResolution;
     output: DraggerControllerOutput;
@@ -59,6 +58,8 @@ export interface DraggerControllerOutput<TPreview = unknown> {
     hideDropPreview(): void;
     applyCommand(command: BlockCommand): void;
     emitLifecycle(event: DragLifecycleEvent): void;
+    beginDragSession(source: BlockSelection): void;
+    finishDragSession(): void;
 }
 
 export class DraggerControllerAdapter {
@@ -76,75 +77,7 @@ export class DraggerControllerAdapter {
             (blockStart) => this.deps.getVisibleHandleForBlockStart?.(blockStart) ?? null
         );
         this.controller = new DraggerController({
-            input: {
-                onPress: (handler) => {
-                    const listener = (event: PointerEvent) => {
-                        const input = readPointerInput('down', event);
-                        handler({
-                            point: { x: input.clientX, y: input.clientY },
-                            pointer: { id: input.pointerId, type: input.pointerType },
-                            button: input.button,
-                            modifiers: { shiftKey: input.shiftKey },
-                            native: event,
-                            claim: () => claimPointerEvent(event),
-                            capture: () => capturePointer(this.view.dom, event.pointerId),
-                            releaseCapture: () => releasePointerCapture(this.view.dom, event.pointerId),
-                        });
-                    };
-                    this.view.dom.addEventListener('pointerdown', listener, true);
-                    return () => this.view.dom.removeEventListener('pointerdown', listener, true);
-                },
-                onMove: (handler) => {
-                    const listener = (event: PointerEvent) => {
-                        const input = readPointerInput('move', event);
-                        handler({
-                            point: { x: input.clientX, y: input.clientY },
-                            pointer: { id: input.pointerId, type: input.pointerType },
-                            native: event,
-                            claim: () => claimPointerEvent(event),
-                        });
-                    };
-                    window.addEventListener('pointermove', listener, { passive: false, capture: true });
-                    return () => window.removeEventListener('pointermove', listener, true);
-                },
-                onRelease: (handler) => {
-                    const listener = (event: PointerEvent) => {
-                        const input = readPointerInput('up', event);
-                        handler({
-                            point: { x: input.clientX, y: input.clientY },
-                            pointer: { id: input.pointerId, type: input.pointerType },
-                            native: event,
-                            claim: () => claimPointerEvent(event),
-                            releaseCapture: () => releasePointerCapture(this.view.dom, event.pointerId),
-                        });
-                    };
-                    window.addEventListener('pointerup', listener, { passive: false, capture: true });
-                    return () => window.removeEventListener('pointerup', listener, true);
-                },
-                onCancel: (handler) => {
-                    const listener = (event: PointerEvent) => {
-                        const input = readPointerInput('cancel', event);
-                        handler({
-                            pointer: { id: input.pointerId, type: input.pointerType },
-                            reason: 'pointer_cancelled',
-                            native: event,
-                            releaseCapture: () => releasePointerCapture(this.view.dom, event.pointerId),
-                        });
-                    };
-                    window.addEventListener('pointercancel', listener, { passive: false, capture: true });
-                    return () => window.removeEventListener('pointercancel', listener, true);
-                },
-                onEscape: (handler) => {
-                    const listener = (event: KeyboardEvent) => {
-                        if (event.key !== 'Escape') return;
-                        handler();
-                        event.preventDefault();
-                        event.stopPropagation();
-                    };
-                    window.addEventListener('keydown', listener, true);
-                    return () => window.removeEventListener('keydown', listener, true);
-                },
-            },
+            input: createPointerInputSource(this.view),
             inspect: {
                 press: (input) => this.inspectPress(input),
                 drop: (input, context) => this.deps.resolveDropSnapshotAtPoint(
@@ -177,11 +110,11 @@ export class DraggerControllerAdapter {
                 applyCommand: (command) => this.deps.output.applyCommand(command),
                 emitLifecycle: (event) => {
                     if (event.type === 'drag_started' && event.source) {
-                        this.deps.beginPointerDragSession(event.source);
+                        this.deps.output.beginDragSession(event.source);
                     }
                     this.deps.output.emitLifecycle(event);
                 },
-                finishDragSession: () => this.deps.finishDragSession(),
+                finishDragSession: () => this.deps.output.finishDragSession(),
                 openBlockMenu: (selection, input) => {
                     this.deps.openBlockTypeMenu?.(
                         selection.anchorBlock,
@@ -226,21 +159,16 @@ export class DraggerControllerAdapter {
         const target = event?.target instanceof HTMLElement ? event.target : null;
         if (!target) return noPressTarget();
 
-        const passiveSelection = this.getPassiveSelection();
-        const resize = passiveSelection
-            ? this.inspectResizeHandlePress(target, passiveSelection)
-            : null;
+        const resize = this.inspectResizeHandlePress(target);
         if (resize) return resize;
 
         const selectedHandle = target.closest<HTMLElement>(`.${RANGE_SELECTED_HANDLE_CLASS}`);
-        if (passiveSelection && selectedHandle) {
+        if (selectedHandle) {
             return {
-                zone: 'selected_text' as const,
-                block: passiveSelection.anchorBlock,
-                selection: passiveSelection,
-                passiveSelection,
-                source: 'handle' as const,
-                skipLongPress: !this.isMobileInput(),
+                target: {
+                    kind: 'selected' as const,
+                    activation: this.isMobileInput() ? undefined : { type: 'immediate' as const },
+                },
             };
         }
 
@@ -286,23 +214,26 @@ export class DraggerControllerAdapter {
                 representativeLineNumber: selection.anchorBlock.endLine + 1,
             };
             return {
-                zone: 'selection_grip' as const,
-                block: selection.anchorBlock,
-                ...this.rangeStartForSelection(selection, {
-                    rangeBoundary: boundary,
-                    guardDeps: this.isMobileInput() ? [GUARD_MOBILE_TEXT_DRAG] : undefined,
-                    rangeOperation: this.isMobileInput() ? 'add' : undefined,
-                }),
+                target: {
+                    kind: 'range_grip' as const,
+                    block: selection.anchorBlock,
+                    ...this.rangeStartForSelection(selection, {
+                        rangeBoundary: boundary,
+                        guardDeps: this.isMobileInput() ? [GUARD_MOBILE_TEXT_DRAG] : undefined,
+                        rangeOperation: this.isMobileInput() ? 'add' : undefined,
+                    }),
+                },
             };
         }
         return {
-            zone: 'handle' as const,
-            block: selection.anchorBlock,
-            selection,
-            skipLongPress: !this.isMobileInput(),
-            longPressMs: this.isMobileInput()
-                ? (this.deps.getMobileDragLongPressMs?.() ?? MOBILE_DRAG_LONG_PRESS_MS)
-                : 0,
+            target: {
+                kind: 'handle' as const,
+                block: selection.anchorBlock,
+                selection,
+                activation: this.isMobileInput()
+                    ? { type: 'hold' as const, delayMs: this.deps.getMobileDragLongPressMs?.() ?? MOBILE_DRAG_LONG_PRESS_MS }
+                    : { type: 'immediate' as const },
+            },
         };
     }
 
@@ -321,9 +252,11 @@ export class DraggerControllerAdapter {
             return noPressTarget(selection.anchorBlock);
         }
         return {
-            zone: 'text' as const,
-            block: selection.anchorBlock,
-            selection,
+            target: {
+                kind: 'text' as const,
+                block: selection.anchorBlock,
+                selection,
+            },
         };
     }
 
@@ -347,21 +280,16 @@ export class DraggerControllerAdapter {
         };
     }
 
-    private getPassiveSelection(): BlockSelection | null {
-        const state = this.controller.state;
-        return state.type === 'selecting' && state.selection.phase === 'passive'
-            ? state.selection.selection
-            : null;
-    }
-
     private shouldStartHandleRangeSelection(input: DraggerPressInput): boolean {
         if (!this.isMultiLineSelectionEnabled()) return false;
         if (this.isMobileInput()) return true;
         return input.modifiers?.shiftKey === true;
     }
 
-    private inspectResizeHandlePress(target: HTMLElement, passiveSelection: BlockSelection) {
+    private inspectResizeHandlePress(target: HTMLElement) {
         if (!this.isMobileInput()) return null;
+        const passiveSelection = this.passiveSelection();
+        if (!passiveSelection) return null;
         const handleEl = target.closest<HTMLElement>(`.${MOBILE_SELECTION_RESIZE_HANDLE_CLASS}`);
         if (!handleEl) return null;
 
@@ -406,16 +334,25 @@ export class DraggerControllerAdapter {
         );
 
         return {
-            zone: 'selection_grip' as const,
-            block: passiveSelection.anchorBlock,
-            ...this.rangeStartForSelection(passiveSelection, {
-                rangeBoundary: fixedBoundary,
-                initialRangeBoundary: movingBoundary,
-                selectedBlocks: baseSelectedBlocks,
-                rangeOperation: 'add',
-                guardDeps: [GUARD_MOBILE_TEXT_DRAG],
-            }),
+            target: {
+                kind: 'range_grip' as const,
+                block: passiveSelection.anchorBlock,
+                ...this.rangeStartForSelection(passiveSelection, {
+                    rangeBoundary: fixedBoundary,
+                    initialRangeBoundary: movingBoundary,
+                    selectedBlocks: baseSelectedBlocks,
+                    rangeOperation: 'add',
+                    guardDeps: [GUARD_MOBILE_TEXT_DRAG],
+                }),
+            },
         };
+    }
+
+    private passiveSelection(): BlockSelection | null {
+        const state = this.controller.state;
+        return state.type === 'selecting' && state.selection.phase === 'passive'
+            ? state.selection.selection
+            : null;
     }
 
     private resolveCursorSelection(): BlockSelection | null {
@@ -462,9 +399,82 @@ export class DraggerControllerAdapter {
 
 function noPressTarget(block: BlockInfo | null = null) {
     return {
-        zone: 'none' as const,
-        block,
-        selection: null,
+        target: {
+            kind: 'none' as const,
+            block,
+        },
+    };
+}
+
+function createPointerInputSource(view: EditorView): DraggerInputSource {
+    return {
+        onPress: (handler) => {
+            const listener = (event: PointerEvent) => {
+                const input = readPointerInput('down', event);
+                handler({
+                    point: { x: input.clientX, y: input.clientY },
+                    pointer: { id: input.pointerId, type: input.pointerType },
+                    button: input.button,
+                    modifiers: { shiftKey: input.shiftKey },
+                    native: event,
+                    claim: () => claimPointerEvent(event),
+                    capture: () => capturePointer(view.dom, event.pointerId),
+                    releaseCapture: () => releasePointerCapture(view.dom, event.pointerId),
+                });
+            };
+            view.dom.addEventListener('pointerdown', listener, true);
+            return () => view.dom.removeEventListener('pointerdown', listener, true);
+        },
+        onMove: (handler) => {
+            const listener = (event: PointerEvent) => {
+                const input = readPointerInput('move', event);
+                handler({
+                    point: { x: input.clientX, y: input.clientY },
+                    pointer: { id: input.pointerId, type: input.pointerType },
+                    native: event,
+                    claim: () => claimPointerEvent(event),
+                });
+            };
+            window.addEventListener('pointermove', listener, { passive: false, capture: true });
+            return () => window.removeEventListener('pointermove', listener, true);
+        },
+        onRelease: (handler) => {
+            const listener = (event: PointerEvent) => {
+                const input = readPointerInput('up', event);
+                handler({
+                    point: { x: input.clientX, y: input.clientY },
+                    pointer: { id: input.pointerId, type: input.pointerType },
+                    native: event,
+                    claim: () => claimPointerEvent(event),
+                    releaseCapture: () => releasePointerCapture(view.dom, event.pointerId),
+                });
+            };
+            window.addEventListener('pointerup', listener, { passive: false, capture: true });
+            return () => window.removeEventListener('pointerup', listener, true);
+        },
+        onCancel: (handler) => {
+            const listener = (event: PointerEvent) => {
+                const input = readPointerInput('cancel', event);
+                handler({
+                    pointer: { id: input.pointerId, type: input.pointerType },
+                    reason: 'pointer_cancelled',
+                    native: event,
+                    releaseCapture: () => releasePointerCapture(view.dom, event.pointerId),
+                });
+            };
+            window.addEventListener('pointercancel', listener, { passive: false, capture: true });
+            return () => window.removeEventListener('pointercancel', listener, true);
+        },
+        onEscape: (handler) => {
+            const listener = (event: KeyboardEvent) => {
+                if (event.key !== 'Escape') return;
+                handler();
+                event.preventDefault();
+                event.stopPropagation();
+            };
+            window.addEventListener('keydown', listener, true);
+            return () => window.removeEventListener('keydown', listener, true);
+        },
     };
 }
 

@@ -189,6 +189,18 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     this.handleSourceVisualByLifecycle(event);
                     this.emitDragLifecycle(event);
                 },
+                beginDragSession: (source) => {
+                    this.ensureDragPerfSession();
+                    beginDragSession(source, this.view);
+                },
+                finishDragSession: () => {
+                    this.handleVisibility.clearGrabbedLineNumbers();
+                    this.handleVisibility.setActiveVisibleHandle(null);
+                    finishDragSession(this.view);
+                    hidePointerDropPreviews();
+                    this.flushDragPerfSession('finish_drag_session');
+                    this.refreshDecorationsAndEmbeds();
+                },
             };
             this.dragController = new DraggerControllerAdapter(this.view, {
                 resolveBlockSelection: (request) => this.context.selection.resolveSelection(request),
@@ -202,18 +214,6 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 getMouseRangeSelectLongPressMs: () => plugin.settings.mouseRangeSelectLongPressMs,
                 isMobileDragModeEnabled: () => plugin.isMobileDragModeEnabled(),
                 isMobileTextLongPressDragEnabled: () => plugin.settings.enableMobileTextLongPressDrag,
-                beginPointerDragSession: (source) => {
-                    this.ensureDragPerfSession();
-                    beginDragSession(source, this.view);
-                },
-                finishDragSession: () => {
-                    this.handleVisibility.clearGrabbedLineNumbers();
-                    this.handleVisibility.setActiveVisibleHandle(null);
-                    finishDragSession(this.view);
-                    hidePointerDropPreviews();
-                    this.flushDragPerfSession('finish_drag_session');
-                    this.refreshDecorationsAndEmbeds();
-                },
                 resolveDropSnapshotAtPoint: (clientX, clientY, selection, pointerType) =>
                     resolvePointerDropSnapshotAtPoint(
                         this.pointerHitTestClient,

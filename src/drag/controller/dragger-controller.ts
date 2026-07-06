@@ -16,8 +16,10 @@ import {
     type DraggerDropInspectContext,
     type DraggerDropSnapshot,
     type DraggerMoveInput,
+    type DraggerPressActivation,
     type DraggerPressInput,
     type DraggerPressSnapshot,
+    type DraggerPressTarget,
     type DraggerRangeStart,
     type DraggerReleaseInput,
 } from './dragger-controller-types';
@@ -126,20 +128,21 @@ export class DraggerController<TPreview = unknown> {
             this.cancel(snapshot.blockedReason, input.pointer.type);
             return;
         }
-        if (snapshot.zone === 'none') return;
-        if (snapshot.zone === 'block_menu') {
-            const selection = this.resolveSelection(snapshot);
+        const target = snapshot.target;
+        if (target.kind === 'none') return;
+        if (target.kind === 'block_menu') {
+            const selection = this.resolveSelection(target);
             if (selection) this.options.effects?.openBlockMenu?.(selection, input);
             return;
         }
-        if (snapshot.zone === 'selection_grip') {
-            this.startRangeSelection(input, snapshot);
+        if (target.kind === 'range_grip') {
+            this.startRangeSelection(input, target);
             return;
         }
 
-        const source = this.resolveSource(snapshot);
+        const source = this.resolveSource(target);
         if (!source) return;
-        const selection = this.resolveSelection(snapshot);
+        const selection = this.resolveSelection(target);
         if (!selection) return;
         if (source === 'text' && !this.config().textLongPressDragEnabled) return;
 
@@ -149,9 +152,8 @@ export class DraggerController<TPreview = unknown> {
             input,
             selection,
             source,
-            guardDeps: snapshot.guardDeps ?? [],
-            longPressMs: snapshot.longPressMs,
-            skipLongPress: snapshot.skipLongPress,
+            guardDeps: target.guardDeps ?? [],
+            activation: target.activation,
         });
     }
 
@@ -160,16 +162,16 @@ export class DraggerController<TPreview = unknown> {
         selection: BlockSelection;
         source: HoldTarget['source'];
         guardDeps: string[];
-        longPressMs?: number;
-        skipLongPress?: boolean;
+        activation?: DraggerPressActivation;
     }): void {
         this.clearPressSession();
         const sessionId = this.createSessionId();
-        const timer = params.skipLongPress
+        const activation = this.resolvePressActivation(params.activation);
+        const timer = activation.type === 'immediate'
             ? null
             : this.setTimer(
                 () => this.markPressReady(sessionId, params.input.pointer),
-                params.longPressMs ?? this.config().longPressMs
+                activation.delayMs
             );
         this.pressSession = {
             sessionId,
@@ -178,7 +180,7 @@ export class DraggerController<TPreview = unknown> {
             selection: params.selection,
             source: params.source,
             guardDeps: params.guardDeps,
-            ready: params.skipLongPress === true,
+            ready: activation.type === 'immediate',
             timer,
             releaseCapture: params.input.releaseCapture,
         };
@@ -189,9 +191,17 @@ export class DraggerController<TPreview = unknown> {
             guardDeps: params.guardDeps,
             pointerType: params.input.pointer.type,
         });
-        if (params.skipLongPress) {
+        if (activation.type === 'immediate') {
             this.enter({ type: 'hold_ready', sessionId, pointerType: params.input.pointer.type });
         }
+    }
+
+    private resolvePressActivation(activation: DraggerPressActivation | undefined): Required<DraggerPressActivation> {
+        if (activation?.type === 'immediate') return { type: 'immediate' };
+        return {
+            type: 'hold',
+            delayMs: activation?.delayMs ?? this.config().longPressMs,
+        };
     }
 
     private handleMove(input: DraggerMoveInput): void {
@@ -258,11 +268,11 @@ export class DraggerController<TPreview = unknown> {
         }
     }
 
-    private startRangeSelection(input: DraggerPressInput, snapshot: DraggerPressSnapshot): void {
+    private startRangeSelection(input: DraggerPressInput, target: Extract<DraggerPressTarget, { kind: 'range_grip' }>): void {
         if (!this.config().multiLineSelectionEnabled) return;
-        const selection = this.resolveSelection(snapshot);
-        const anchorBoundary = snapshot.rangeBoundary;
-        const doc = snapshot.rangeDoc;
+        const selection = this.resolveSelection(target);
+        const anchorBoundary = target.rangeBoundary;
+        const doc = target.rangeDoc;
         if (!selection || !anchorBoundary || !doc) return;
 
         input.claim?.();
@@ -270,9 +280,9 @@ export class DraggerController<TPreview = unknown> {
         this.rangeSession = {
             pointer: input.pointer,
             selection,
-            resolveBoundary: snapshot.rangeBoundaryResolver,
+            resolveBoundary: target.rangeBoundaryResolver,
         };
-        this.startRange({ ...snapshot, selection });
+        this.startRange({ ...target, selection });
     }
 
     private startRange(range: DraggerRangeStart): void {
@@ -507,28 +517,37 @@ export class DraggerController<TPreview = unknown> {
         }
     }
 
-    private resolveSelection(snapshot: DraggerPressSnapshot): BlockSelection | null {
-        if (snapshot.zone === 'selected_text' && snapshot.passiveSelection) {
-            return snapshot.passiveSelection;
+    private resolveSelection(target: DraggerPressTarget): BlockSelection | null {
+        if (target.kind === 'none') return null;
+        if (target.kind === 'selected') {
+            return target.selection ?? this.passiveSelection();
         }
-        if (snapshot.selection) return snapshot.selection;
-        return snapshot.block ? createSingleBlockSelection(snapshot.block) : null;
+        if (target.selection) return target.selection;
+        return target.block ? createSingleBlockSelection(target.block) : null;
     }
 
-    private resolveSource(snapshot: DraggerPressSnapshot): HoldTarget['source'] | null {
-        if (snapshot.source) return snapshot.source;
-        switch (snapshot.zone) {
+    private resolveSource(target: DraggerPressTarget): HoldTarget['source'] | null {
+        if (target.kind === 'none') return null;
+        if (target.source) return target.source;
+        switch (target.kind) {
             case 'handle':
-            case 'selection_grip':
                 return 'handle';
             case 'text':
                 return 'text';
-            case 'selected_text':
+            case 'selected':
                 return 'selected_text';
+            case 'range_grip':
+                return 'handle';
             case 'block_menu':
-            case 'none':
                 return null;
         }
+    }
+
+    private passiveSelection(): BlockSelection | null {
+        const state = this.state;
+        return state.type === 'selecting' && state.selection.phase === 'passive'
+            ? state.selection.selection
+            : null;
     }
 
     private clearPressSession(): void {
