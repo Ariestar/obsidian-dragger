@@ -10,7 +10,7 @@ import { getCoordsAtPos } from '../selection/rect-calculator';
 import { DocLike, ParsedLine } from '../../../domain/markdown/document-types';
 import type { ListDropTarget } from '../../../domain/command/drop-target';
 import type { BlockSelection } from '../../../domain/selection/block-selection';
-import type { DragSelectionScope } from './codemirror-drop-snapshot';
+import type { DragSelectionScope } from '../../../domain/decision/drop-decision';
 
 export type ListDropTargetContribution = {
     listIntent?: ListDropTarget;

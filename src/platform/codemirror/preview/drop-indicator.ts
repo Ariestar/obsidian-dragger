@@ -1,6 +1,6 @@
 ﻿import { EditorView } from '@codemirror/view';
 import type { BlockSelection } from '../../../domain/selection/block-selection';
-import type { DropResolution, DropValidationResult } from '../drop/codemirror-drop-snapshot';
+import type { DropResolution, DropValidationResult } from '../drop/drop-validation';
 import { DROP_INDICATOR_CLASS, DROP_HIGHLIGHT_CLASS, HIDDEN_CLASS } from '../../../shared/dom-selectors';
 
 interface DropIndicatorManagerOptions {

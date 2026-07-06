@@ -13,7 +13,7 @@ import {
 import { isPosInsideRenderedTableCell } from '../../dom/table-guard';
 import { applyMoveCommand, type MoveCommandApplierDeps } from '../transaction/move-command-applier';
 import { DropTargetResolver, type DropTargetResolverDeps } from '../drop/drop-target-resolver';
-import type { DropValidationResult } from '../drop/codemirror-drop-snapshot';
+import { toDropDecision, type DropValidationResult } from '../drop/drop-validation';
 import { DropIndicatorManager } from '../preview/drop-indicator';
 import { getVisibleHandleForBlockStart } from '../preview/handle-renderer';
 import { HandleVisibilityController } from '../preview/handle-visibility-controller';
@@ -24,7 +24,7 @@ import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './editor-context';
 
 import type { BlockSelection } from '../../../domain/selection/block-selection';
-import type { DragDocumentRelation, DragSelectionScope } from '../drop/codemirror-drop-snapshot';
+import type { DragDocumentRelation, DragSelectionScope } from '../../../domain/decision/drop-decision';
 import type { DragLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../../../shared/dom-attrs';
 
@@ -51,7 +51,7 @@ import {
     resolvePointerDropSnapshotAtPoint,
 } from '../input/pointer-hit-test';
 import { openBlockTypeMenu } from '../../../plugin/block-type-menu';
-import { buildMoveCommandDecision } from '../command/move-command-decision';
+import { buildMoveCommandDecision } from '../../../domain/decision/move-decision';
 import type { BlockCommand } from '../../../domain/command/block-command';
 import type { DragDropSnapshot } from '../../../drag/pipeline/pipeline-drop';
 import type { DragCancelReason } from '../../../drag/pipeline/pipeline-event';
@@ -351,7 +351,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             });
             const decision = buildMoveCommandDecision({
                 selection: source,
-                validation,
+                decision: toDropDecision(validation),
                 sourceScope,
                 sourceDocumentRelation,
                 crossFileDragEnabled: plugin.settings.enableCrossFileDrag === true,

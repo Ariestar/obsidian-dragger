@@ -19,3 +19,5 @@ export * from './domain/transaction/command-reject';
 export * from './domain/transaction/delete-blocks';
 export * from './domain/transaction/list-renumber';
 export * from './domain/transaction/move-blocks';
+export * from './domain/decision/drop-decision';
+export * from './domain/decision/move-decision';

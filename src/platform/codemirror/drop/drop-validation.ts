@@ -1,5 +1,5 @@
 import type { DropTarget } from '../../../domain/command/drop-target';
-import type { InsertionRuleRejectReason } from '../../../domain/rules/insertion-rules';
+import type { DropDecision } from '../../../domain/decision/drop-decision';
 
 export interface DropPreview {
     indicatorY: number;
@@ -12,15 +12,6 @@ export type DropResolution = {
     preview: DropPreview;
 };
 
-export type DropRejectReason =
-    | 'table_cell'
-    | 'no_target'
-    | 'no_anchor'
-    | 'self_range_blocked'
-    | 'self_embedding'
-    | InsertionRuleRejectReason
-    | 'container_policy';
-
 export type DropAllowedResult = {
     allowed: true;
     resolution: DropResolution;
@@ -28,16 +19,18 @@ export type DropAllowedResult = {
 
 export type DropRejectedResult = {
     allowed: false;
-    reason?: DropRejectReason;
+    reason?: import('../../../domain/decision/drop-decision').DropRejectReason;
     resolution?: never;
 };
 
 export type DropValidationResult = DropAllowedResult | DropRejectedResult;
 
-export type DragSelectionScope =
-    | 'same_editor'
-    | 'cross_editor';
-
-export type DragDocumentRelation =
-    | 'same_document'
-    | 'different_document';
+/**
+ * Strips preview geometry from the platform validation result, leaving the
+ * domain decision the drag runtime actually consumes.
+ */
+export function toDropDecision(validation: DropValidationResult): DropDecision {
+    return validation.allowed
+        ? { allowed: true, target: validation.resolution.target }
+        : { allowed: false, reason: validation.reason ?? 'no_target' };
+}
