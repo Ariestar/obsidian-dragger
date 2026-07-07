@@ -12,21 +12,31 @@
     "exports": {
         ".": {
             "types": "./dist/npm/types/index.d.ts",
+            "source": "./src/index.ts",
             "import": "./dist/npm/index.mjs",
             "require": "./dist/npm/index.cjs"
         },
         "./domain": {
             "types": "./dist/npm/types/domain.d.ts",
+            "source": "./src/domain.ts",
             "import": "./dist/npm/domain.mjs",
             "require": "./dist/npm/domain.cjs"
         },
         "./drag": {
             "types": "./dist/npm/types/drag.d.ts",
+            "source": "./src/drag.ts",
             "import": "./dist/npm/drag.mjs",
             "require": "./dist/npm/drag.cjs"
         },
+        "./drag/runtime": {
+            "types": "./dist/npm/types/drag-runtime.d.ts",
+            "source": "./src/drag-runtime.ts",
+            "import": "./dist/npm/drag-runtime.mjs",
+            "require": "./dist/npm/drag-runtime.cjs"
+        },
         "./markdown": {
             "types": "./dist/npm/types/markdown.d.ts",
+            "source": "./src/markdown.ts",
             "import": "./dist/npm/markdown.mjs",
             "require": "./dist/npm/markdown.cjs"
         }

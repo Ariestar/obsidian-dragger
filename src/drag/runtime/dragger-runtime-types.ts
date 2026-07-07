@@ -95,6 +95,7 @@ export type DraggerRuntimeOptions = {
         targetLineFromPoint(point: DragPoint): number | null;
     };
     preview?: (preview: DragPreview | null) => void;
+    selection?: (selection: BlockSelection | null) => void;
     config?: DraggerRuntimeConfigInput;
     setTimer?: (callback: () => void, delayMs: number) => DragTimerToken;
     clearTimer?: (token: DragTimerToken) => void;

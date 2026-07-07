@@ -10,6 +10,7 @@ const common = {
         "src/index.ts",
         "src/domain.ts",
         "src/drag.ts",
+        "src/drag-runtime.ts",
         "src/markdown.ts",
     ],
     bundle: true,
