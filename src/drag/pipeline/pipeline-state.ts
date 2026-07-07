@@ -1,5 +1,5 @@
 import type { BlockSelection } from '../../domain/selection/block-selection';
-import type { BlockRangeSelectionState } from '../selection/block-range-selection';
+import type { BlockRangeSelectionState } from '../../domain/selection/block-range-selection';
 import type { DragDropSnapshot } from './pipeline-drop';
 import type { GuardId } from './pipeline-event';
 

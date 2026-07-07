@@ -1,16 +1,16 @@
-import type { RangeSelectionOperation } from '../../domain/selection/block-selection';
+import type { DocLikeWithRange } from '../markdown/document-types';
+import type { RangeSelectionOperation } from './block-selection';
 import {
     isSelectedBlockCoveredByBlocks,
     mergeSelectedBlocks,
     subtractSelectedBlocks,
     type SelectedBlockRange,
-} from '../../domain/selection/block-ranges';
-import type { DocLikeWithRange } from '../../domain/markdown/document-types';
+} from './block-ranges';
 import {
     collectSelectedBlocksBetween,
     type RangeSelectionBoundary,
     type RangeSelectionBoundaryResolver,
-} from '../../domain/selection/range-selection';
+} from './range-selection';
 
 export type BlockRangeSelectionState = {
     anchorStartLineNumber: number;

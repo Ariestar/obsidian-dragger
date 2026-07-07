@@ -34,9 +34,8 @@ describe('headless drag architecture boundaries', () => {
             .filter((entry) => statSync(join(dragRoot, entry)).isDirectory())
             .sort();
         expect(topLevelDirs).toEqual([
-            'controller',
             'pipeline',
-            'selection',
+            'runtime',
         ]);
     });
 
@@ -56,7 +55,7 @@ describe('headless drag architecture boundaries', () => {
     });
 
     it('keeps platform resolution and command execution contracts out of drag', () => {
-        const forbidden = /\b(?:DropPreview|DropValidationResult|MoveBlockCommand|BlockTransaction|applyMoveCommand|applyBlockTransaction|renderDropPreviewAtPoint|performDropAtPoint)\b/;
+        const forbidden = /\b(?:DropValidationResult|MoveBlockCommand|BlockTransaction|applyMoveCommand|applyBlockTransaction|renderDropPreviewAtPoint|performDropAtPoint)\b/;
         const offenders = readDragProductionFiles()
             .filter((file) => forbidden.test(file.text))
             .map((file) => file.rel);
@@ -87,10 +86,10 @@ describe('headless drag architecture boundaries', () => {
         expect(existing).toEqual([]);
     });
 
-    it('keeps press inspection as target facts instead of controller phase hints', () => {
-        const controllerTypes = readFileSync(join(dragRoot, 'controller', 'dragger-controller-types.ts'), 'utf8');
-        expect(controllerTypes).toContain('target: DraggerPressTarget');
-        expect(controllerTypes).toContain("kind: 'handle'");
-        expect(controllerTypes).not.toMatch(/\bDraggerPressZone\b|\bzone:\b|\bskipLongPress\b|\bpassiveSelection\?:/);
+    it('keeps runtime input as headless points instead of host events', () => {
+        const runtimeTypes = readFileSync(join(dragRoot, 'runtime', 'dragger-runtime-types.ts'), 'utf8');
+        expect(runtimeTypes).toContain('point: DragPoint');
+        expect(runtimeTypes).toContain('sourceLineFromInput(input: DraggerPressInput): number | null');
+        expect(runtimeTypes).not.toMatch(/\bDraggerPressZone\b|\bDraggerPressTarget\b|\bzone:\b|\bskipLongPress\b|\bpassiveSelection\?:/);
     });
 });

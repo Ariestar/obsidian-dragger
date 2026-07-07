@@ -1,4 +1,4 @@
-﻿import { EditorView } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import {
     CODEMIRROR_GUTTER_ELEMENT_SELECTOR,
     HANDLE_CORE_CLASS,

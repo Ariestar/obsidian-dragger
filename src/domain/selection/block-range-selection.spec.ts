@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BlockType, type BlockInfo } from '../../domain/block/block-types';
-import type { DocLikeWithRange } from '../../domain/markdown/document-types';
+import { BlockType, type BlockInfo } from '../block/block-types';
+import type { DocLikeWithRange } from '../markdown/document-types';
 import { createBlockRangeSelectionState, updateBlockRangeSelectionState } from './block-range-selection';
 
 function block(startLine: number, endLine = startLine): BlockInfo {

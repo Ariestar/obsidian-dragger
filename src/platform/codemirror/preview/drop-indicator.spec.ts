@@ -26,14 +26,11 @@ function createViewStub(): EditorView {
 
 function dropResult(targetLineNumber: number, preview: { indicatorY: number; lineRect?: { left: number; width: number }; highlightRect?: { top: number; left: number; width: number; height: number } }) {
     return {
-        allowed: true,
-        resolution: {
-            target: {
-                targetLineNumber,
-                placement: 'before',
-            },
-            preview,
+        target: {
+            targetLineNumber,
+            placement: 'before',
         },
+        preview,
     } as const;
 }
 

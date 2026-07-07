@@ -189,7 +189,6 @@ describe('final architecture boundaries', () => {
             .filter((file) => /^src\/platform\/codemirror\/[^/]+\.ts$/.test(file.rel))
             .map((file) => file.rel);
         expect(dirs).toEqual([
-            'drop',
             'extension',
             'input',
             'preview',

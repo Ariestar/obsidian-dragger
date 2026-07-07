@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 
 import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';

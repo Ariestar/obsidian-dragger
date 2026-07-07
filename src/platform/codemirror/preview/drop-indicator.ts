@@ -1,7 +1,18 @@
-﻿import { EditorView } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import type { BlockSelection } from '../../../domain/selection/block-selection';
-import type { DropResolution, DropValidationResult } from '../drop/drop-validation';
+import type { DropTarget } from '../../../domain/command/drop-target';
 import { DROP_INDICATOR_CLASS, DROP_HIGHLIGHT_CLASS, HIDDEN_CLASS } from '../../../shared/dom-selectors';
+
+export interface DropPreview {
+    indicatorY: number;
+    lineRect?: { left: number; width: number };
+    highlightRect?: { top: number; left: number; width: number; height: number };
+}
+
+export type DropMark = {
+    target: DropTarget;
+    preview: DropPreview;
+};
 
 interface DropIndicatorManagerOptions {
     isDropHighlightEnabled?: () => boolean;
@@ -15,7 +26,7 @@ interface DropIndicatorManagerOptions {
     onDropTargetEvaluated?: (info: {
         source: BlockSelection | null;
         pointerType: string | null;
-        validation: DropValidationResult;
+        mark: DropMark | null;
     }) => void;
 }
 
@@ -23,9 +34,9 @@ export class DropIndicatorManager {
     private static readonly instances = new Set<DropIndicatorManager>();
     private readonly indicatorEl: HTMLDivElement;
     private readonly highlightEl: HTMLDivElement;
-    private pendingDragInfo: { validation: DropValidationResult; selection: BlockSelection | null; pointerType: string | null } | null = null;
+    private pendingDragInfo: { mark: DropMark | null; selection: BlockSelection | null; pointerType: string | null } | null = null;
     private rafId: number | null = null;
-    private lastResolution: DropResolution | null = null;
+    private lastMark: DropMark | null = null;
 
     constructor(
         private readonly view: EditorView,
@@ -41,8 +52,8 @@ export class DropIndicatorManager {
         activeDocument.body.appendChild(this.highlightEl);
     }
 
-    scheduleRender(validation: DropValidationResult, selection: BlockSelection | null, pointerType: string | null): void {
-        this.pendingDragInfo = { validation, selection, pointerType };
+    scheduleRender(mark: DropMark | null, selection: BlockSelection | null, pointerType: string | null): void {
+        this.pendingDragInfo = { mark, selection, pointerType };
         if (this.rafId !== null) return;
         this.rafId = window.requestAnimationFrame(() => {
             this.rafId = null;
@@ -58,7 +69,7 @@ export class DropIndicatorManager {
             this.rafId = null;
         }
         this.pendingDragInfo = null;
-        this.lastResolution = null;
+        this.lastMark = null;
         this.indicatorEl.classList.add(HIDDEN_CLASS);
         this.highlightEl.classList.add(HIDDEN_CLASS);
     }
@@ -70,13 +81,12 @@ export class DropIndicatorManager {
         DropIndicatorManager.instances.delete(this);
     }
 
-    private renderValidation(info: { validation: DropValidationResult; selection: BlockSelection | null; pointerType: string | null }): void {
-        const validation = info.validation;
-        const resolution = validation.allowed ? validation.resolution ?? null : null;
+    private renderValidation(info: { mark: DropMark | null; selection: BlockSelection | null; pointerType: string | null }): void {
+        const mark = info.mark;
         this.options?.onDropTargetEvaluated?.({
             source: info.selection,
             pointerType: info.pointerType,
-            validation,
+            mark,
         });
         this.options?.onFrameMetrics?.({
             evaluated: true,
@@ -84,20 +94,20 @@ export class DropIndicatorManager {
             reused: false,
             durationMs: 0,
         });
-        this.lastResolution = resolution;
-        if (!resolution) {
+        this.lastMark = mark;
+        if (!mark) {
             this.indicatorEl.classList.add(HIDDEN_CLASS);
             this.highlightEl.classList.add(HIDDEN_CLASS);
             return;
         }
-        this.renderResolution(resolution);
+        this.renderMark(mark);
     }
 
-    private renderResolution(resolution: DropResolution): void {
+    private renderMark(mark: DropMark): void {
         this.hideOtherInstancesVisuals();
         const editorRect = this.view.dom.getBoundingClientRect();
-        const indicatorY = resolution.preview.indicatorY;
-        const indicatorLeft = resolution.preview.lineRect ? resolution.preview.lineRect.left : editorRect.left + 35;
+        const indicatorY = mark.preview.indicatorY;
+        const indicatorLeft = mark.preview.lineRect ? mark.preview.lineRect.left : editorRect.left + 35;
         const contentRect = this.view.contentDOM.getBoundingClientRect();
         const contentPaddingRight = parseFloat(getComputedStyle(this.view.contentDOM).paddingRight) || 0;
         const indicatorRight = contentRect.right - contentPaddingRight;
@@ -110,13 +120,13 @@ export class DropIndicatorManager {
             width: `${indicatorWidth}px`,
         });
 
-        if (resolution.preview.highlightRect && this.options?.isDropHighlightEnabled?.() !== false) {
+        if (mark.preview.highlightRect && this.options?.isDropHighlightEnabled?.() !== false) {
             this.highlightEl.classList.remove(HIDDEN_CLASS);
             this.highlightEl.setCssStyles({
-                top: `${resolution.preview.highlightRect.top}px`,
-                left: `${resolution.preview.highlightRect.left}px`,
-                width: `${resolution.preview.highlightRect.width}px`,
-                height: `${resolution.preview.highlightRect.height}px`,
+                top: `${mark.preview.highlightRect.top}px`,
+                left: `${mark.preview.highlightRect.left}px`,
+                width: `${mark.preview.highlightRect.width}px`,
+                height: `${mark.preview.highlightRect.height}px`,
             });
         } else {
             this.highlightEl.classList.add(HIDDEN_CLASS);

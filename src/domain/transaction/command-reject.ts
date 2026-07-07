@@ -7,7 +7,6 @@ export type CommandRejectReason =
     | 'self_embedding'
     | 'no_insert_text'
     | 'insertion_inside_deleted_range'
-    | 'missing_move_planner_deps'
     | 'unsupported_command'
     | InsertionRuleRejectReason;
 

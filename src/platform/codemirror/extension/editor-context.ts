@@ -1,4 +1,4 @@
-﻿import { EditorState } from '@codemirror/state';
+import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../../domain/block/block-types';
 import { createLineParsingContext } from '../../../domain/markdown/line-parsing-service';
@@ -27,10 +27,10 @@ export function createEditorContext(view: EditorView) {
         view,
         tabSize,
         selection,
-        parseLineWithQuote: lineParsing.parseLine,
+        parseLine: lineParsing.parseLine,
         getAdjustedTargetLocation: (lineNumber: number, options?: { clientY?: number }) =>
             getAdjustedTargetLocation(view, lineNumber, options),
-        resolveDropRuleAtInsertion: (
+        slotAt: (
             sourceBlock: BlockInfo,
             targetLineNumber: number,
             options?: Parameters<typeof resolveDropRuleAtInsertion>[3]
@@ -38,9 +38,9 @@ export function createEditorContext(view: EditorView) {
             ...options,
             tabSize,
         }),
-        getListContext: getListContextForDoc,
-        getIndentUnitWidth: lineParsing.getIndentUnitWidth,
-        getIndentUnitWidthForDoc: lineParsing.getIndentUnitWidthForDoc,
+        listCtx: getListContextForDoc,
+        indentUnit: lineParsing.getIndentUnitWidth,
+        indentUnitForDoc: lineParsing.getIndentUnitWidthForDoc,
         getBlockInfoForEmbed: (element: HTMLElement) => selection.getBlockInfoForEmbed(element),
         getLineRect: (lineNumber: number) => getLineRect(view, lineNumber),
         getInsertionAnchorY: (lineNumber: number) => getInsertionAnchorY(view, lineNumber),
@@ -48,7 +48,7 @@ export function createEditorContext(view: EditorView) {
             getLineIndentPosByWidth(view, lineParsing, lineNumber, width),
         getBlockRect: (startLineNumber: number, endLineNumber: number) =>
             getBlockRect(view, startLineNumber, endLineNumber),
-        buildInsertText: (
+        insertText: (
             doc: DocLike,
             sourceBlock: BlockInfo,
             targetLineNumber: number,

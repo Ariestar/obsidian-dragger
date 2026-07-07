@@ -1,4 +1,4 @@
-﻿import { EditorView } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import { BlockInfo } from '../../../domain/block/block-types';
 import type { HoverContentRect, HoverPointerSnapshot } from '../extension/hover-pointer-types';
 import {

@@ -1,5 +1,5 @@
 import type { EditorView } from '@codemirror/view';
-import type { DraggerInputSource } from '../../../drag/controller';
+import type { DraggerInputSource } from '../../../drag/runtime';
 import { readPointerInput } from './pointer-hit-test';
 
 /**

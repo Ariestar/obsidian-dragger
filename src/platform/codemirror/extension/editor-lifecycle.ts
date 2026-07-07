@@ -1,4 +1,4 @@
-﻿import { EditorView } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import { prewarmFenceScan } from '../../../domain/markdown/fence-scanner';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import {

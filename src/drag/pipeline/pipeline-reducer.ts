@@ -9,7 +9,7 @@ import {
     createBlockRangeSelectionState,
     updateBlockRangeSelectionState,
     type BlockRangeSelectionState,
-} from '../selection/block-range-selection';
+} from '../../domain/selection/block-range-selection';
 import { drop, dragOver, startDragDrop } from './pipeline-drop';
 import { clearSelection, cancelPipeline, destroyPipeline, exitForUnavailableGuard } from './pipeline-exit';
 import { withGuardDeps } from './pipeline-guard';

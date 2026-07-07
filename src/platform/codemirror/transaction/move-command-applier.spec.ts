@@ -124,11 +124,11 @@ function createLinkedViews(state: EditorState): {
 function createTextMutationDeps(view: EditorView) {
     const lineParsing = createLineParsingContext(view.state.facet(EditorState.tabSize));
     return {
-        parseLineWithQuote: lineParsing.parseLine,
-        getListContext: (doc: EditorState['doc'], lineNumber: number) =>
+        parseLine: lineParsing.parseLine,
+        listCtx: (doc: EditorState['doc'], lineNumber: number) =>
             getListContext(doc, lineNumber, lineParsing.parseLine),
-        getIndentUnitWidth: lineParsing.getIndentUnitWidth,
-        buildInsertText: (
+        indentUnit: lineParsing.getIndentUnitWidth,
+        insertText: (
             doc: EditorState['doc'],
             source: BlockInfo,
             targetLineNumber: number,
@@ -166,14 +166,14 @@ describe('applyMoveCommand', () => {
         const view = { state, dispatch } as unknown as EditorView;
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: false },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         applier.applyMoveCommand({
@@ -191,14 +191,14 @@ describe('applyMoveCommand', () => {
         const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         applier.applyMoveCommand({
@@ -226,14 +226,14 @@ describe('applyMoveCommand', () => {
         const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
         const applier = createApplier({
             view: targetView,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         applier.applyMoveCommand({
@@ -256,14 +256,14 @@ describe('applyMoveCommand', () => {
         };
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
             blockFoldState,
         });
 
@@ -297,14 +297,14 @@ describe('applyMoveCommand', () => {
         };
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
             blockFoldState,
         });
 
@@ -335,14 +335,14 @@ describe('applyMoveCommand', () => {
         };
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
             blockFoldState,
         });
 
@@ -365,14 +365,14 @@ describe('applyMoveCommand', () => {
         };
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
             blockFoldState,
         });
 
@@ -397,14 +397,14 @@ describe('applyMoveCommand', () => {
         const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
         const applier = createApplier({
             view: targetView,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         const line2 = sourceInitialState.doc.line(2);
@@ -436,14 +436,14 @@ describe('applyMoveCommand', () => {
         const { view, getState, dispatch } = createMutableView(initialState);
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         const line2 = initialState.doc.line(2);
@@ -475,7 +475,7 @@ describe('applyMoveCommand', () => {
         const textMutation = createTextMutationDeps(view);
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
@@ -514,14 +514,14 @@ describe('applyMoveCommand', () => {
         };
         const applier = createApplier({
             view: targetView,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
             blockFoldState,
         });
 
@@ -553,14 +553,14 @@ describe('applyMoveCommand', () => {
         );
         const applier = createApplier({
             view: targetView,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         applier.applyMoveCommand({
@@ -592,14 +592,14 @@ describe('applyMoveCommand', () => {
         };
         const applier = createApplier({
             view: targetView,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
             blockFoldState,
         });
 
@@ -648,14 +648,14 @@ describe('applyMoveCommand', () => {
         const view = { state, dispatch } as unknown as EditorView;
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         applier.applyMoveCommand({
@@ -673,14 +673,14 @@ describe('applyMoveCommand', () => {
         const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         const line2 = state.doc.line(2);
@@ -718,7 +718,7 @@ describe('applyMoveCommand', () => {
         const applier = createApplier({
             view,
             ...createTextMutationDeps(view),
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
@@ -743,14 +743,14 @@ describe('applyMoveCommand', () => {
         const view = { state, dispatch } as unknown as EditorView;
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         const line2 = state.doc.line(2);
@@ -783,14 +783,14 @@ describe('applyMoveCommand', () => {
         );
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         applier.applyMoveCommand({
@@ -810,14 +810,14 @@ describe('applyMoveCommand', () => {
         );
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         applier.applyMoveCommand({
@@ -837,14 +837,14 @@ describe('applyMoveCommand', () => {
         );
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         applier.applyMoveCommand({
@@ -864,14 +864,14 @@ describe('applyMoveCommand', () => {
         );
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         applier.applyMoveCommand({
@@ -891,14 +891,14 @@ describe('applyMoveCommand', () => {
         );
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         applier.applyMoveCommand({
@@ -918,14 +918,14 @@ describe('applyMoveCommand', () => {
         );
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         applier.applyMoveCommand({
@@ -945,14 +945,14 @@ describe('applyMoveCommand', () => {
         );
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         applier.applyMoveCommand({
@@ -972,14 +972,14 @@ describe('applyMoveCommand', () => {
         );
         const applier = createApplier({
             view,
-            resolveDropRuleAtInsertion: () => ({
+            slotAt: () => ({
                 slotContext: 'outside',
                 decision: { allowDrop: true },
             }),
-            parseLineWithQuote: (line) => parseLineWithQuote(line, 4),
-            getListContext: () => null,
-            getIndentUnitWidth: () => 2,
-            buildInsertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
+            parseLine: (line) => parseLineWithQuote(line, 4),
+            listCtx: () => null,
+            indentUnit: () => 2,
+            insertText: (_doc, _sourceBlock, _targetLineNumber, sourceContent) => `${sourceContent}\n`,
         });
 
         applier.applyMoveCommand({

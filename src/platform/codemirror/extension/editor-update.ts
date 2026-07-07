@@ -1,4 +1,4 @@
-﻿import { ViewUpdate } from '@codemirror/view';
+import { ViewUpdate } from '@codemirror/view';
 import { HandleVisibilityController } from '../preview/handle-visibility-controller';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 

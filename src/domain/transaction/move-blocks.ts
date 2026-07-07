@@ -1,15 +1,12 @@
 import type { BlockInfo } from '../block/block-types';
-import type { DocLike, DocLikeWithRange, ListContext, ParsedLine } from '../markdown/document-types';
-import type { DropTarget, ListDropTarget } from '../command/drop-target';
-import { clampTargetLineNumber } from '../markdown/line-target-number';
-import { getLineMap } from '../markdown/line-map';
-import type { InsertionSlotContext } from '../rules/insertion-rules';
-import { validateInPlaceDrop } from '../rules/drop-validation';
+import type { DocLikeWithRange } from '../markdown/document-types';
+import type { ListDropTarget } from '../command/drop-target';
 import { resolveDeleteRange, resolveInsertionChange } from '../mutation/document-change';
 import { normalizeCompositeRanges, type CompositeLineRange } from '../selection/selection-ranges';
-import { createBlockSelection, type BlockSelection } from '../selection/block-selection';
+import type { BlockSelection } from '../selection/block-selection';
+import type { MoveDeps, MovePlan } from '../move/move-plan';
 import type { BlockTransaction } from './block-transaction';
-import { rejectCommand, type CommandReject, type CommandRejectReason } from './command-reject';
+import { rejectCommand, type CommandReject } from './command-reject';
 
 export type MoveSourceSegment = {
     startLineNumber: number;
@@ -30,28 +27,6 @@ export type CapturedMoveSource = {
     block: BlockInfo;
     payload: MoveSourcePayload;
 };
-
-export interface MoveBlocksPlannerDeps {
-    resolveDropRuleAtInsertion: (
-        sourceBlock: BlockInfo,
-        targetLineNumber: number,
-        options: { lineMap?: ReturnType<typeof getLineMap>; tabSize: number }
-    ) => {
-        slotContext: InsertionSlotContext;
-        decision: { allowDrop: boolean; rejectReason?: CommandRejectReason | null };
-    };
-    parseLineWithQuote: (line: string) => ParsedLine;
-    getListContext: (doc: DocLike, lineNumber: number) => ListContext;
-    getIndentUnitWidth: (sample: string) => number;
-    buildInsertText: (
-        doc: DocLike,
-        sourceBlock: BlockInfo,
-        targetLineNumber: number,
-        sourceContent: string,
-        listIntent?: ListDropTarget
-    ) => string;
-    tabSize: number;
-}
 
 export function captureMoveSource(doc: DocLikeWithRange, selection: BlockSelection): CapturedMoveSource | null {
     const payload = captureMoveSourcePayload(doc, selection);
@@ -101,78 +76,26 @@ export function captureMoveSourcePayload(doc: DocLikeWithRange, selection: Block
     return { content, ranges, segments };
 }
 
-export function planMoveBlocksTransaction(params: {
-    doc: DocLikeWithRange;
-    selection: BlockSelection;
-    target: DropTarget;
-    deps: MoveBlocksPlannerDeps;
-}): BlockTransaction | CommandReject {
-    const { doc, selection, target, deps } = params;
-    const capturedSource = captureMoveSource(doc, selection);
-    if (!capturedSource) return rejectCommand('empty_selection');
-    return planCapturedMoveBlocksTransaction({
-        doc,
-        capturedSource,
-        target,
-        deps,
-    });
-}
-
-export function planCapturedMoveBlocksTransaction(params: {
-    doc: DocLikeWithRange;
-    capturedSource: CapturedMoveSource;
-    target: DropTarget;
-    deps: MoveBlocksPlannerDeps;
-    mode?: 'same-document' | 'insert-only';
-}): BlockTransaction | CommandReject {
-    const { doc, capturedSource, target, deps } = params;
-    const { block: sourceBlock, payload } = capturedSource;
-    const targetLineNumber = clampTargetLineNumber(doc.lines, target.targetLineNumber);
-    const lineMap = getLineMap({ doc }, { tabSize: deps.tabSize });
-    const containerRule = deps.resolveDropRuleAtInsertion(sourceBlock, targetLineNumber, {
-        lineMap,
-        tabSize: deps.tabSize,
-    });
-    if (!containerRule.decision.allowDrop) {
-        return rejectCommand(containerRule.decision.rejectReason ?? 'container_policy');
-    }
-
-    const mode = params.mode ?? 'same-document';
-    if (mode === 'same-document') {
-        const inPlaceValidation = validateInPlaceDrop({
+export function moveTx(doc: DocLikeWithRange, plan: MovePlan): BlockTransaction | CommandReject {
+    if (plan.mode === 'insert-only') {
+        return planInsertOnlyTransaction({
             doc,
-            source: createBlockSelection(sourceBlock, payload.ranges),
-            targetLineNumber,
-            parseLineWithQuote: deps.parseLineWithQuote,
-            getListContext: deps.getListContext,
-            getIndentUnitWidth: deps.getIndentUnitWidth,
-            slotContext: containerRule.slotContext,
-            lineMap,
-            listIntent: target.listIntent,
-        });
-        const allowInPlaceIndentChange = inPlaceValidation.allowInPlaceIndentChange;
-        if (inPlaceValidation.inSelfRange && !allowInPlaceIndentChange) {
-            return rejectCommand(inPlaceValidation.rejectReason ?? 'self_range_blocked');
-        }
-
-        return planInsertionAndDeletionTransaction({
-            doc,
-            sourceBlock,
-            payload,
-            targetLineNumber,
-            listIntent: target.listIntent,
-            deps,
-            allowInPlaceIndentChange,
+            sourceBlock: plan.captured.block,
+            payload: plan.captured.payload,
+            targetLineNumber: plan.targetLineNumber,
+            listIntent: plan.target.listIntent,
+            deps: plan.deps,
         });
     }
 
-    return planInsertOnlyTransaction({
+    return planInsertionAndDeletionTransaction({
         doc,
-        sourceBlock,
-        payload,
-        targetLineNumber,
-        listIntent: target.listIntent,
-        deps,
+        sourceBlock: plan.captured.block,
+        payload: plan.captured.payload,
+        targetLineNumber: plan.targetLineNumber,
+        listIntent: plan.target.listIntent,
+        deps: plan.deps,
+        allowInPlaceIndentChange: plan.allowIndent,
     });
 }
 
@@ -182,12 +105,12 @@ function planInsertionAndDeletionTransaction(params: {
     payload: MoveSourcePayload;
     targetLineNumber: number;
     listIntent?: ListDropTarget;
-    deps: MoveBlocksPlannerDeps;
+    deps: MoveDeps;
     allowInPlaceIndentChange: boolean;
 }): BlockTransaction | CommandReject {
     const { doc, sourceBlock, payload, targetLineNumber, listIntent, deps, allowInPlaceIndentChange } = params;
 
-    const insertText = deps.buildInsertText(
+    const insertText = deps.insertText(
         doc,
         sourceBlock,
         targetLineNumber,
@@ -236,10 +159,10 @@ function planInsertOnlyTransaction(params: {
     payload: MoveSourcePayload;
     targetLineNumber: number;
     listIntent?: ListDropTarget;
-    deps: MoveBlocksPlannerDeps;
+    deps: MoveDeps;
 }): BlockTransaction | CommandReject {
     const { doc, sourceBlock, payload, targetLineNumber, listIntent, deps } = params;
-    const insertText = deps.buildInsertText(
+    const insertText = deps.insertText(
         doc,
         sourceBlock,
         targetLineNumber,

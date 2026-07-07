@@ -11,19 +11,15 @@ import {
 import {
     captureMoveSource,
     type CapturedMoveSource,
-    type MoveBlocksPlannerDeps,
+    moveTx,
 } from '../../../domain/transaction/move-blocks';
-import {
-    planBlockCommandTransaction,
-    planCapturedMoveCommandTransaction,
-} from '../../../domain/transaction/block-command-transaction';
 import { planOrderedListRenumberChanges } from '../../../domain/transaction/list-renumber';
 import type { BlockEffect } from '../../../domain/transaction/block-transaction';
-import type { DragDocumentRelation } from '../../../domain/decision/drop-decision';
+import { planMove, type DocRelation, type MoveDeps } from '../../../domain/move/move-plan';
 import { applyBlockTransaction } from './transaction-applier';
 import type { CapturedBlockFoldState, BlockFoldStateManager } from '../../obsidian/block-fold-state';
 
-export interface MoveCommandApplierDeps extends MoveBlocksPlannerDeps {
+export interface MoveCommandApplierDeps extends MoveDeps {
     view: EditorView;
     blockFoldState?: BlockFoldStateManager;
 }
@@ -31,7 +27,7 @@ export interface MoveCommandApplierDeps extends MoveBlocksPlannerDeps {
 export type MoveCommandParams = {
     command: MoveBlockCommand;
     sourceView?: EditorView;
-    sourceDocumentRelation?: DragDocumentRelation;
+    sourceDocumentRelation?: DocRelation;
     capturedBlockFoldStateOverride?: CapturedBlockFoldState | null;
 };
 
@@ -77,7 +73,17 @@ export function applyMoveCommand(deps: MoveCommandApplierDeps, params: MoveComma
             insertedLineCount: capturedSource.payload.content.split('\n').length,
         })
         : null;
-    const planned = planBlockCommandTransaction({ doc, command, deps });
+    const plan = planMove({
+        doc,
+        selection,
+        target: command.target,
+        deps,
+        scope: sourceView && sourceView !== deps.view ? 'cross_editor' : 'same_editor',
+        relation: sourceDocumentRelation,
+        crossFile: true,
+    });
+    if (plan.type === 'reject') return;
+    const planned = moveTx(doc, plan.value);
     if (isReject(planned)) return;
     applyBlockTransaction(deps.view, planned, { anchor: capturedSource.block.from });
     applyMovePostEffects(deps, planned.effects);
@@ -108,13 +114,18 @@ export function applyMoveCommandAcrossEditors(params: CrossEditorMoveCommandPara
     if (sourceView === targetView) return;
 
     const targetDoc = targetView.state.doc as unknown as DocLikeWithRange;
-    const planned = planCapturedMoveCommandTransaction({
+    const plan = planMove({
         doc: targetDoc,
-        capturedSource: { block: sourceBlock, payload: moveSourcePayload },
-        command,
+        selection: command.selection,
+        target: command.target,
         deps,
-        mode: 'insert-only',
+        scope: 'cross_editor',
+        relation: 'different_document',
+        crossFile: true,
+        captured: { block: sourceBlock, payload: moveSourcePayload },
     });
+    if (plan.type === 'reject') return;
+    const planned = moveTx(targetDoc, plan.value);
     if (isReject(planned)) return;
 
     applyBlockTransaction(targetView, { ...planned, changes: planned.changes.filter((change) => change.insert.length > 0) }, {
@@ -139,7 +150,7 @@ function applyMovePostEffects(deps: MoveCommandApplierDeps, effects: BlockEffect
     for (const lineNumber of renumberLineNumbers) {
         const changes = planOrderedListRenumberChanges(
             deps.view.state.doc,
-            deps.parseLineWithQuote,
+            deps.parseLine,
             lineNumber
         );
         if (changes.length > 0) {
@@ -195,4 +206,4 @@ function resolveDisplacedTargetBlock(view: EditorView, targetLineNumber: number)
     return nextBlock;
 }
 
-export type { MoveBlocksPlannerDeps };
+export type { MoveDeps };

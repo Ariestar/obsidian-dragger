@@ -1,4 +1,4 @@
-﻿import { Extension } from '@codemirror/state';
+import { Extension } from '@codemirror/state';
 import {
     BlockInfo,
     EditorView,

@@ -11,16 +11,16 @@ import { computeListIndentPlan } from '../mutation/list-mutation';
 import { DocLike, ListContext, ParsedLine } from '../markdown/document-types';
 import { normalizeCompositeRanges } from '../selection/selection-ranges';
 
-export type InPlaceDropRejectReason =
+export type SelfDropRejectReason =
     | 'self_range_blocked'
     | 'self_embedding'
     | 'container_policy'
     | InsertionRuleRejectReason;
 
-export type InPlaceDropValidationResult = {
+export type SelfDropResult = {
     inSelfRange: boolean;
     allowInPlaceIndentChange: boolean;
-    rejectReason?: InPlaceDropRejectReason;
+    rejectReason?: SelfDropRejectReason;
     listContextLineNumber?: number;
     targetIndentWidth?: number;
 };
@@ -48,7 +48,7 @@ function sourceRangesAreListStructured(params: {
     return true;
 }
 
-export function validateInPlaceDrop(params: {
+export function selfDrop(params: {
     doc: DocLike;
     source: BlockSelection;
     targetLineNumber: number;
@@ -58,7 +58,7 @@ export function validateInPlaceDrop(params: {
     slotContext?: InsertionSlotContext;
     lineMap?: LineMap;
     listIntent?: ListDropTarget;
-}): InPlaceDropValidationResult {
+}): SelfDropResult {
     const {
         doc,
         source,

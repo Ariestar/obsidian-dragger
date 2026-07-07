@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createBlockSelection } from '../../domain/selection/block-selection';
 import { BlockType, type BlockInfo } from '../block/block-types';
-import { validateInPlaceDrop } from './drop-validation';
+import { selfDrop } from './self-drop';
 import { getLineMap } from '../markdown/line-map';
 import { parseLineWithQuote } from '../markdown/line-parser';
 
@@ -30,10 +30,10 @@ function selectionFromBlock(block: BlockInfo, ranges = [{ startLine: block.start
     return createBlockSelection(block, ranges);
 }
 
-describe('drop-validation', () => {
+describe('selfDrop', () => {
     it('uses insertion matrix to reject invalid container drops', () => {
         const sourceBlock = createBlock(BlockType.Paragraph, 0, 0, 'plain');
-        const result = validateInPlaceDrop({
+        const result = selfDrop({
             doc: createDoc(['- list item']),
             source: selectionFromBlock(sourceBlock),
             targetLineNumber: 1,
@@ -51,7 +51,7 @@ describe('drop-validation', () => {
         const state = { doc: createDoc(['- root', '  - child', 'tail']) };
         const sourceBlock = createBlock(BlockType.ListItem, 0, 1, '- root\n  - child');
         const source = selectionFromBlock(sourceBlock);
-        const withoutMap = validateInPlaceDrop({
+        const withoutMap = selfDrop({
             doc: state.doc,
             source,
             targetLineNumber: 2,
@@ -65,7 +65,7 @@ describe('drop-validation', () => {
                 targetIndentWidth: 0,
             },
         });
-        const withMap = validateInPlaceDrop({
+        const withMap = selfDrop({
             doc: state.doc,
             source,
             targetLineNumber: 2,
@@ -91,7 +91,7 @@ describe('drop-validation', () => {
             { startLine: 6, endLine: 6 },
         ]);
 
-        const inGap = validateInPlaceDrop({
+        const inGap = selfDrop({
             doc: createDoc(['0', 'a', 'b', 'c', 'd', 'e', 'z', 'tail']),
             source,
             targetLineNumber: 4,
@@ -102,7 +102,7 @@ describe('drop-validation', () => {
         expect(inGap.inSelfRange).toBe(false);
         expect(inGap.allowInPlaceIndentChange).toBe(false);
 
-        const inSelectedRange = validateInPlaceDrop({
+        const inSelectedRange = selfDrop({
             doc: createDoc(['0', 'a', 'b', 'c', 'd', 'e', 'z', 'tail']),
             source,
             targetLineNumber: 2,
@@ -121,7 +121,7 @@ describe('drop-validation', () => {
             { startLine: 1, endLine: 1 },
         ]);
 
-        const result = validateInPlaceDrop({
+        const result = selfDrop({
             doc: createDoc(['- root', '  - child', 'after']),
             source,
             targetLineNumber: 3,
@@ -147,7 +147,7 @@ describe('drop-validation', () => {
             { startLine: 2, endLine: 2 },
         ]);
 
-        const result = validateInPlaceDrop({
+        const result = selfDrop({
             doc: createDoc(['- root', 'paragraph', '- child', 'after']),
             source,
             targetLineNumber: 4,
