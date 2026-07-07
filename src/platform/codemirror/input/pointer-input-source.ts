@@ -1,6 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import type { DraggerInputSource } from '../../../drag/runtime';
-import { readPointerInput } from './pointer-hit-test';
+import { readPointerInput } from './pointer-input';
 
 /**
  * DOM pointer/keyboard events → normalized DraggerInputSource. Pure plumbing:

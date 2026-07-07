@@ -3,16 +3,19 @@ import DragNDropPlugin from '../../../plugin/main';
 import {
     MOBILE_GESTURE_LOCK_CLASS,
     DRAGGING_BODY_CLASS,
-    DRAG_HANDLE_CLASS,
 } from '../../../shared/dom-selectors';
 import { DropIndicatorManager } from '../preview/drop-indicator';
 import { getVisibleHandleForBlockStart } from '../preview/handle-renderer';
 import { HandleVisibilityController } from '../preview/handle-visibility-controller';
-import { DraggerRuntime, type DragPreview, type DraggerPressInput } from '../../../drag/runtime';
+import { DraggerRuntime } from '../../../drag/runtime';
 import { buildIdleLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './editor-context';
+import { codeMirrorDocument } from './editor-document';
+import { codeMirrorLocate } from './editor-locate';
+import { codeMirrorPreview } from './editor-preview';
+import { codeMirrorRuntimeConfig } from './runtime-config';
 
 import type { DragLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../../../shared/dom-attrs';
@@ -28,7 +31,7 @@ import { destroyViewLifecycle, startViewLifecycle } from './editor-lifecycle';
 import { placeHandleGutterForConfiguredSide } from './gutter';
 import { GlobalPointerMoveClient } from './global-pointermove-router';
 import { createHoverPointerSnapshot, HoverPointerSnapshot } from './hover-pointer-snapshot';
-import { createPointerInputSource, nativePointerEvent } from '../input/pointer-input-source';
+import { createPointerInputSource } from '../input/pointer-input-source';
 
 class DragLifecycleEmitter {
     private lastSignature: string | null = null;
@@ -98,26 +101,10 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             );
             this.dragController = new DraggerRuntime({
                 input: createPointerInputSource(this.view),
-                doc: {
-                    getDoc: () => this.view.state.doc,
-                    applyChanges: (changes) => this.view.dispatch({ changes }),
-                },
-                locate: {
-                    sourceLineFromInput: (input) => this.sourceLineFromInput(input),
-                    targetLineFromPoint: (point) => this.context.selection.getLineNumberAtVerticalPosition(
-                        point.y,
-                        this.view.contentDOM.getBoundingClientRect()
-                    ),
-                },
-                preview: (preview) => this.handleRuntimePreview(preview),
-                config: () => ({
-                    tabSize: this.context.tabSize,
-                    longPressMs: plugin.isMobilePlatform()
-                        ? plugin.settings.mobileDragLongPressMs
-                        : plugin.settings.mouseRangeSelectLongPressMs,
-                    dragStartMoveThresholdPx: plugin.isMobilePlatform() ? 8 : 4,
-                    dragCancelMoveThresholdPx: plugin.isMobilePlatform() ? 12 : Number.POSITIVE_INFINITY,
-                }),
+                document: codeMirrorDocument(this.view),
+                locate: codeMirrorLocate(this.view, this.context),
+                preview: codeMirrorPreview(this.context, this.dropIndicator),
+                config: codeMirrorRuntimeConfig(plugin, this.context),
             });
 
             this.semanticRefreshScheduler = new SemanticRefreshScheduler(this.view, {
@@ -181,37 +168,6 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
 
         private emitDragLifecycle(event: DragLifecycleEvent): void {
             this.lifecycleEmitter.emit(event);
-        }
-
-        private sourceLineFromInput(input: DraggerPressInput): number | null {
-            const event = nativePointerEvent(input.native);
-            const target = event?.target instanceof HTMLElement ? event.target : null;
-            const handle = target?.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
-            if (!handle) return null;
-            const blockStart = Number(handle.getAttribute('data-block-start'));
-            return Number.isInteger(blockStart) ? blockStart + 1 : null;
-        }
-
-        private handleRuntimePreview(preview: DragPreview | null): void {
-            if (!preview || !preview.allowed || preview.targetLineNumber === null) {
-                this.dropIndicator.hide();
-                return;
-            }
-            const indicatorY = this.context.getInsertionAnchorY(preview.targetLineNumber);
-            if (indicatorY === null) {
-                this.dropIndicator.hide();
-                return;
-            }
-            this.dropIndicator.scheduleRender({
-                target: {
-                    targetLineNumber: preview.targetLineNumber,
-                    placement: 'before',
-                },
-                preview: {
-                    indicatorY,
-                    lineRect: this.context.getLineRect(preview.targetLineNumber),
-                },
-            }, preview.source, null);
         }
 
         private handleDocumentPointerMove(e: PointerEvent): void {

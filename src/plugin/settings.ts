@@ -226,16 +226,6 @@ export class DragNDropSettingTab extends PluginSettingTab {
             onChange: async (v) => { this.plugin.settings.multiLineSelectionLongPressMs = v; await this.plugin.saveSettings(); },
         });
 
-        new Setting(containerEl)
-            .setName(i.enableCrossFileDrag)
-            .setDesc(i.enableCrossFileDragDesc)
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.enableCrossFileDrag)
-                .onChange(async (value) => {
-                    this.plugin.settings.enableCrossFileDrag = value;
-                    await this.plugin.saveSettings();
-                }));
-
         this.addNumericSetting(containerEl, {
             name: i.mobileDragLongPressMs, desc: i.mobileDragLongPressMsDesc,
             ...NUMERIC_SETTING_RANGES.mobileDragLongPressMs,

@@ -43,5 +43,4 @@ export const RANGE_SELECTED_HANDLE_CLASS = 'dnd-range-selected-handle';
 export const MOBILE_SELECTION_RESIZE_HANDLE_CLASS = 'dnd-mobile-selection-resize-handle';
 export const MOBILE_SELECTION_RESIZE_HANDLE_TOP_CLASS = 'dnd-mobile-selection-resize-handle-top';
 export const MOBILE_SELECTION_RESIZE_HANDLE_BOTTOM_CLASS = 'dnd-mobile-selection-resize-handle-bottom';
-export const FILE_DROP_TARGET_CLASS = 'dnd-file-drop-target';
 export const MOBILE_GESTURE_LOCK_CLASS = 'dnd-mobile-gesture-lock';

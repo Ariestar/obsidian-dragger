@@ -47,7 +47,7 @@ describe('headless drag architecture boundaries', () => {
     });
 
     it('does not keep host DOM/event types in drag production code', () => {
-        const forbidden = /\b(?:EditorView|HTMLElement|PointerEvent|MouseEvent|KeyboardEvent|FocusEvent|TouchEvent|DOMRect|clientX|clientY)\b|\b(?:document|window)\.|view\.dispatch|\bdispatch\s*\(|addEventListener|removeEventListener|querySelector|classList|getBoundingClientRect/;
+        const forbidden = /\b(?:EditorView|HTMLElement|PointerEvent|MouseEvent|KeyboardEvent|FocusEvent|TouchEvent|DOMRect|clientX|clientY)\b|(?<!options\.)\bdocument\.|\bwindow\.|view\.dispatch|\bdispatch\s*\(|addEventListener|removeEventListener|querySelector|classList|getBoundingClientRect/;
         const offenders = readDragProductionFiles()
             .filter((file) => forbidden.test(file.text))
             .map((file) => file.rel);

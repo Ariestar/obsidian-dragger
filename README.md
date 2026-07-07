@@ -46,20 +46,19 @@ npm install md-dragger
 Stable entry points:
 
 ```ts
-import { createDragPipeline } from 'md-dragger/drag';
-import { createMoveCommand, planBlockCommandTransaction } from 'md-dragger/domain';
-import { getLineMap, parseLineWithQuote } from 'md-dragger/markdown';
+import { DraggerRuntime } from 'md-dragger/drag';
 ```
 
-For another editor platform, adapt host events into core values:
+For another editor platform, provide only input, document access, line locating, and preview rendering:
 
-- `BlockSelection`
-- `DragDropSnapshot`
-- `DropResolution`
-- `PipelineEvent`
-- `PipelineOutput`
-
-`previewData` on `DragDropSnapshot<TPreview>` is platform-private rendering data. For example, CodeMirror stores the resolved drop-indicator geometry there. The core keeps the type and passes it back on `PipelineOutput`; it never reads or mutates that data.
+```ts
+new DraggerRuntime({
+  input,
+  document: { getDoc, applyChanges },
+  locate: { sourceLineFromInput, targetLineFromPoint },
+  preview,
+});
+```
 
 ## Usage
 
@@ -89,7 +88,6 @@ For another editor platform, adapt host events into core values:
 | **Indicator color** | Follow theme accent or pick a custom color | Theme |
 | **Multi-line selection** | Enable range-select-then-drag workflow | On |
 | **Mobile text long-press drag** | On mobile, long-press a text line or rendered block content to drag a single block directly | On |
-| **Cross-file drag** | Allow dragging blocks into another open file editor | Off |
 | **Drag source visual style** | Shared style set used by drag-source and list-drop highlights (Outline only / Subtle highlight / Filled highlight) | Subtle highlight |
 | **Drag source highlight** | Toggle highlight for the block being dragged | On |
 | **List drop highlight** | Toggle highlight for list drop target area | On |

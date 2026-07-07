@@ -14,7 +14,6 @@ export interface DragNDropSettings {
     handleSize: number;
     indicatorColorMode: 'theme' | 'custom';
     indicatorColor: string;
-    enableCrossFileDrag: boolean;
     enableMultiLineSelection: boolean;
     multiLineSelectionLongPressMs: number;
     mobileDragLongPressMs: number;
@@ -61,7 +60,6 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     handleSize: DEFAULT_HANDLE_SIZE_PX,
     indicatorColorMode: 'theme',
     indicatorColor: '#7a7a7a',
-    enableCrossFileDrag: true,
     enableMultiLineSelection: true,
     multiLineSelectionLongPressMs: DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS,
     mobileDragLongPressMs: 200,

@@ -16,7 +16,7 @@ import type { DragNDropSettings, NumericSettingKey } from './settings-types';
  */
 
 const SCHEMA_VERSION_KEY = 'schemaVersion';
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 
 type RawSettings = Record<string, unknown>;
 
@@ -70,6 +70,12 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
         if (next.mouseRangeSelectLongPressMs === 260) {
             next.mouseRangeSelectLongPressMs = DEFAULT_SETTINGS.mouseRangeSelectLongPressMs;
         }
+        return next;
+    },
+    // v3 -> v4: remove the old cross-file drag toggle and its implementation.
+    (data) => {
+        const next = { ...data };
+        delete next.enableCrossFileDrag;
         return next;
     },
 ];

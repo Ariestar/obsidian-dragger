@@ -1,6 +1,5 @@
 import { MarkdownView, Plugin, setIcon } from 'obsidian';
 import { dragHandleExtension } from '../platform/codemirror/extension/editor-extension';
-import { ExternalFileDropController } from '../platform/obsidian/external-file-drop-controller';
 import {
     HANDLE_CORE_SIZE_RATIO,
     GRIP_DOTS_CORE_SIZE_RATIO,
@@ -41,9 +40,6 @@ export default class DragNDropPlugin extends Plugin {
         this.registerEvent(this.app.workspace.on('layout-change', () => this.registerMobileDragModeActions()));
         this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.registerMobileDragModeActions()));
         this.registerEvent(this.app.workspace.on('file-open', () => this.registerMobileDragModeActions()));
-        const externalFileDropController = new ExternalFileDropController(this);
-        externalFileDropController.register();
-
         // 添加设置面板
         this.addSettingTab(new DragNDropSettingTab(this.app, this));
     }

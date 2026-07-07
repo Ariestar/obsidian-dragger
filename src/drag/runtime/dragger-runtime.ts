@@ -137,7 +137,7 @@ export class DraggerRuntime {
     private handlePress(input: DraggerPressInput): void {
         if (input.button !== undefined && input.button !== 0) return;
 
-        const doc = this.options.doc.getDoc();
+        const doc = this.options.document.getDoc();
         const lineNumber = this.options.locate.sourceLineFromInput(input);
         if (lineNumber === null) return;
 
@@ -231,9 +231,9 @@ export class DraggerRuntime {
         drag.targetLineNumber = this.resolveTargetLine(input.point);
         const planned = this.plan(drag.selection, drag.targetLineNumber);
         if (planned.type === 'ok') {
-            const transaction = moveTx(this.options.doc.getDoc(), planned.value);
+            const transaction = moveTx(this.options.document.getDoc(), planned.value);
             if ('changes' in transaction) {
-                this.options.doc.applyChanges(transaction.changes);
+                this.options.document.applyChanges(transaction.changes);
             }
         }
         this.activeDragSession = null;
@@ -266,13 +266,13 @@ export class DraggerRuntime {
     private resolveTargetLine(point: DragPoint): number | null {
         const lineNumber = this.options.locate.targetLineFromPoint(point);
         if (lineNumber === null) return null;
-        const doc = this.options.doc.getDoc();
+        const doc = this.options.document.getDoc();
         return Math.max(1, Math.min(doc.lines, lineNumber));
     }
 
     private plan(selection: BlockSelection, targetLineNumber: number | null): MoveResult {
         if (targetLineNumber === null) return { type: 'reject', reason: 'no_target' };
-        const doc = this.options.doc.getDoc();
+        const doc = this.options.document.getDoc();
         const tabSize = this.config().tabSize;
         const lineParsing = createLineParsingContext(tabSize);
         return planMove({
@@ -284,7 +284,7 @@ export class DraggerRuntime {
     }
 
     private moveDeps(
-        doc: ReturnType<DraggerRuntimeOptions['doc']['getDoc']>,
+        doc: ReturnType<DraggerRuntimeOptions['document']['getDoc']>,
         lineParsing: ReturnType<typeof createLineParsingContext>
     ): MoveDeps {
         return {

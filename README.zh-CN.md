@@ -46,20 +46,19 @@ npm install md-dragger
 稳定入口：
 
 ```ts
-import { IDLE_PIPELINE_STATE, reducePipeline } from 'md-dragger/drag';
-import { createMoveCommand, planBlockCommandTransaction } from 'md-dragger/domain';
-import { getLineMap, parseLineWithQuote } from 'md-dragger/markdown';
+import { DraggerRuntime } from 'md-dragger/drag';
 ```
 
-接入其他编辑器平台时，平台层只需要把宿主环境翻译成 core 值：
+接入其他编辑器平台时，只需要提供输入、文档读写、行定位和预览渲染：
 
-- `BlockSelection`
-- `DragDropSnapshot`
-- `DropResolution`
-- `PipelineEvent`
-- `PipelineOutput`
-
-`DragDropSnapshot<TPreview>` 里的 `previewData` 是平台私有的渲染数据。例如 CodeMirror 会把落点指示器的几何信息放在这里。core 只保持类型并在 `PipelineOutput` 中原样传回平台，不读取也不修改它。
+```ts
+new DraggerRuntime({
+  input,
+  document: { getDoc, applyChanges },
+  locate: { sourceLineFromInput, targetLineFromPoint },
+  preview,
+});
+```
 
 ## 使用
 
@@ -89,7 +88,6 @@ import { getLineMap, parseLineWithQuote } from 'md-dragger/markdown';
 | **指示器颜色** | 跟随主题强调色或自定义颜色 | 主题色 |
 | **多行选取** | 启用选取后拖拽的工作流 | 开启 |
 | **移动端文本长按拖拽** | 移动端在文本整行或块内容区域长按可直接拖拽单个块 | 开启 |
-| **跨文件拖拽** | 允许将块拖拽到另一个已打开文件的编辑器中 | 关闭 |
 | **拖拽源视觉样式** | 拖拽源高亮和列表落点高亮共用的样式（纯边框 / 简约高亮 / 背景增强） | 简约高亮 |
 | **拖拽源高亮** | 开关拖拽时被拖动块的高亮 | 开启 |
 | **列表落点高亮** | 开关列表拖拽落点区域的高亮 | 开启 |

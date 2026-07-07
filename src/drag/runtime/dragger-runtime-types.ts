@@ -85,7 +85,8 @@ export type DraggerRuntimeConfigInput =
 
 export type DraggerRuntimeOptions = {
     input: DraggerInputSource;
-    doc: {
+    // eslint-disable-next-line obsidianmd/prefer-active-doc
+    document: {
         getDoc(): DocLikeWithRange;
         applyChanges(changes: TextChange[]): void;
     };

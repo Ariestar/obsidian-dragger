@@ -66,7 +66,5 @@ export const ru: ZhCnStrings = {
     mobileDragModeToggleLocations: 'Расположение кнопки',
     mobileDragModeToggleLocationsDesc: 'Выберите, где показывать переключатель режима перетаскивания на мобильном. Можно выбрать несколько вариантов или ни одного',
     optionMobileDragModeToggleViewAction: 'Панель действий',
-    enableCrossFileDrag: 'Перетаскивание между файлами',
-    enableCrossFileDragDesc: 'Разрешить перетаскивание блоков в другой открытый файл',
     mobileOnlyNotice: '⚠️ Эти настройки доступны только на мобильном устройстве',
 };

@@ -96,7 +96,6 @@ const allowedPlatformPluginEdges = new Set([
     'src/platform/codemirror/extension/drag-driver.ts -> ../../../plugin/settings',
     'src/platform/codemirror/extension/drag-driver.ts -> ../../../plugin/block-type-menu',
     'src/platform/codemirror/extension/editor-extension.ts -> ../../../plugin/main',
-    'src/platform/obsidian/external-file-drop-controller.ts -> ../../plugin/main',
     // Platform detection module — shared foundation, imported by both layers.
     'src/platform/codemirror/preview/range-selection-visual-manager.ts -> ../../../plugin/platform',
     'src/platform/codemirror/selection/selection-grip-hit.ts -> ../../../plugin/platform',
@@ -139,7 +138,7 @@ describe('final architecture boundaries', () => {
             .map(edgeKey);
         const hostTypeOffenders = readProductionFiles()
             .filter((file) => file.rel.startsWith('src/drag/'))
-            .filter((file) => /\b(?:EditorView|HTMLElement|PointerEvent|MouseEvent|KeyboardEvent|FocusEvent|TouchEvent|DOMRect|clientX|clientY)\b|\b(?:document|window)\.|view\.dispatch|\bdispatch\s*\(/.test(file.text))
+            .filter((file) => /\b(?:EditorView|HTMLElement|PointerEvent|MouseEvent|KeyboardEvent|FocusEvent|TouchEvent|DOMRect|clientX|clientY)\b|(?<!options\.)\bdocument\.|\bwindow\.|view\.dispatch|\bdispatch\s*\(/.test(file.text))
             .map((file) => file.rel);
         expect(sortedUnique([...importOffenders, ...hostTypeOffenders])).toEqual([]);
     });
