@@ -17,16 +17,17 @@ import type { DragDropSnapshot, DropResolution } from '../pipeline/pipeline-drop
 import type { DragCancelReason } from '../pipeline/pipeline-event';
 import type { PipelineOutput } from '../pipeline/pipeline-output';
 import type { PipelineState } from '../pipeline/pipeline-state';
+import { defaultDraggerRuntimeUx } from './default-ux';
 import {
     type DragPoint,
     type DragPointer,
     type DragTimerToken,
     type DraggerRuntimeConfig,
     type DraggerRuntimeOptions,
-    type DraggerDisposable,
     type DraggerMoveInput,
     type DraggerPressInput,
     type DraggerReleaseInput,
+    type DraggerRuntimeUx,
 } from './dragger-runtime-types';
 
 const DEFAULT_CONFIG: DraggerRuntimeConfig = {
@@ -55,7 +56,7 @@ type ActiveDragSession = {
 };
 
 export class DraggerRuntime {
-    private readonly disposables: DraggerDisposable[] = [];
+    private uxDisposable: (() => void) | null = null;
     private readonly pipeline: DragPipeline = createDragPipeline({
         onOutputs: (outputs) => this.handlePipelineOutputs(outputs),
     });
@@ -70,20 +71,15 @@ export class DraggerRuntime {
         return this.pipeline.state;
     }
 
+    get input() {
+        return this.options.input;
+    }
+
     mount(): void {
         if (this.mounted) return;
         this.mounted = true;
-        this.disposables.push(this.options.input.onPress((input) => this.handlePress(input)));
-        this.disposables.push(this.options.input.onMove((input) => this.handleMove(input)));
-        this.disposables.push(this.options.input.onRelease((input) => this.handleRelease(input)));
-        if (this.options.input.onCancel) {
-            this.disposables.push(this.options.input.onCancel((input) => {
-                this.handleCancel(input.pointer, input.releaseCapture);
-            }));
-        }
-        if (this.options.input.onEscape) {
-            this.disposables.push(this.options.input.onEscape(() => this.clearSelectionOrCancel()));
-        }
+        const ux = this.resolveUx();
+        this.uxDisposable = ux?.mount(this) ?? null;
     }
 
     attach(): void {
@@ -95,9 +91,8 @@ export class DraggerRuntime {
         this.activeDragSession?.releaseCapture?.();
         this.activeDragSession = null;
         this.pipeline.clear();
-        while (this.disposables.length > 0) {
-            this.disposables.pop()?.();
-        }
+        this.uxDisposable?.();
+        this.uxDisposable = null;
         this.mounted = false;
         this.preview(null);
     }
@@ -118,7 +113,7 @@ export class DraggerRuntime {
         return this.pressSession !== null || this.activeDragSession !== null;
     }
 
-    private handlePress(input: DraggerPressInput): void {
+    handlePress(input: DraggerPressInput): void {
         if (input.button !== undefined && input.button !== 0) return;
 
         const doc = this.options.document.getDoc();
@@ -162,7 +157,7 @@ export class DraggerRuntime {
         if (this.config().longPressMs <= 0) this.markPressReady(sessionId, input.pointer);
     }
 
-    private handleMove(input: DraggerMoveInput): void {
+    handleMove(input: DraggerMoveInput): void {
         if (this.activeDragSession) {
             this.handleDragMove(input);
             return;
@@ -196,7 +191,7 @@ export class DraggerRuntime {
         });
     }
 
-    private handleDragMove(input: DraggerMoveInput): void {
+    handleDragMove(input: DraggerMoveInput): void {
         const drag = this.activeDragSession;
         if (!drag || !samePointer(drag.pointer, input.pointer)) return;
         input.claim?.();
@@ -209,7 +204,7 @@ export class DraggerRuntime {
         });
     }
 
-    private handleRelease(input: DraggerReleaseInput): void {
+    handleRelease(input: DraggerReleaseInput): void {
         if (this.activeDragSession && samePointer(this.activeDragSession.pointer, input.pointer)) {
             input.claim?.();
             this.drop(input);
@@ -221,7 +216,7 @@ export class DraggerRuntime {
         }
     }
 
-    private handleCancel(pointer: DragPointer, releaseCapture?: () => void): void {
+    handleCancel(pointer: DragPointer, releaseCapture?: () => void): void {
         if (this.activeDragSession && samePointer(this.activeDragSession.pointer, pointer)) {
             releaseCapture?.();
             this.cancel('pointer_cancelled', pointer.type);
@@ -270,7 +265,7 @@ export class DraggerRuntime {
         this.activeDragSession = null;
     }
 
-    private cancel(reason: DragCancelReason = 'press_cancelled', pointerType: string | null = null): void {
+    cancel(reason: DragCancelReason = 'press_cancelled', pointerType: string | null = null): void {
         const sessionId = this.activeDragSession?.sessionId ?? this.pressSession?.sessionId;
         this.clearPressSession();
         this.activeDragSession?.releaseCapture?.();
@@ -278,7 +273,7 @@ export class DraggerRuntime {
         this.pipeline.enter({ type: 'cancel', sessionId, reason, pointerType });
     }
 
-    private clearSelectionOrCancel(): void {
+    clearSelectionOrCancel(): void {
         if (!this.isGestureActive() && this.pipeline.state.type === 'selecting') {
             this.pipeline.enter({ type: 'selection_clear' });
             return;
@@ -288,6 +283,13 @@ export class DraggerRuntime {
 
     private preview(value: Parameters<NonNullable<DraggerRuntimeOptions['preview']>>[0]): void {
         this.options.preview?.(value);
+    }
+
+    private resolveUx(): DraggerRuntimeUx | null {
+        const ux = this.options.ux ?? 'default';
+        if (ux === 'none') return null;
+        if (ux === 'default') return defaultDraggerRuntimeUx();
+        return typeof ux === 'function' ? ux() : ux;
     }
 
     private resolveTargetLine(point: DragPoint): number | null {

@@ -83,6 +83,25 @@ export type DraggerRuntimeConfigInput =
     | Partial<DraggerRuntimeConfig>
     | (() => Partial<DraggerRuntimeConfig>);
 
+export type DraggerRuntimeController = {
+    readonly input: DraggerInputSource;
+    handlePress(input: DraggerPressInput): void;
+    handleMove(input: DraggerMoveInput): void;
+    handleRelease(input: DraggerReleaseInput): void;
+    handleCancel(pointer: DragPointer, releaseCapture?: () => void): void;
+    clearSelectionOrCancel(): void;
+};
+
+export type DraggerRuntimeUx = {
+    mount(runtime: DraggerRuntimeController): DraggerDisposable | void;
+};
+
+export type DraggerRuntimeUxInput =
+    | 'default'
+    | 'none'
+    | DraggerRuntimeUx
+    | (() => DraggerRuntimeUx);
+
 export type DraggerRuntimeOptions = {
     input: DraggerInputSource;
     // eslint-disable-next-line obsidianmd/prefer-active-doc
@@ -96,6 +115,7 @@ export type DraggerRuntimeOptions = {
     };
     preview?: (preview: DragPreview | null) => void;
     selection?: (selection: BlockSelection | null) => void;
+    ux?: DraggerRuntimeUxInput;
     config?: DraggerRuntimeConfigInput;
     setTimer?: (callback: () => void, delayMs: number) => DragTimerToken;
     clearTimer?: (token: DragTimerToken) => void;
