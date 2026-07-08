@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { prewarmFenceScan } from '../../../domain/markdown/fence-scanner';
+import { prewarmFenceScan } from 'md-dragger/domain/perf';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import {
     GlobalPointerMoveClient,
@@ -22,12 +22,12 @@ export interface ViewLifecycleDestroyDeps {
 }
 
 export interface ViewLifecycleDragController {
-    attach(): void;
+    mount(): void;
     destroy(): void;
 }
 
 export function startViewLifecycle(deps: ViewLifecycleStartDeps): void {
-    deps.dragController.attach();
+    deps.dragController.mount();
     registerGlobalPointerMoveClient(deps.pointerMoveClient);
     window.addEventListener('dnd:settings-updated', deps.onSettingsUpdated);
     scheduleFenceScanWarmup(deps.view);

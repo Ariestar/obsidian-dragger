@@ -19,7 +19,7 @@ import {
 } from './settings';
 import { migrateSettings } from './settings-migrations';
 import { platform } from './platform';
-import { DragLifecycleEvent, DragLifecycleListener } from '../drag/pipeline/pipeline-output';
+import type { DragLifecycleEvent, DragLifecycleListener } from 'md-dragger/runtime';
 import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
 
 export default class DragNDropPlugin extends Plugin {

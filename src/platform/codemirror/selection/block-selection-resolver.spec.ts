@@ -4,7 +4,7 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockSelectionResolver } from './block-selection-resolver';
-import { BlockType } from '../../../domain/block/block-types';
+import { BlockType } from 'md-dragger/domain';
 
 const originalElementFromPoint = (document as Document & {
     elementFromPoint?: (x: number, y: number) => Element | null;

@@ -1,9 +1,8 @@
 import type { EditorView } from '@codemirror/view';
-import type { DraggerRuntimeOptions } from '../../../drag/runtime';
+import type { RuntimeOptions } from 'md-dragger/runtime';
 
-export function codeMirrorDocument(view: EditorView): DraggerRuntimeOptions['document'] {
+export function codeMirrorDocument(view: EditorView): RuntimeOptions['document'] {
     return {
         getDoc: () => view.state.doc,
-        applyChanges: (changes) => view.dispatch({ changes }),
     };
 }

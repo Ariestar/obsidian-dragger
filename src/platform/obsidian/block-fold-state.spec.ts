@@ -1,7 +1,7 @@
 import type { EditorView } from '@codemirror/view';
 import type { App } from 'obsidian';
 import { describe, expect, it } from 'vitest';
-import { BlockType } from '../../domain/block/block-types';
+import { BlockType } from 'md-dragger/domain';
 import { createBlockFoldStateManager } from './block-fold-state';
 
 function createLineElement(options?: {

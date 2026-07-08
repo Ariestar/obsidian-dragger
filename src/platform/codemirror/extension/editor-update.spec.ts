@@ -7,9 +7,6 @@ import { applyViewUpdate, type ViewUpdateFlowDeps } from './editor-update';
 function createDeps(): ViewUpdateFlowDeps {
     return {
         refreshDecorationsAndEmbeds: vi.fn(),
-        dragController: {
-            refreshSelectionVisual: vi.fn(),
-        } as unknown as ViewUpdateFlowDeps['dragController'],
         handleVisibility: {
             refreshGrabVisualState: vi.fn(),
             getActiveHandle: vi.fn(() => null),
@@ -33,12 +30,11 @@ function createUpdate(overrides: Partial<ViewUpdate>): ViewUpdate {
 }
 
 describe('applyViewUpdate', () => {
-    it('refreshes range selection visuals after editor selection changes', () => {
+    it('refreshes grab visuals after editor selection changes', () => {
         const deps = createDeps();
 
         applyViewUpdate(createUpdate({ selectionSet: true }), deps);
 
-        expect(deps.dragController.refreshSelectionVisual).toHaveBeenCalledTimes(1);
         expect(deps.handleVisibility.refreshGrabVisualState).toHaveBeenCalledTimes(1);
         expect(deps.refreshDecorationsAndEmbeds).not.toHaveBeenCalled();
     });

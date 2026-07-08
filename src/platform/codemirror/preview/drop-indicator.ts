@@ -1,6 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import type { BlockSelection } from '../../../domain/selection/block-selection';
-import type { DropTarget } from '../../../domain/command/drop-target';
+import type { BlockSelection, DropTarget } from 'md-dragger/domain';
 import { DROP_INDICATOR_CLASS, DROP_HIGHLIGHT_CLASS, HIDDEN_CLASS } from '../../../shared/dom-selectors';
 
 export interface DropPreview {

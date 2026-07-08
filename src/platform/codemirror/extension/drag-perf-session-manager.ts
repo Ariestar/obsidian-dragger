@@ -1,8 +1,8 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { createDragPerfSession, DragPerfSession, logDragPerfSession } from './perf-session';
-import { getLineMap, setLineMapPerfRecorder } from '../../../domain/markdown/line-map';
-import { setDetectBlockPerfRecorder } from '../../../domain/block/block-detector';
+import { getLineMap } from 'md-dragger/domain';
+import { setLineMapPerfRecorder, setDetectBlockPerfRecorder } from 'md-dragger/domain/perf';
 
 export class DragPerfSessionManager {
     private session: DragPerfSession | null = null;

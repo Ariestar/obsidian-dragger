@@ -1,5 +1,5 @@
 {
-    "name": "md-dragger",
+    "name": "obsidian-dragger",
     "version": "1.3.4",
     "description": "Drag and drop any block to rearrange content in Obsidian",
     "repository": {
@@ -71,6 +71,9 @@
     ],
     "author": "Ariestar",
     "license": "MIT",
+    "dependencies": {
+        "md-dragger": "file:../md-dragger"
+    },
     "devDependencies": {
         "@codemirror/state": "^6.0.0",
         "@codemirror/view": "^6.0.0",
@@ -81,7 +84,7 @@
         "jsdom": "^22.1.0",
         "obsidian": "latest",
         "tslib": "^2.4.0",
-        "typescript": "^4.9.0",
+        "typescript": "^5.9.3",
         "typescript-eslint": "^8.55.0",
         "vitest": "^0.34.6"
     }

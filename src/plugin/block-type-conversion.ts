@@ -1,13 +1,17 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { planBlockTypeConversionChanges, type BlockTypeConversion } from '../domain/block/block-type-conversion';
-import { detectBlock } from '../domain/block/block-detector';
-import { BlockType, type BlockInfo } from '../domain/block/block-types';
-import { createDeleteCommand } from '../domain/command/delete-command';
-import { createBlockSelection } from '../domain/selection/block-selection';
-import { planBlockCommandTransaction } from '../domain/transaction/block-command-transaction';
+import {
+    planBlockTypeConversionChanges,
+    detectBlock,
+    BlockType,
+    createDeleteCommand,
+    createBlockSelection,
+    planBlockCommandTransaction,
+    type BlockTypeConversion,
+    type BlockInfo,
+    type CommandReject,
+} from 'md-dragger/domain';
 import { applyBlockTransaction } from '../platform/codemirror/transaction/transaction-applier';
-import type { CommandReject } from '../domain/transaction/command-reject';
 
 export type BlockTypeConversionOption = { target: BlockTypeConversion; label: string; icon: string };
 

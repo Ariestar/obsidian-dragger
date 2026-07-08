@@ -1,4 +1,4 @@
-import type { DraggerRuntimeConfigInput } from '../../../drag/runtime';
+import type { Config } from 'md-dragger/runtime';
 import type { EditorContext } from './editor-context';
 
 type RuntimeConfigPlugin = {
@@ -12,7 +12,7 @@ type RuntimeConfigPlugin = {
 export function codeMirrorRuntimeConfig(
     plugin: RuntimeConfigPlugin,
     context: EditorContext
-): DraggerRuntimeConfigInput {
+): Config {
     return () => ({
         tabSize: context.tabSize,
         longPressMs: plugin.isMobilePlatform()

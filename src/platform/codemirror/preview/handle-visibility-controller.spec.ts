@@ -3,7 +3,7 @@
 import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
-import { BlockInfo, BlockType } from '../../../domain/block/block-types';
+import { BlockInfo, BlockType } from 'md-dragger/domain';
 import { createHoverPointerSnapshot } from '../extension/hover-pointer-snapshot';
 import {
     CODEMIRROR_GUTTER_ELEMENT_CLASS,

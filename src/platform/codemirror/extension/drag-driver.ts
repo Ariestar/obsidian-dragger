@@ -7,17 +7,16 @@ import {
 import { DropIndicatorManager } from '../preview/drop-indicator';
 import { getVisibleHandleForBlockStart } from '../preview/handle-renderer';
 import { HandleVisibilityController } from '../preview/handle-visibility-controller';
-import { DraggerRuntime } from '../../../drag/runtime';
-import { buildIdleLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
+import { DraggerRuntime, buildIdleLifecycleEvent } from 'md-dragger/runtime';
+import type { DragLifecycleEvent, Transition } from 'md-dragger/runtime';
 import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
 import { DragPerfSessionManager } from './drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './editor-context';
 import { codeMirrorDocument } from './editor-document';
 import { codeMirrorLocate } from './editor-locate';
-import { codeMirrorPreview } from './editor-preview';
+import { renderDropPreview } from './editor-preview';
 import { codeMirrorRuntimeConfig } from './runtime-config';
-
-import type { DragLifecycleEvent } from '../../../drag/pipeline/pipeline-output';
+import { applyBlockTransaction } from '../transaction/transaction-applier';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../../../shared/dom-attrs';
 
 import {
@@ -103,7 +102,12 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 input: createPointerInputSource(this.view),
                 document: codeMirrorDocument(this.view),
                 locate: codeMirrorLocate(this.view, this.context),
-                preview: codeMirrorPreview(this.context, this.dropIndicator),
+                commit: {
+                    apply: (commit) => applyBlockTransaction(this.view, commit),
+                },
+                output: {
+                    onResult: (transition) => this.handleTransition(transition),
+                },
                 config: codeMirrorRuntimeConfig(plugin, this.context),
             });
 
@@ -130,7 +134,6 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             this.syncViewDomState();
             applyViewUpdate(update, {
                 refreshDecorationsAndEmbeds: () => this.refreshDecorationsAndEmbeds(),
-                dragController: this.dragController,
                 handleVisibility: this.handleVisibility,
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
                 reResolveActiveHandle: () => {
@@ -168,6 +171,33 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
 
         private emitDragLifecycle(event: DragLifecycleEvent): void {
             this.lifecycleEmitter.emit(event);
+        }
+
+        // Projects platform visuals + lifecycle from the runtime's single
+        // output stream. The headless runtime is a pure broadcaster now; the
+        // drop indicator and lifecycle emitter are derived here from
+        // transition.outputs (this is where the previously-dropped lifecycle
+        // events finally reach the plugin).
+        private handleTransition(transition: Transition): void {
+            for (const output of transition.outputs) {
+                switch (output.type) {
+                    case 'drag_over':
+                        renderDropPreview(this.context, this.dropIndicator, {
+                            source: output.selection,
+                            target: output.drop.target,
+                            allowed: output.drop.rejectReason == null,
+                        });
+                        break;
+                    case 'dropped':
+                    case 'cancelled':
+                    case 'terminal':
+                        this.dropIndicator.hide();
+                        break;
+                    case 'lifecycle':
+                        this.emitDragLifecycle(output.event);
+                        break;
+                }
+            }
         }
 
         private handleDocumentPointerMove(e: PointerEvent): void {
@@ -228,7 +258,6 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 plugin.isMobileDragModeEnabled()
             );
             this.refreshDecorationsAndEmbeds();
-            this.dragController.refreshSelectionVisual();
             this.handleVisibility.refreshGrabVisualState();
         }
 

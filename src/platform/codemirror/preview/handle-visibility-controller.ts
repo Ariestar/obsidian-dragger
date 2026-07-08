@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { BlockInfo } from '../../../domain/block/block-types';
+import { type BlockInfo, mergeLineRanges, isLineNumberInRanges } from 'md-dragger/domain';
 import type { HoverContentRect, HoverPointerSnapshot } from '../extension/hover-pointer-types';
 import {
     DRAG_HANDLE_CLASS,
@@ -8,7 +8,6 @@ import {
 import { getMainContentLineElementForLine } from '../../dom/line-dom';
 import { resolveLineNumberFromDomNodes } from '../../dom/element-probe';
 import { isHTMLElement } from '../../dom/dom-utils';
-import { mergeLineRanges, isLineNumberInRanges } from '../../../domain/markdown/line-range';
 import { collectEmbedRoots } from '../../dom/embed-probe';
 import { addSourceLineClasses, removeSourceLineClasses } from './source-line-visual';
 

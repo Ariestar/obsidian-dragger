@@ -1,7 +1,6 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView, GutterMarker } from '@codemirror/view';
-import { BlockInfo } from '../../../domain/block/block-types';
-import { detectBlock } from '../../../domain/block/block-detector';
+import { detectBlock, type BlockInfo } from 'md-dragger/domain';
 import { DRAG_HANDLE_CLASS, HANDLE_CORE_CLASS, LINE_HANDLE_CLASS } from '../../../shared/dom-selectors';
 
 export function resolveHandleBlockAtLine(state: EditorState, lineNumber: number): BlockInfo | null {

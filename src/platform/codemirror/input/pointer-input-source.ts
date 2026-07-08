@@ -1,12 +1,12 @@
 import type { EditorView } from '@codemirror/view';
-import type { DraggerInputSource } from '../../../drag/runtime';
+import type { InputSource } from 'md-dragger/runtime';
 import { readPointerInput } from './pointer-input';
 
 /**
- * DOM pointer/keyboard events → normalized DraggerInputSource. Pure plumbing:
+ * DOM pointer/keyboard events → normalized InputSource. Pure plumbing:
  * no drag logic, no hit-testing, no class state.
  */
-export function createPointerInputSource(view: EditorView): DraggerInputSource {
+export function createPointerInputSource(view: EditorView): InputSource {
     return {
         onPress: (handler) => {
             const listener = (event: PointerEvent) => {

@@ -1,6 +1,6 @@
 import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
-import { BlockType } from '../../../domain/block/block-types';
+import { BlockType } from 'md-dragger/domain';
 import { buildSelectionFromSelectedBlocks } from './block-selection-resolver';
 
 function templateForLine(state: EditorState, lineNumber: number) {

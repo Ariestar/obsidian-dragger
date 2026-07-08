@@ -1,8 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import type { App } from 'obsidian';
-import { getHeadingLevel } from '../../domain/block/block-detector';
-import { BlockType, type BlockInfo } from '../../domain/block/block-types';
-import type { ParsedLine } from '../../domain/markdown/document-types';
+import { getHeadingLevel, BlockType, type BlockInfo, type ParsedLine } from 'md-dragger/domain';
 import { isEditorLineCollapsed, toggleLineFolds } from './editor-fold';
 
 export interface CapturedBlockFoldState {

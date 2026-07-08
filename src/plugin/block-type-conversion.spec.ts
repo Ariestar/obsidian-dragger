@@ -1,7 +1,7 @@
 import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
-import { BlockType } from '../domain/block/block-types';
+import { BlockType } from 'md-dragger/domain';
 import {
     convertCurrentBlockType,
     copyCurrentBlock,

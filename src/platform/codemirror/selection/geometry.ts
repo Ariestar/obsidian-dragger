@@ -1,7 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
-import { detectBlock } from '../../../domain/block/block-detector';
-import { BlockType } from '../../../domain/block/block-types';
+import { detectBlock, BlockType, clampTargetLineNumber, LineParsingContext } from 'md-dragger/domain';
 import {
     getCoordsAtPos as getCoordsAtPosCached,
     getLineRect as getLineRectByLineNumber,
@@ -9,8 +8,6 @@ import {
     getLineIndentPosByWidth as getLineIndentPosByWidthWithTabSize,
     getBlockRect as getBlockRectByRange,
 } from './rect-calculator';
-import { clampTargetLineNumber } from '../../../domain/markdown/line-target-number';
-import { LineParsingContext } from '../../../domain/markdown/line-parsing-service';
 import { isEditorLineCollapsed } from '../../obsidian/editor-fold';
 
 export function getAdjustedTargetLocation(
