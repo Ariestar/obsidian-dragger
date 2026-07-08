@@ -106,9 +106,12 @@ export class DropIndicatorManager {
         this.hideOtherInstancesVisuals();
         const editorRect = this.view.dom.getBoundingClientRect();
         const indicatorY = mark.preview.indicatorY;
-        const indicatorLeft = mark.preview.lineRect ? mark.preview.lineRect.left : editorRect.left + 35;
+        const baseLeft = mark.preview.lineRect ? mark.preview.lineRect.left : editorRect.left + 35;
         const contentRect = this.view.contentDOM.getBoundingClientRect();
         const contentPaddingRight = parseFloat(getComputedStyle(this.view.contentDOM).paddingRight) || 0;
+        const indentOffset = (mark.target.listIntent?.targetIndentWidth ?? 0)
+            * (this.view.defaultCharacterWidth || 8);
+        const indicatorLeft = baseLeft + indentOffset;
         const indicatorRight = contentRect.right - contentPaddingRight;
         const indicatorWidth = Math.max(8, indicatorRight - indicatorLeft);
 

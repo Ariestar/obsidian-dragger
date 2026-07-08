@@ -16,8 +16,9 @@ export function renderDropPreview(
     dropIndicator: DropIndicatorManager,
     preview: DropPreviewInput | null
 ): void {
-    const targetLineNumber = preview?.target?.targetLineNumber ?? null;
-    if (!preview || !preview.allowed || targetLineNumber === null) {
+    const target = preview?.target ?? null;
+    const targetLineNumber = target?.targetLineNumber ?? null;
+    if (!preview || !preview.allowed || !target || targetLineNumber === null) {
         dropIndicator.hide();
         return;
     }
@@ -27,10 +28,7 @@ export function renderDropPreview(
         return;
     }
     dropIndicator.scheduleRender({
-        target: {
-            targetLineNumber,
-            placement: 'before',
-        },
+        target,
         preview: {
             indicatorY,
             lineRect: context.getLineRect(targetLineNumber),
