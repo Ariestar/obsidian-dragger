@@ -30,7 +30,7 @@ import { destroyViewLifecycle, startViewLifecycle } from './editor-lifecycle';
 import { placeHandleGutterForConfiguredSide } from '../handle/gutter';
 import { GlobalPointerMoveClient } from '../hover/global-pointermove-router';
 import { createHoverPointerSnapshot, HoverPointerSnapshot } from '../hover/hover-pointer-snapshot';
-import { createPointerInputSource } from '../input/pointer-input-source';
+import { pointerInput } from 'md-dragger/adapter/codemirror';
 
 class DragLifecycleEmitter {
     private lastSignature: string | null = null;
@@ -99,7 +99,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 }
             );
             this.dragController = new DraggerRuntime({
-                input: createPointerInputSource(this.view),
+                input: pointerInput(this.view),
                 document: codeMirrorDocument(this.view),
                 locate: codeMirrorLocate(this.view, this.context),
                 commit: {

@@ -78,7 +78,6 @@ describe('plugin architecture boundaries', () => {
             'dom',
             'handle',
             'hover',
-            'input',
             'perf',
             'runtime',
             'selection',
