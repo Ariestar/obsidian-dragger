@@ -4,7 +4,7 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from 'md-dragger/domain';
-import { createHoverPointerSnapshot } from '../extension/hover-pointer-snapshot';
+import { createHoverPointerSnapshot } from './hover-pointer-snapshot';
 import {
     CODEMIRROR_GUTTER_ELEMENT_CLASS,
     CODEMIRROR_GUTTERS_BEFORE_CLASS,

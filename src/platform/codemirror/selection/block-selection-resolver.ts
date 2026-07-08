@@ -14,14 +14,14 @@ import {
     type BlockSelectionRange,
     type SelectedBlockRange,
 } from 'md-dragger/domain';
-import { findEmbedElementAtPoint } from '../../dom/embed-probe';
+import { findEmbedElementAtPoint } from '../dom/embed-probe';
 import {
     resolveLineNumberAtCoords,
     resolveLineNumberFromBlockStartAttribute,
     resolveLineNumberFromDomNodes,
     resolveLineNumberFromPos,
-} from '../../dom/element-probe';
-import { getRenderedMainLineNumberAtPoint } from '../../dom/line-hit';
+} from '../dom/element-probe';
+import { getRenderedMainLineNumberAtPoint } from '../dom/line-hit';
 import { isEditorLineCollapsed } from '../../obsidian/editor-fold';
 import { CODEMIRROR_LINE_SELECTOR, EMBED_ROOT_SELECTOR } from '../../../shared/dom-selectors';
 

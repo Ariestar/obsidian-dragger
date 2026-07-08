@@ -7,7 +7,7 @@ import {
 import {
     HANDLE_GUTTER_CLASS,
 } from '../../../shared/dom-selectors';
-import { HandleGutterLineMarker, resolveHandleBlockAtLine } from '../preview/handle-renderer';
+import { HandleGutterLineMarker, resolveHandleBlockAtLine } from './handle-renderer';
 
 function resolveLineNumber(view: EditorView, line: BlockInfo): number {
     return view.state.doc.lineAt(line.from).number;

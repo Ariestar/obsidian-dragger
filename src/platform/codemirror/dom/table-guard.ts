@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { CODEMIRROR_LINE_SELECTOR, TABLE_WIDGET_SELECTOR } from '../../shared/dom-selectors';
+import { CODEMIRROR_LINE_SELECTOR, TABLE_WIDGET_SELECTOR } from '../../../shared/dom-selectors';
 
 export function isElementInsideRenderedTableCell(view: EditorView, el: HTMLElement | null): boolean {
     if (!el) return false;

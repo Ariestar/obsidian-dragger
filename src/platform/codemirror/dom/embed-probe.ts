@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { EMBED_BLOCK_SELECTOR, EMBED_ROOT_SELECTOR } from '../../shared/dom-selectors';
+import { EMBED_BLOCK_SELECTOR, EMBED_ROOT_SELECTOR } from '../../../shared/dom-selectors';
 
 export type FindEmbedElementAtPointOptions = {
     requireDirectWithinRoot?: boolean;

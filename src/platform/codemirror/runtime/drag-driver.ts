@@ -4,13 +4,13 @@ import {
     MOBILE_GESTURE_LOCK_CLASS,
     DRAGGING_BODY_CLASS,
 } from '../../../shared/dom-selectors';
-import { DropIndicatorManager } from '../preview/drop-indicator';
-import { getVisibleHandleForBlockStart } from '../preview/handle-renderer';
-import { HandleVisibilityController } from '../preview/handle-visibility-controller';
+import { DropIndicatorManager } from './drop-indicator';
+import { getVisibleHandleForBlockStart } from '../handle/handle-renderer';
+import { HandleVisibilityController } from '../hover/handle-visibility-controller';
 import { DraggerRuntime, buildIdleLifecycleEvent } from 'md-dragger/runtime';
 import type { DragLifecycleEvent, Transition } from 'md-dragger/runtime';
-import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
-import { DragPerfSessionManager } from './drag-perf-session-manager';
+import { SemanticRefreshScheduler } from '../perf/semantic-refresh-scheduler';
+import { DragPerfSessionManager } from '../perf/drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './editor-context';
 import { codeMirrorDocument } from './editor-document';
 import { codeMirrorLocate } from './editor-locate';
@@ -27,9 +27,9 @@ import {
 } from './editor-dom-sync';
 import { applyViewUpdate } from './editor-update';
 import { destroyViewLifecycle, startViewLifecycle } from './editor-lifecycle';
-import { placeHandleGutterForConfiguredSide } from './gutter';
-import { GlobalPointerMoveClient } from './global-pointermove-router';
-import { createHoverPointerSnapshot, HoverPointerSnapshot } from './hover-pointer-snapshot';
+import { placeHandleGutterForConfiguredSide } from '../handle/gutter';
+import { GlobalPointerMoveClient } from '../hover/global-pointermove-router';
+import { createHoverPointerSnapshot, HoverPointerSnapshot } from '../hover/hover-pointer-snapshot';
 import { createPointerInputSource } from '../input/pointer-input-source';
 
 class DragLifecycleEmitter {

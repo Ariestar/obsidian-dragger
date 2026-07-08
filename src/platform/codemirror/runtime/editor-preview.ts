@@ -1,5 +1,5 @@
 import type { BlockSelection, DropTarget } from 'md-dragger/domain';
-import type { DropIndicatorManager } from '../preview/drop-indicator';
+import type { DropIndicatorManager } from './drop-indicator';
 import type { EditorContext } from './editor-context';
 
 // Drop-preview projection derived from the pipeline's drag_over output.

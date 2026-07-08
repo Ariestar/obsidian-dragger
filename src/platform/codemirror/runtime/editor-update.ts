@@ -1,6 +1,6 @@
 import { ViewUpdate } from '@codemirror/view';
-import { HandleVisibilityController } from '../preview/handle-visibility-controller';
-import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
+import { HandleVisibilityController } from '../hover/handle-visibility-controller';
+import { SemanticRefreshScheduler } from '../perf/semantic-refresh-scheduler';
 
 export interface ViewUpdateFlowDeps {
     refreshDecorationsAndEmbeds: () => void;

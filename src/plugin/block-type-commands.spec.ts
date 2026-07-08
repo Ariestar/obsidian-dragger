@@ -7,7 +7,7 @@ import {
     copyCurrentBlock,
     cutCurrentBlock,
     deleteCurrentBlock,
-} from './block-type-conversion';
+} from './block-type-commands';
 
 describe('block type conversion', () => {
     it('converts the current block to a heading', () => {

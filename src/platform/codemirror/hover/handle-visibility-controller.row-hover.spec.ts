@@ -4,7 +4,7 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import { BlockType } from 'md-dragger/domain';
-import { createHoverPointerSnapshot } from '../extension/hover-pointer-snapshot';
+import { createHoverPointerSnapshot } from './hover-pointer-snapshot';
 import { HandleVisibilityController } from './handle-visibility-controller';
 
 function createViewStub(): EditorView {

@@ -1,4 +1,4 @@
-import { isHTMLElement } from '../../dom/dom-utils';
+import { isHTMLElement } from '../dom/dom-utils';
 
 export type PointerInputKind = 'down' | 'move' | 'up' | 'cancel' | 'lost_capture';
 export type KeyboardInputKind = 'keydown';

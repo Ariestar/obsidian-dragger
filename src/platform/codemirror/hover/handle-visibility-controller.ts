@@ -1,15 +1,15 @@
 import { EditorView } from '@codemirror/view';
 import { type BlockInfo, mergeLineRanges, isLineNumberInRanges } from 'md-dragger/domain';
-import type { HoverContentRect, HoverPointerSnapshot } from '../extension/hover-pointer-types';
+import type { HoverContentRect, HoverPointerSnapshot } from './hover-pointer-types';
 import {
     DRAG_HANDLE_CLASS,
     DRAG_SOURCE_EMBED_CLASS,
 } from '../../../shared/dom-selectors';
-import { getMainContentLineElementForLine } from '../../dom/line-dom';
-import { resolveLineNumberFromDomNodes } from '../../dom/element-probe';
-import { isHTMLElement } from '../../dom/dom-utils';
-import { collectEmbedRoots } from '../../dom/embed-probe';
-import { addSourceLineClasses, removeSourceLineClasses } from './source-line-visual';
+import { getMainContentLineElementForLine } from '../dom/line-dom';
+import { resolveLineNumberFromDomNodes } from '../dom/element-probe';
+import { isHTMLElement } from '../dom/dom-utils';
+import { collectEmbedRoots } from '../dom/embed-probe';
+import { addSourceLineClasses, removeSourceLineClasses } from '../handle/source-line-visual';
 
 export interface HandleVisibilityDeps {
     getBlockInfoForHandle: (handle: HTMLElement) => BlockInfo | null;

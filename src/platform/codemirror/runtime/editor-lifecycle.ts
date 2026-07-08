@@ -1,11 +1,11 @@
 import { EditorView } from '@codemirror/view';
 import { prewarmFenceScan } from 'md-dragger/domain/perf';
-import { SemanticRefreshScheduler } from './semantic-refresh-scheduler';
+import { SemanticRefreshScheduler } from '../perf/semantic-refresh-scheduler';
 import {
     GlobalPointerMoveClient,
     registerGlobalPointerMoveClient,
     unregisterGlobalPointerMoveClient,
-} from './global-pointermove-router';
+} from '../hover/global-pointermove-router';
 
 export interface ViewLifecycleStartDeps {
     view: EditorView;

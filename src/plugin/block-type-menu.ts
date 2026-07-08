@@ -11,7 +11,7 @@ import {
     SIMPLE_BLOCK_TYPE_OPTIONS,
     type BlockTypeConversionOption,
     convertCurrentBlockType,
-} from './block-type-conversion';
+} from './block-type-commands';
 
 type BlockMenuAction = {
     label: string;
