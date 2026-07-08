@@ -76,10 +76,12 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             this.lastPressOnHandle = (e.target instanceof HTMLElement)
                 ? e.target.closest(`.${DRAG_HANDLE_CLASS}`) !== null
                 : false;
+            this.lastPressEvent = this.lastPressOnHandle ? e : null;
         };
         private readonly pointerMoveClient: GlobalPointerMoveClient;
         private cachedHandleGutterSide: 'left' | 'right';
         private lastPressOnHandle = false;
+        private lastPressEvent: PointerEvent | null = null;
 
         constructor(view: EditorView) {
             this.view = view;
@@ -200,7 +202,11 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     case 'cancelled':
                         this.dropIndicator.hide();
                         if (item.type === 'cancelled' && item.reason === 'press_cancelled' && this.lastPressOnHandle) {
-                            openBlockTypeMenu(this.view, null);
+                            const startLine = item.selection?.anchorBlock?.startLine;
+                            if (typeof startLine === 'number') {
+                                openBlockTypeMenu(this.view, this.lastPressEvent, startLine + 1);
+                            }
+                            this.lastPressEvent = null;
                         }
                         break;
                     case 'terminal':

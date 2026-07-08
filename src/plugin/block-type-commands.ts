@@ -42,8 +42,8 @@ export const SIMPLE_BLOCK_TYPE_OPTIONS: BlockTypeConversionOption[] = [
     { target: { type: BlockType.MathBlock }, label: 'Math block', icon: 'sigma' },
 ];
 
-export function convertCurrentBlockType(view: EditorView, conversion: BlockTypeConversion, pos?: number): boolean {
-    const block = getBlockAtPos(view, pos);
+export function convertCurrentBlockType(view: EditorView, conversion: BlockTypeConversion, lineNumber?: number): boolean {
+    const block = getBlockAt(view, lineNumber);
     if (!block) return false;
 
     const changes = planBlockTypeConversionChanges(view.state.doc, block.startLine + 1, block.endLine + 1, conversion);
@@ -56,8 +56,8 @@ export function convertCurrentBlockType(view: EditorView, conversion: BlockTypeC
     return true;
 }
 
-export function deleteCurrentBlock(view: EditorView): boolean {
-    const block = getBlockAtPos(view);
+export function deleteCurrentBlock(view: EditorView, lineNumber?: number): boolean {
+    const block = getBlockAt(view, lineNumber);
     if (!block) return false;
 
     const transaction = planBlockCommandTransaction({
@@ -72,20 +72,20 @@ export function deleteCurrentBlock(view: EditorView): boolean {
     return true;
 }
 
-export async function copyCurrentBlock(view: EditorView): Promise<boolean> {
-    const text = getBlockAtPosText(view);
+export async function copyCurrentBlock(view: EditorView, lineNumber?: number): Promise<boolean> {
+    const text = getBlockAtText(view, lineNumber);
     if (text === null) return false;
     return writeClipboardText(text);
 }
 
-export async function cutCurrentBlock(view: EditorView): Promise<boolean> {
-    const copied = await copyCurrentBlock(view);
+export async function cutCurrentBlock(view: EditorView, lineNumber?: number): Promise<boolean> {
+    const copied = await copyCurrentBlock(view, lineNumber);
     if (!copied) return false;
-    return deleteCurrentBlock(view);
+    return deleteCurrentBlock(view, lineNumber);
 }
 
-function getBlockAtPosText(view: EditorView): string | null {
-    const block = getBlockAtPos(view);
+function getBlockAtText(view: EditorView, lineNumber?: number): string | null {
+    const block = getBlockAt(view, lineNumber);
     if (!block) return null;
     return view.state.doc.sliceString(block.from, block.to);
 }
@@ -100,16 +100,15 @@ async function writeClipboardText(text: string): Promise<boolean> {
     }
 }
 
-function getBlockAtPos(view: EditorView, pos?: number): BlockInfo | null {
-    const head = pos ?? view.state.selection.main.head;
-    const lineNumber = view.state.doc.lineAt(head).number;
-    const block = detectBlock(view.state, lineNumber, { tabSize: view.state.facet(EditorState.tabSize) });
+function getBlockAt(view: EditorView, lineNumber?: number): BlockInfo | null {
+    const resolved = lineNumber ?? view.state.doc.lineAt(view.state.selection.main.head).number;
+    const block = detectBlock(view.state, resolved, { tabSize: view.state.facet(EditorState.tabSize) });
     if (block) return block;
-    const line = view.state.doc.line(lineNumber);
+    const line = view.state.doc.line(resolved);
     return {
         type: BlockType.Paragraph,
-        startLine: lineNumber - 1,
-        endLine: lineNumber - 1,
+        startLine: resolved - 1,
+        endLine: resolved - 1,
         from: line.from,
         to: line.to,
         indentLevel: 0,

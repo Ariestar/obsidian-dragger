@@ -31,11 +31,17 @@ let openChildMenu: Menu | null = null;
 let openChildTrigger: HTMLElement | null = null;
 let openChildMenuEl: HTMLElement | null = null;
 let closeChildMenuTimer: number | null = null;
-let menuCursorPos: number = 0;
+// 1-indexed line the open menu operates on. Module-scoped so the nested
+// (asynchronously opened) submenu pages read it after openBlockTypeMenu
+// has returned.
+let menuBlockLine: number = 0;
 
-export function openBlockTypeMenu(view: EditorView, event: MouseEvent | PointerEvent | null): void {
-    const cursorHead = view.state.selection.main.head;
-    menuCursorPos = cursorHead;
+export function openBlockTypeMenu(
+    view: EditorView,
+    event: MouseEvent | PointerEvent | null,
+    lineNumber?: number
+): void {
+    menuBlockLine = lineNumber ?? view.state.doc.lineAt(view.state.selection.main.head).number;
     const menu = new Menu();
     const nestedGroups: NestedConversionGroup[] = [
         {
@@ -53,12 +59,12 @@ export function openBlockTypeMenu(view: EditorView, event: MouseEvent | PointerE
         window.setTimeout(() => hideOpenChildMenu(), 150);
     });
 
-    addConversionItem(menu, view, PARAGRAPH_BLOCK_TYPE_OPTION, cursorHead);
+    addConversionItem(menu, view, PARAGRAPH_BLOCK_TYPE_OPTION, menuBlockLine);
     for (const group of nestedGroups) {
         addNestedConversionMenu(menu, view, group);
     }
     for (const option of SIMPLE_BLOCK_TYPE_OPTIONS) {
-        addConversionItem(menu, view, option, cursorHead);
+        addConversionItem(menu, view, option, menuBlockLine);
     }
 
     menu.addSeparator();
@@ -66,20 +72,20 @@ export function openBlockTypeMenu(view: EditorView, event: MouseEvent | PointerE
         {
             label: 'Copy block',
             icon: 'copy',
-            run: () => copyCurrentBlock(view),
+            run: () => copyCurrentBlock(view, menuBlockLine),
             failureNotice: 'Unable to copy block.',
         },
         {
             label: 'Cut block',
             icon: 'scissors',
-            run: () => cutCurrentBlock(view),
+            run: () => cutCurrentBlock(view, menuBlockLine),
             failureNotice: 'Unable to cut block.',
         },
         {
             label: 'Delete block',
             icon: 'trash-2',
             warning: true,
-            run: () => deleteCurrentBlock(view),
+            run: () => deleteCurrentBlock(view, menuBlockLine),
             failureNotice: 'Unable to delete block.',
         },
     ]);
@@ -87,12 +93,12 @@ export function openBlockTypeMenu(view: EditorView, event: MouseEvent | PointerE
     showMenu(menu, view, event, nestedGroups);
 }
 
-function addConversionItem(menu: Menu, view: EditorView, option: BlockTypeConversionOption, pos: number): void {
+function addConversionItem(menu: Menu, view: EditorView, option: BlockTypeConversionOption, lineNumber: number): void {
     menu.addItem((item) => item
         .setTitle(option.label)
         .setIcon(option.icon)
         .onClick(() => {
-            if (!convertCurrentBlockType(view, option.target, pos)) {
+            if (!convertCurrentBlockType(view, option.target, lineNumber)) {
                 new Notice('Unable to change block type.');
                 return;
             }
@@ -145,7 +151,7 @@ function openNestedMenuPopover(
     if (openChildMenu && openChildTrigger === trigger) return;
 
     hideOpenChildMenu();
-    const child = createNestedConversionMenu(view, group.options, menuCursorPos);
+    const child = createNestedConversionMenu(view, group.options, menuBlockLine);
     openChildMenu = child;
     openChildTrigger = trigger;
     child.onHide(() => {
@@ -172,15 +178,15 @@ function openNestedMenuPage(
             openBlockTypeMenu(view, null);
         }));
     for (const option of group.options) {
-        addConversionItem(child, view, option, menuCursorPos);
+        addConversionItem(child, view, option, menuBlockLine);
     }
     showMenu(child, view, null);
 }
 
-function createNestedConversionMenu(view: EditorView, options: BlockTypeConversionOption[], pos: number): Menu {
+function createNestedConversionMenu(view: EditorView, options: BlockTypeConversionOption[], lineNumber: number): Menu {
     const child = new Menu();
     for (const option of options) {
-        addConversionItem(child, view, option, pos);
+        addConversionItem(child, view, option, lineNumber);
     }
     return child;
 }
