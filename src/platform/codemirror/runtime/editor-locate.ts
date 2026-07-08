@@ -1,22 +1,16 @@
 import type { EditorView } from '@codemirror/view';
+import { resolveDropTarget as cmResolveDropTarget } from 'md-dragger/adapter/codemirror';
 import type { PressInput, RuntimeOptions } from 'md-dragger/runtime';
 import { DRAG_HANDLE_CLASS } from '../../../shared/dom-selectors';
 import type { EditorContext } from './editor-context';
 
 export function codeMirrorLocate(
     view: EditorView,
-    context: EditorContext
+    _context: EditorContext
 ): RuntimeOptions['locate'] {
     return {
         sourceLineFromInput: (input) => sourceLineFromInput(input),
-        resolveDropTarget: (point) => {
-            const targetLineNumber = context.selection.getLineNumberAtVerticalPosition(
-                point.y,
-                view.contentDOM.getBoundingClientRect()
-            );
-            if (targetLineNumber === null) return null;
-            return { targetLineNumber, placement: 'before' };
-        },
+        resolveDropTarget: (point, ctx) => cmResolveDropTarget(view, point, ctx.selection, {}),
     };
 }
 
