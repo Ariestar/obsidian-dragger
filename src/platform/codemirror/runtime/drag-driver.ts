@@ -8,7 +8,9 @@ import { DropIndicatorManager } from './drop-indicator';
 import { getVisibleHandleForBlockStart } from '../handle/handle-renderer';
 import { HandleVisibilityController } from '../hover/handle-visibility-controller';
 import { DraggerRuntime, buildIdleLifecycleEvent } from 'md-dragger/runtime';
-import type { DragLifecycleEvent, Transition } from 'md-dragger/runtime';
+import type { Change, DragLifecycleEvent } from 'md-dragger/runtime';
+import { openBlockTypeMenu } from '../../../plugin/block-type-menu';
+import { DRAG_HANDLE_CLASS } from '../../../shared/dom-selectors';
 import { SemanticRefreshScheduler } from '../perf/semantic-refresh-scheduler';
 import { DragPerfSessionManager } from '../perf/drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './editor-context';
@@ -70,13 +72,20 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private readonly semanticRefreshScheduler: SemanticRefreshScheduler;
         private readonly onDocumentPointerMove = (e: PointerEvent) => this.handleDocumentPointerMove(e);
         private readonly onSettingsUpdated = () => this.handleSettingsUpdated();
+        private readonly onPointerDown = (e: PointerEvent) => {
+            this.lastPressOnHandle = (e.target instanceof HTMLElement)
+                ? e.target.closest(`.${DRAG_HANDLE_CLASS}`) !== null
+                : false;
+        };
         private readonly pointerMoveClient: GlobalPointerMoveClient;
         private cachedHandleGutterSide: 'left' | 'right';
+        private lastPressOnHandle = false;
 
         constructor(view: EditorView) {
             this.view = view;
             this.cachedHandleGutterSide = this.resolveConfiguredHandleGutterSide();
             this.syncViewDomState();
+            this.view.dom.addEventListener('pointerdown', this.onPointerDown, true);
             this.context = createEditorContext(this.view);
             this.handleVisibility = new HandleVisibilityController(this.view, {
                 getBlockInfoForHandle: (handle) => this.context.selection.getBlockInfoForHandle(handle),
@@ -105,9 +114,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 commit: {
                     apply: (commit) => applyBlockTransaction(this.view, commit),
                 },
-                output: {
-                    onResult: (transition) => this.handleTransition(transition),
-                },
+                onChange: (output) => this.handleChange(output),
                 config: codeMirrorRuntimeConfig(plugin, this.context),
             });
 
@@ -149,6 +156,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         }
 
         destroy(): void {
+            this.view.dom.removeEventListener('pointerdown', this.onPointerDown, true);
             destroyViewLifecycle({
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
                 pointerMoveClient: this.pointerMoveClient,
@@ -174,27 +182,32 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         }
 
         // Projects platform visuals + lifecycle from the runtime's single
-        // output stream. The headless runtime is a pure broadcaster now; the
-        // drop indicator and lifecycle emitter are derived here from
-        // transition.outputs (this is where the previously-dropped lifecycle
-        // events finally reach the plugin).
-        private handleTransition(transition: Transition): void {
-            for (const output of transition.outputs) {
-                switch (output.type) {
+        // output stream, and recognizes handle tap (a platform ux concern —
+        // the runtime only broadcasts a cancel; whether that cancel is a
+        // "tap on the handle that should open the block-type menu" is the
+        // plugin's decision, using its own press-origin tracking).
+        private handleChange(output: Change): void {
+            for (const item of output.outputs) {
+                switch (item.type) {
                     case 'drag_over':
                         renderDropPreview(this.context, this.dropIndicator, {
-                            source: output.selection,
-                            target: output.drop.target,
-                            allowed: output.drop.rejectReason == null,
+                            source: item.selection,
+                            target: item.drop.target,
+                            allowed: item.drop.rejectReason == null,
                         });
                         break;
                     case 'dropped':
                     case 'cancelled':
+                        this.dropIndicator.hide();
+                        if (item.type === 'cancelled' && item.reason === 'press_cancelled' && this.lastPressOnHandle) {
+                            openBlockTypeMenu(this.view, null);
+                        }
+                        break;
                     case 'terminal':
                         this.dropIndicator.hide();
                         break;
                     case 'lifecycle':
-                        this.emitDragLifecycle(output.event);
+                        this.emitDragLifecycle(item.event);
                         break;
                 }
             }
