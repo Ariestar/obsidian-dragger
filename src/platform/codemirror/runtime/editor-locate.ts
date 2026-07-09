@@ -1,16 +1,25 @@
 import type { EditorView } from '@codemirror/view';
 import { resolveDropTarget as cmResolveDropTarget } from 'md-dragger/adapter/codemirror';
-import type { PressInput, RuntimeOptions } from 'md-dragger/runtime';
+import type { Point, PressInput, RuntimeOptions } from 'md-dragger/runtime';
 import { DRAG_HANDLE_CLASS } from '../../../shared/dom-selectors';
 import type { EditorContext } from './editor-context';
 
 export function codeMirrorLocate(
     view: EditorView,
-    _context: EditorContext
+    _context: EditorContext,
+    resolveTargetView: (point: Point) => EditorView | null,
 ): RuntimeOptions['locate'] {
     return {
         sourceLineFromInput: (input) => sourceLineFromInput(input),
-        resolveDropTarget: (point, ctx) => cmResolveDropTarget(view, point, ctx.selection, {}),
+        resolveDropTarget: (point, ctx) => {
+            // The drop lands in whichever editor the pointer is over — possibly
+            // a different file than the drag started in. The resolved view's
+            // doc becomes the DropTarget's targetDoc, so cross-document moves
+            // emerge without any flag on the host.
+            const targetView = resolveTargetView(point);
+            if (!targetView) return null;
+            return cmResolveDropTarget(targetView, point, ctx.selection, {});
+        },
     };
 }
 

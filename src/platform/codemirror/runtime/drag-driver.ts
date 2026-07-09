@@ -7,8 +7,8 @@ import {
 import { DropIndicatorManager } from './drop-indicator';
 import { getVisibleHandleForBlockStart } from '../handle/handle-renderer';
 import { HandleVisibilityController } from '../hover/handle-visibility-controller';
-import { DraggerRuntime, buildIdleLifecycleEvent } from 'md-dragger/runtime';
-import type { Change, DragLifecycleEvent } from 'md-dragger/runtime';
+import { DraggerRuntime } from 'md-dragger/runtime';
+import type { Change, Point } from 'md-dragger/runtime';
 import { openBlockTypeMenu } from '../../../plugin/block-type-menu';
 import { DRAG_HANDLE_CLASS } from '../../../shared/dom-selectors';
 import { SemanticRefreshScheduler } from '../perf/semantic-refresh-scheduler';
@@ -16,7 +16,8 @@ import { DragPerfSessionManager } from '../perf/drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './editor-context';
 import { codeMirrorDocument } from './editor-document';
 import { codeMirrorLocate } from './editor-locate';
-import { renderDropPreview } from './editor-preview';
+import { registerDragTarget, resolveDragTargetAtPoint, type DragTargetEntry } from './drag-target-registry';
+import { renderDropPreview, type DropPreviewInput } from './editor-preview';
 import { codeMirrorRuntimeConfig } from './runtime-config';
 import { applyBlockTransaction } from '../transaction/transaction-applier';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../../../shared/dom-attrs';
@@ -34,30 +35,6 @@ import { GlobalPointerMoveClient } from '../hover/global-pointermove-router';
 import { createHoverPointerSnapshot, HoverPointerSnapshot } from '../hover/hover-pointer-snapshot';
 import { pointerInput } from 'md-dragger/adapter/codemirror';
 
-class DragLifecycleEmitter {
-    private lastSignature: string | null = null;
-
-    constructor(private readonly sink: (event: DragLifecycleEvent) => void) {}
-
-    emit(event: DragLifecycleEvent): void {
-        const signature = JSON.stringify({
-            type: event.type,
-            phase: event.phase,
-            sourceStart: event.source?.anchorBlock.startLine ?? null,
-            sourceEnd: event.source?.anchorBlock.endLine ?? null,
-            sourceRanges: event.source?.ranges ?? null,
-            targetLine: event.targetLine,
-            listIntent: event.listIntent,
-            rejectReason: event.rejectReason,
-            pointerType: event.pointerType,
-            pressReady: event.type === 'drag_press_pending' && event.pressReady === true,
-        });
-        if (signature === this.lastSignature) return;
-        this.lastSignature = signature;
-        this.sink(event);
-    }
-}
-
 export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
     return class {
         private readonly view: EditorView;
@@ -65,9 +42,6 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private readonly dropIndicator: DropIndicatorManager;
         private readonly dragController: DraggerRuntime;
         private readonly handleVisibility: HandleVisibilityController;
-        private readonly lifecycleEmitter = new DragLifecycleEmitter(
-            (event) => plugin.emitDragLifecycleEvent(event)
-        );
         private readonly dragPerfSessionManager: DragPerfSessionManager;
         private readonly semanticRefreshScheduler: SemanticRefreshScheduler;
         private readonly onDocumentPointerMove = (e: PointerEvent) => this.handleDocumentPointerMove(e);
@@ -82,6 +56,17 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private cachedHandleGutterSide: 'left' | 'right';
         private lastPressOnHandle = false;
         private lastPressEvent: PointerEvent | null = null;
+        // The editor under the live drag pointer (this view or another), refreshed
+        // on every resolveDropTarget. Drives cross-file indicator rendering and the
+        // target-side commit dispatch.
+        private currentTargetEntry: DragTargetEntry | null = null;
+        private lastIndicatorEntry: DragTargetEntry | null = null;
+        private readonly unregisterDragTarget: () => void;
+        private readonly resolveTargetView = (point: Point): EditorView | null => {
+            const entry = resolveDragTargetAtPoint(point.x, point.y);
+            this.currentTargetEntry = entry;
+            return entry?.view ?? null;
+        };
 
         constructor(view: EditorView) {
             this.view = view;
@@ -109,12 +94,26 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     },
                 }
             );
+            this.unregisterDragTarget = registerDragTarget({
+                view: this.view,
+                context: this.context,
+                dropIndicator: this.dropIndicator,
+            });
             this.dragController = new DraggerRuntime({
                 input: pointerInput(this.view),
                 document: codeMirrorDocument(this.view),
-                locate: codeMirrorLocate(this.view, this.context),
+                locate: codeMirrorLocate(this.view, this.context, this.resolveTargetView),
                 commit: {
-                    apply: (commit) => applyBlockTransaction(this.view, commit),
+                    // Route each edit to the view that owns its doc — source view
+                    // for an in-file drop, target view for a cross-file drop.
+                    apply: (edits) => {
+                        for (const edit of edits) {
+                            const view = edit.doc === this.view.state.doc
+                                ? this.view
+                                : (this.currentTargetEntry?.view ?? this.view);
+                            applyBlockTransaction(view, edit);
+                        }
+                    },
                 },
                 onChange: (output) => this.handleChange(output),
                 config: codeMirrorRuntimeConfig(plugin, this.context),
@@ -159,6 +158,8 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
 
         destroy(): void {
             this.view.dom.removeEventListener('pointerdown', this.onPointerDown, true);
+            this.hideDragIndicator();
+            this.unregisterDragTarget();
             destroyViewLifecycle({
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
                 pointerMoveClient: this.pointerMoveClient,
@@ -172,36 +173,34 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             this.view.dom.removeAttribute(DND_DRAG_SOURCE_STYLE_ATTR);
             this.view.dom.removeAttribute(DND_DRAG_SOURCE_HIGHLIGHT_ATTR);
             this.dropIndicator.destroy();
-            this.emitDragLifecycle(buildIdleLifecycleEvent());
         }
 
         private flushDragPerfSession(reason: string): void {
             this.dragPerfSessionManager.flush(reason);
         }
 
-        private emitDragLifecycle(event: DragLifecycleEvent): void {
-            this.lifecycleEmitter.emit(event);
-        }
-
-        // Projects platform visuals + lifecycle from the runtime's single
-        // output stream, and recognizes handle tap (a platform ux concern —
-        // the runtime only broadcasts a cancel; whether that cancel is a
-        // "tap on the handle that should open the block-type menu" is the
-        // plugin's decision, using its own press-origin tracking).
+        // Projects platform visuals from the runtime's output stream, and
+        // recognizes handle tap (a platform ux concern — the runtime only
+        // broadcasts a cancel; whether that cancel is a "tap on the handle
+        // that should open the block-type menu" is the plugin's decision,
+        // using its own press-origin tracking).
         private handleChange(output: Change): void {
             for (const item of output.outputs) {
                 switch (item.type) {
                     case 'drag_over':
-                        renderDropPreview(this.context, this.dropIndicator, {
+                        this.renderDropPreviewOnTarget({
                             source: item.selection,
                             target: item.drop.target,
                             allowed: item.drop.rejectReason == null,
                         });
                         break;
                     case 'dropped':
+                        this.hideDragIndicator();
+                        plugin.notifyDragDrop();
+                        break;
                     case 'cancelled':
-                        this.dropIndicator.hide();
-                        if (item.type === 'cancelled' && item.reason === 'press_cancelled' && this.lastPressOnHandle) {
+                        this.hideDragIndicator();
+                        if (item.reason === 'press_cancelled' && this.lastPressOnHandle) {
                             const startLine = item.selection?.anchorBlock?.startLine;
                             if (typeof startLine === 'number') {
                                 openBlockTypeMenu(this.view, this.lastPressEvent, startLine + 1);
@@ -210,13 +209,30 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                         }
                         break;
                     case 'terminal':
-                        this.dropIndicator.hide();
-                        break;
-                    case 'lifecycle':
-                        this.emitDragLifecycle(item.event);
+                        this.hideDragIndicator();
                         break;
                 }
             }
+        }
+
+        // Renders the drop indicator on whichever editor the pointer is over —
+        // the source view for an in-file drag, or the target view for a
+        // cross-file drag. Switches (and hides the previous) as the pointer
+        // crosses between editors.
+        private renderDropPreviewOnTarget(preview: DropPreviewInput): void {
+            const entry = this.currentTargetEntry;
+            if (this.lastIndicatorEntry !== entry) {
+                this.lastIndicatorEntry?.dropIndicator.hide();
+                this.lastIndicatorEntry = entry;
+            }
+            if (!entry) return;
+            renderDropPreview(entry.context, entry.dropIndicator, preview);
+        }
+
+        private hideDragIndicator(): void {
+            this.lastIndicatorEntry?.dropIndicator.hide();
+            this.lastIndicatorEntry = null;
+            this.currentTargetEntry = null;
         }
 
         private handleDocumentPointerMove(e: PointerEvent): void {

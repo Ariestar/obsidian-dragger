@@ -20,7 +20,7 @@ export function getAdjustedTargetLocation(
         return { lineNumber: clampTargetLineNumber(doc.lines, lineNumber), blockAdjusted: false };
     }
 
-    const block = detectBlock(view.state, lineNumber, { tabSize: view.state.facet(EditorState.tabSize) });
+    const block = detectBlock(view.state.doc, lineNumber, { tabSize: view.state.facet(EditorState.tabSize) });
     if (!block) return { lineNumber, blockAdjusted: false };
 
     const isAtomicBlock = block.type === BlockType.CodeBlock

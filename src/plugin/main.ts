@@ -19,12 +19,10 @@ import {
 } from './settings';
 import { migrateSettings } from './settings-migrations';
 import { platform } from './platform';
-import type { DragLifecycleEvent, DragLifecycleListener } from 'md-dragger/runtime';
 import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
 
 export default class DragNDropPlugin extends Plugin {
     settings: DragNDropSettings;
-    private readonly dragLifecycleListeners = new Set<DragLifecycleListener>();
     private mobileDragModeActionByView = new WeakMap<MarkdownView, HTMLElement>();
     private readonly mobileDragModeActionEls = new Set<HTMLElement>();
     private mobileDragModeEnabled = false;
@@ -45,7 +43,6 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     onunload() {
-        this.dragLifecycleListeners.clear();
         for (const actionEl of this.mobileDragModeActionEls) {
             actionEl.remove();
         }
@@ -134,22 +131,12 @@ export default class DragNDropPlugin extends Plugin {
         this.syncMobileDragModeActionVisibility();
     }
 
-    onDragLifecycleEvent(listener: DragLifecycleListener): () => void {
-        this.dragLifecycleListeners.add(listener);
-        return () => {
-            this.dragLifecycleListeners.delete(listener);
-        };
-    }
-
-    emitDragLifecycleEvent(event: DragLifecycleEvent): void {
-        this.handleMobileDragModeLifecycle(event);
-        for (const listener of Array.from(this.dragLifecycleListeners)) {
-            try {
-                listener(event);
-            } catch (error) {
-                console.error('[Dragger] drag lifecycle listener failed:', error);
-            }
-        }
+    // Called by the drag-driver when a drop commits. Drives mobile-mode
+    // auto-disable — the only cross-cutting concern that needed a drag signal.
+    notifyDragDrop(): void {
+        if (!platform.isMobile) return;
+        if (this.settings.disableMobileDragModeAfterDrop === false) return;
+        this.setMobileDragModeEnabled(false);
     }
 
     isMobileDragModeEnabled(): boolean {
@@ -195,13 +182,6 @@ export default class DragNDropPlugin extends Plugin {
         } catch {
             // ignore selection clear failures on limited mobile webviews
         }
-    }
-
-    private handleMobileDragModeLifecycle(event: DragLifecycleEvent): void {
-        if (event.type !== 'drag_drop_commit') return;
-        if (!platform.isMobile) return;
-        if (this.settings.disableMobileDragModeAfterDrop === false) return;
-        this.setMobileDragModeEnabled(false);
     }
 
     private registerMobileDragModeActions(): void {

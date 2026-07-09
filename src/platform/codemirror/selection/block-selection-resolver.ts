@@ -125,7 +125,7 @@ export class BlockSelectionResolver {
     }
 
     getDraggableBlockAtLine(lineNumber: number): BlockInfo | null {
-        const block = detectBlock(this.view.state, lineNumber, {
+        const block = detectBlock(this.view.state.doc, lineNumber, {
             tabSize: this.view.state.facet(EditorState.tabSize),
         });
         if (!block) return null;

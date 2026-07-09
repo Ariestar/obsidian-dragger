@@ -102,7 +102,7 @@ async function writeClipboardText(text: string): Promise<boolean> {
 
 function getBlockAt(view: EditorView, lineNumber?: number): BlockInfo | null {
     const resolved = lineNumber ?? view.state.doc.lineAt(view.state.selection.main.head).number;
-    const block = detectBlock(view.state, resolved, { tabSize: view.state.facet(EditorState.tabSize) });
+    const block = detectBlock(view.state.doc, resolved, { tabSize: view.state.facet(EditorState.tabSize) });
     if (block) return block;
     const line = view.state.doc.line(resolved);
     return {
