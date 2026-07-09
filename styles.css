@@ -123,25 +123,6 @@
     overflow: visible;
 }
 
-.dnd-drag-handle.dnd-range-selected-handle {
-    opacity: 1;
-    cursor: grab;
-    color: var(--dnd-handle-color-hover, var(--dnd-handle-color, var(--interactive-accent)));
-    filter: none;
-}
-
-.dnd-drag-handle.dnd-range-selected-handle .dnd-handle-core {
-    display: none;
-}
-
-.dnd-drag-handle.dnd-range-selected-handle .dnd-selection-checkbox {
-    pointer-events: none;
-    width: 16px;
-    height: 16px;
-    margin: 0;
-    accent-color: var(--dnd-handle-color-hover, var(--dnd-handle-color, var(--interactive-accent)));
-}
-
 /* 统一拖拽视觉样式变量（源块 + 列表落点） */
 body,
 body[data-dnd-drag-source-style="subtle"],
@@ -240,43 +221,6 @@ body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-edi
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-highlight="off"] .dnd-drag-source-embed {
     background: transparent;
     box-shadow: none;
-}
-
-.dnd-mobile-selection-resize-handle {
-    position: absolute;
-    left: var(--dnd-selection-resize-handle-left, var(--dnd-handle-horizontal-offset-px, 0px));
-    transform: translateX(-50%);
-    width: 64px;
-    height: 36px;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    color: var(--dnd-handle-color, var(--interactive-accent));
-    z-index: 10005;
-    pointer-events: auto;
-    cursor: grab;
-    touch-action: none;
-    overscroll-behavior: contain;
-    -webkit-user-select: none;
-    user-select: none;
-    font-size: 24px;
-    line-height: 1;
-}
-
-.dnd-mobile-selection-resize-handle-top {
-    top: -18px;
-}
-
-.dnd-mobile-selection-resize-handle-bottom {
-    bottom: -18px;
-}
-
-.dnd-mobile-selection-resize-handle.is-active {
-    display: flex;
-}
-
-.dnd-mobile-selection-resize-handle:active {
-    cursor: grabbing;
 }
 
 /* 常态显示拖拽手柄 */

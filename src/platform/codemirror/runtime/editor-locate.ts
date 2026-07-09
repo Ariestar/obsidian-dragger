@@ -1,5 +1,5 @@
 import type { EditorView } from '@codemirror/view';
-import { resolveDropTarget as cmResolveDropTarget } from 'md-dragger/adapter/codemirror';
+import { resolveDropTarget as cmResolveDropTarget, lineNumberFromPoint } from 'md-dragger/adapter/codemirror';
 import type { Point, PressInput, RuntimeOptions } from 'md-dragger/runtime';
 import { DRAG_HANDLE_CLASS } from '../../../shared/dom-selectors';
 import type { EditorContext } from './editor-context';
@@ -11,6 +11,7 @@ export function codeMirrorLocate(
 ): RuntimeOptions['locate'] {
     return {
         sourceLineFromInput: (input) => sourceLineFromInput(input),
+        lineFromPoint: (point) => lineNumberFromPoint(view, point),
         resolveDropTarget: (point, ctx) => {
             // The drop lands in whichever editor the pointer is over — possibly
             // a different file than the drag started in. The resolved view's

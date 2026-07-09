@@ -56,10 +56,6 @@ export class HandleVisibilityController {
         this.applyGrabbedLineVisualState();
     }
 
-    setGrabbedLineNumberRange(startLineNumber: number, endLineNumber: number): void {
-        this.setGrabbedLineRanges([{ startLineNumber, endLineNumber }]);
-    }
-
     enterGrabVisualState(
         ranges: GrabLineRange[],
         handle: HTMLElement | null
@@ -96,15 +92,6 @@ export class HandleVisibilityController {
         }
 
         handle.classList.add('is-visible');
-    }
-
-    enterGrabVisualStateForRange(
-        startLineNumber: number,
-        endLineNumber: number,
-        handle: HTMLElement | null
-    ): void {
-        this.setActiveVisibleHandle(handle);
-        this.setGrabbedLineNumberRange(startLineNumber, endLineNumber);
     }
 
     isPointerInHandleInteractionZone(snapshot: HoverPointerSnapshot): boolean {

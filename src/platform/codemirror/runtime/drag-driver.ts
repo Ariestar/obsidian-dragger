@@ -18,7 +18,7 @@ import { codeMirrorDocument } from './editor-document';
 import { codeMirrorLocate } from './editor-locate';
 import { registerDragTarget, resolveDragTargetAtPoint, type DragTargetEntry } from './drag-target-registry';
 import { renderDropPreview, type DropPreviewInput } from './editor-preview';
-import { codeMirrorRuntimeConfig } from './runtime-config';
+import { codeMirrorRuntimeConfig, codeMirrorGestureConfig } from './runtime-config';
 import { applyBlockTransaction } from '../transaction/transaction-applier';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../../../shared/dom-attrs';
 
@@ -46,6 +46,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private readonly semanticRefreshScheduler: SemanticRefreshScheduler;
         private readonly onDocumentPointerMove = (e: PointerEvent) => this.handleDocumentPointerMove(e);
         private readonly onSettingsUpdated = () => this.handleSettingsUpdated();
+        private readonly onEnterMobileSelectionMode = (e: Event) => this.handleEnterMobileSelectionMode(e);
         private readonly onPointerDown = (e: PointerEvent) => {
             this.lastPressOnHandle = (e.target instanceof HTMLElement)
                 ? e.target.closest(`.${DRAG_HANDLE_CLASS}`) !== null
@@ -73,6 +74,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             this.cachedHandleGutterSide = this.resolveConfiguredHandleGutterSide();
             this.syncViewDomState();
             this.view.dom.addEventListener('pointerdown', this.onPointerDown, true);
+            this.view.dom.addEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
             this.context = createEditorContext(this.view);
             this.handleVisibility = new HandleVisibilityController(this.view, {
                 getBlockInfoForHandle: (handle) => this.context.selection.getBlockInfoForHandle(handle),
@@ -117,6 +119,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 },
                 onChange: (output) => this.handleChange(output),
                 config: codeMirrorRuntimeConfig(plugin, this.context),
+                gestureConfig: () => codeMirrorGestureConfig(plugin),
             });
 
             this.semanticRefreshScheduler = new SemanticRefreshScheduler(this.view, {
@@ -158,7 +161,9 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
 
         destroy(): void {
             this.view.dom.removeEventListener('pointerdown', this.onPointerDown, true);
+            this.view.dom.removeEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
             this.hideDragIndicator();
+            this.clearDragSourceVisual();
             this.unregisterDragTarget();
             destroyViewLifecycle({
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
@@ -193,13 +198,27 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                             target: item.drop.target,
                             allowed: item.drop.rejectReason == null,
                         });
+                        // Highlight the multi-block drag source every frame.
+                        this.applyDragSourceVisual(item.selection);
+                        break;
+                    case 'selection_changed':
+                        // Range-select drawing in progress: preview the (multi-block)
+                        // selection as the grab highlight so the user sees what they
+                        // are sweeping. null = selection cleared → drop the highlight.
+                        if (item.selection) {
+                            this.applyDragSourceVisual(item.selection);
+                        } else {
+                            this.clearDragSourceVisual();
+                        }
                         break;
                     case 'dropped':
                         this.hideDragIndicator();
+                        this.clearDragSourceVisual();
                         plugin.notifyDragDrop();
                         break;
                     case 'cancelled':
                         this.hideDragIndicator();
+                        this.clearDragSourceVisual();
                         if (item.reason === 'press_cancelled' && this.lastPressOnHandle) {
                             const startLine = item.selection?.anchorBlock?.startLine;
                             if (typeof startLine === 'number') {
@@ -210,9 +229,26 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                         break;
                     case 'terminal':
                         this.hideDragIndicator();
+                        this.clearDragSourceVisual();
                         break;
                 }
             }
+        }
+
+        // Paint the drag-source / selection highlight over every range of the
+        // selection (multi-block aware) and lock the body for the drag gesture.
+        private applyDragSourceVisual(selection: { ranges: Array<{ startLine: number; endLine: number }> }): void {
+            const ranges = selection.ranges.map((range) => ({
+                startLineNumber: range.startLine + 1,
+                endLineNumber: range.endLine + 1,
+            }));
+            this.handleVisibility.enterGrabVisualState(ranges, this.handleVisibility.getActiveHandle());
+            activeDocument.body.classList.add(DRAGGING_BODY_CLASS);
+        }
+
+        private clearDragSourceVisual(): void {
+            this.handleVisibility.clearGrabbedLineNumbers();
+            activeDocument.body.classList.remove(DRAGGING_BODY_CLASS);
         }
 
         // Renders the drop indicator on whichever editor the pointer is over —
@@ -294,6 +330,16 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             );
             this.refreshDecorationsAndEmbeds();
             this.handleVisibility.refreshGrabVisualState();
+        }
+
+        // Mobile toolbar "select multiple blocks" command: enter range-select
+        // anchored on the current cursor line, no long-press. The command
+        // dispatches the event on the editor dom and reads back `handled`.
+        private handleEnterMobileSelectionMode(event: Event): void {
+            const detail = (event as CustomEvent<{ handled: boolean }>).detail;
+            const lineNumber = this.view.state.doc.lineAt(this.view.state.selection.main.head).number;
+            this.dragController.enterRangeSelectionMode(lineNumber);
+            if (detail) detail.handled = true;
         }
 
         private createHoverPointerSnapshot(clientX: number, clientY: number): HoverPointerSnapshot {
