@@ -16,7 +16,7 @@ import type { DragNDropSettings, NumericSettingKey } from './settings-types';
  */
 
 const SCHEMA_VERSION_KEY = 'schemaVersion';
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 type RawSettings = Record<string, unknown>;
 
@@ -76,6 +76,13 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
     (data) => {
         const next = { ...data };
         delete next.enableCrossFileDrag;
+        return next;
+    },
+    // v4 -> v5: drop unused multiLineSelectionLongPressMs. Multi-select timing
+    // is mouseRangeSelectLongPressMs; mobile drag arm is mobileDragLongPressMs.
+    (data) => {
+        const next = { ...data };
+        delete next.multiLineSelectionLongPressMs;
         return next;
     },
 ];

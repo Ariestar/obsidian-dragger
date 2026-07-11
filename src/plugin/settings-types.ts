@@ -15,8 +15,9 @@ export interface DragNDropSettings {
     indicatorColorMode: 'theme' | 'custom';
     indicatorColor: string;
     enableMultiLineSelection: boolean;
-    multiLineSelectionLongPressMs: number;
+    // Mobile: hold this long before a press becomes ready_to_drag.
     mobileDragLongPressMs: number;
+    // Hold this long to enter multi-select (desktop + mobile).
     mouseRangeSelectLongPressMs: number;
     autoScrollEdgeZonePx: number;
     autoScrollMaxSpeedPx: number;
@@ -32,8 +33,6 @@ export interface DragNDropSettings {
     schemaVersion?: number;
 }
 
-export const DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS = 900;
-
 /**
  * Valid [min, max, step] ranges for every numeric setting. Single source of
  * truth: the settings UI uses these as slider limits, and settings-migrations
@@ -43,9 +42,8 @@ export const DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS = 900;
 export const NUMERIC_SETTING_RANGES = {
     handleSize: { min: MIN_HANDLE_SIZE_PX, max: MAX_HANDLE_SIZE_PX, step: 2 },
     handleHorizontalOffsetPx: { min: -80, max: 80, step: 1 },
-    multiLineSelectionLongPressMs: { min: 300, max: 2000, step: 50 },
     mobileDragLongPressMs: { min: 50, max: 800, step: 10 },
-    mouseRangeSelectLongPressMs: { min: 50, max: 800, step: 10 },
+    mouseRangeSelectLongPressMs: { min: 50, max: 2000, step: 10 },
     autoScrollEdgeZonePx: { min: 20, max: 200, step: 4 },
     autoScrollMaxSpeedPx: { min: 4, max: 60, step: 2 },
 } as const satisfies Record<string, { min: number; max: number; step: number }>;
@@ -61,7 +59,6 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     indicatorColorMode: 'theme',
     indicatorColor: '#7a7a7a',
     enableMultiLineSelection: true,
-    multiLineSelectionLongPressMs: DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS,
     mobileDragLongPressMs: 200,
     mouseRangeSelectLongPressMs: 500,
     autoScrollEdgeZonePx: 60,

@@ -16,7 +16,6 @@ import { platform } from './platform';
 
 export {
     DEFAULT_SETTINGS,
-    DEFAULT_MULTI_LINE_SELECTION_LONG_PRESS_MS,
 } from './settings-types';
 export type {
     DragNDropSettings,
@@ -217,14 +216,6 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     this.plugin.settings.enableMultiLineSelection = value;
                     await this.plugin.saveSettings();
                 }));
-
-        this.addNumericSetting(containerEl, {
-            name: i.multiLineSelectionLongPressMs, desc: i.multiLineSelectionLongPressMsDesc,
-            ...NUMERIC_SETTING_RANGES.multiLineSelectionLongPressMs,
-            value: this.plugin.settings.multiLineSelectionLongPressMs,
-            defaultValue: DEFAULT_SETTINGS.multiLineSelectionLongPressMs,
-            onChange: async (v) => { this.plugin.settings.multiLineSelectionLongPressMs = v; await this.plugin.saveSettings(); },
-        });
 
         this.addNumericSetting(containerEl, {
             name: i.mobileDragLongPressMs, desc: i.mobileDragLongPressMsDesc,

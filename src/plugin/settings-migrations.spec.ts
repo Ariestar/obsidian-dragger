@@ -4,16 +4,16 @@ import { DEFAULT_SETTINGS } from './settings-types';
 
 describe('migrateSettings', () => {
     it('returns full defaults for empty/absent data', () => {
-        expect(migrateSettings(null)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 4 });
-        expect(migrateSettings(undefined)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 4 });
-        expect(migrateSettings({})).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 4 });
+        expect(migrateSettings(null)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 5 });
+        expect(migrateSettings(undefined)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 5 });
+        expect(migrateSettings({})).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 5 });
     });
 
     it('preserves user values and backfills new fields from defaults', () => {
         const result = migrateSettings({ handleSize: 32, handleVisibility: 'always' });
         expect(result.handleSize).toBe(32);
         expect(result.handleVisibility).toBe('always');
-        expect(result.schemaVersion).toBe(4);
+        expect(result.schemaVersion).toBe(5);
     });
 
     it('migrates legacy alwaysShowHandles -> handleVisibility', () => {
@@ -56,7 +56,7 @@ describe('migrateSettings', () => {
 
         expect(result.autoScrollEdgeZonePx).toBe(DEFAULT_SETTINGS.autoScrollEdgeZonePx);
         expect(result.autoScrollMaxSpeedPx).toBe(DEFAULT_SETTINGS.autoScrollMaxSpeedPx);
-        expect(result.schemaVersion).toBe(4);
+        expect(result.schemaVersion).toBe(5);
     });
 
     it('preserves custom auto-scroll values during default migration', () => {
@@ -98,7 +98,7 @@ describe('migrateSettings', () => {
         });
 
         expect(result.mouseRangeSelectLongPressMs).toBe(DEFAULT_SETTINGS.mouseRangeSelectLongPressMs);
-        expect(result.schemaVersion).toBe(4);
+        expect(result.schemaVersion).toBe(5);
     });
 
     it('preserves custom desktop range-select long-press values during default migration', () => {
@@ -108,19 +108,19 @@ describe('migrateSettings', () => {
         });
 
         expect(result.mouseRangeSelectLongPressMs).toBe(420);
-        expect(result.schemaVersion).toBe(4);
+        expect(result.schemaVersion).toBe(5);
     });
 
     it('does not re-run v0 migrations when already at current version', () => {
         // legacy field present but version already current: left untouched, not migrated
-        const result = migrateSettings({ schemaVersion: 4, alwaysShowHandles: true });
+        const result = migrateSettings({ schemaVersion: 5, alwaysShowHandles: true });
         expect(result.handleVisibility).toBe(DEFAULT_SETTINGS.handleVisibility);
-        expect(result.schemaVersion).toBe(4);
+        expect(result.schemaVersion).toBe(5);
     });
 
     it('drops removed cross-file drag setting', () => {
         const result = migrateSettings({ schemaVersion: 3, enableCrossFileDrag: true });
         expect('enableCrossFileDrag' in result).toBe(false);
-        expect(result.schemaVersion).toBe(4);
+        expect(result.schemaVersion).toBe(5);
     });
 });

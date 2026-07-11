@@ -3,9 +3,12 @@ import type { EditorContext } from './editor-context';
 
 type RuntimeConfigPlugin = {
     isMobilePlatform(): boolean;
+    isMobileDragModeEnabled(): boolean;
     settings: {
         enableMultiLineSelection: boolean;
+        // Mobile: hold this long before a press becomes ready_to_drag.
         mobileDragLongPressMs: number;
+        // Desktop (and mobile multi-select): hold this long to enter selecting.
         mouseRangeSelectLongPressMs: number;
     };
 };
@@ -19,16 +22,32 @@ export function codeMirrorRuntimeConfig(
     });
 }
 
-// Gesture config for the runtime's default ux. Drives the long-press →
-// range-select gesture: enableMultiLineSelection gates multi-select on/off,
-// and the long-press duration is platform-specific (mobile vs desktop).
+// Gesture config for DefaultUx.
+//
+// Desktop:
+//   dragArmMs = 0 → move past threshold starts a drag immediately
+//   multiSelectMs = mouseRangeSelectLongPressMs → hold to enter multi-select
+//
+// Mobile (drag mode on — locate already gates presses):
+//   dragArmMs = mobileDragLongPressMs → hold to arm drag
+//   multiSelectMs = mouseRangeSelectLongPressMs → longer hold enters multi-select
 export function codeMirrorGestureConfig(plugin: RuntimeConfigPlugin): GestureConfig {
+    const multiSelectEnabled = plugin.settings.enableMultiLineSelection !== false;
+    const multiSelectMs = plugin.settings.mouseRangeSelectLongPressMs;
+    if (plugin.isMobilePlatform()) {
+        return {
+            dragArmMs: plugin.settings.mobileDragLongPressMs,
+            multiSelectMs,
+            dragStartMoveThresholdPx: 8,
+            dragCancelMoveThresholdPx: 12,
+            multiSelectEnabled,
+        };
+    }
     return {
-        longPressMs: plugin.isMobilePlatform()
-            ? plugin.settings.mobileDragLongPressMs
-            : plugin.settings.mouseRangeSelectLongPressMs,
-        dragStartMoveThresholdPx: plugin.isMobilePlatform() ? 8 : 4,
-        dragCancelMoveThresholdPx: plugin.isMobilePlatform() ? 12 : Number.POSITIVE_INFINITY,
-        multiSelectEnabled: plugin.settings.enableMultiLineSelection !== false,
+        dragArmMs: 0,
+        multiSelectMs,
+        dragStartMoveThresholdPx: 4,
+        dragCancelMoveThresholdPx: Number.POSITIVE_INFINITY,
+        multiSelectEnabled,
     };
 }

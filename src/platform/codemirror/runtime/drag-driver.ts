@@ -3,7 +3,6 @@ import DragNDropPlugin from '../../../plugin/main';
 import {
     MOBILE_GESTURE_LOCK_CLASS,
     DRAGGING_BODY_CLASS,
-    DRAG_HANDLE_CLASS,
 } from '../../../shared/dom-selectors';
 import { DropIndicatorManager } from './drop-indicator';
 import { getVisibleHandleForBlockStart } from '../handle/handle-renderer';
@@ -51,14 +50,14 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private readonly onSettingsUpdated = () => this.handleSettingsUpdated();
         private readonly onEnterMobileSelectionMode = (e: Event) => this.handleEnterMobileSelectionMode(e);
         private readonly onPointerDown = (e: PointerEvent) => {
-            this.lastPressOnHandle = (e.target instanceof HTMLElement)
-                ? e.target.closest(`.${DRAG_HANDLE_CLASS}`) !== null
-                : false;
-            this.lastPressEvent = this.lastPressOnHandle ? e : null;
+            // Any press that becomes a runtime gesture may open the block-type
+            // menu on short release. Desktop content clicks never enter runtime
+            // (locate returns null); mobile content clicks only enter when
+            // drag mode is on. So storing every pointerdown is safe.
+            this.lastPressEvent = e;
         };
         private readonly pointerMoveClient: GlobalPointerMoveClient;
         private cachedHandleGutterSide: 'left' | 'right';
-        private lastPressOnHandle = false;
         private lastPressEvent: PointerEvent | null = null;
         // Editor under the live drag pointer — source or another file.
         private currentTargetEntry: DragTargetEntry | null = null;
@@ -105,7 +104,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             this.dragController = new DraggerRuntime({
                 input: pointerInput(this.view),
                 document: codeMirrorDocument(this.view),
-                locate: codeMirrorLocate(this.view, this.context, this.resolveTargetView),
+                locate: codeMirrorLocate(this.view, this.context, this.resolveTargetView, plugin),
                 commit: {
                     apply: (edits) => {
                         // Route each edit by Doc identity. Do NOT use
@@ -205,7 +204,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                         break;
                     case 'cancelled':
                         this.hideDragIndicator();
-                        if (item.reason === 'press_cancelled' && this.lastPressOnHandle) {
+                        if (item.reason === 'press_cancelled') {
                             const startLine = item.selection?.anchorBlock?.startLine;
                             if (typeof startLine === 'number') {
                                 openBlockTypeMenu(this.view, this.lastPressEvent, startLine + 1);
