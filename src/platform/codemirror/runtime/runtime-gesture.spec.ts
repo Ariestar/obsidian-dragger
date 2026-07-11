@@ -119,6 +119,56 @@ describe('runtime default-ux gesture (end-to-end)', () => {
         rt.destroy();
     });
 
+    it('multi-select enabled: press + move past threshold starts drag (does not enter selecting)', () => {
+        const doc = makeDoc();
+        const input = mockInput();
+        const commits: unknown[] = [];
+        const dropTarget: DropTarget = { targetDoc: doc, targetLineNumber: 5, placement: 'before' };
+        let timerCallback: (() => void) | null = null;
+
+        const rt = new DraggerRuntime({
+            input: input.source,
+            document: { getDoc: () => doc },
+            locate: {
+                sourceLineFromInput: () => 1,
+                lineFromPoint: () => 1,
+                resolveDropTarget: () => dropTarget,
+            },
+            commit: { apply: (edits) => { commits.push(edits); } },
+            gestureConfig: {
+                longPressMs: 250,
+                dragStartMoveThresholdPx: 4,
+                dragCancelMoveThresholdPx: Number.POSITIVE_INFINITY,
+                multiSelectEnabled: true,
+            },
+            scheduler: {
+                setTimer: (callback) => {
+                    timerCallback = callback;
+                    return 1 as unknown as ReturnType<typeof setTimeout>;
+                },
+                clearTimer: () => {
+                    timerCallback = null;
+                },
+            },
+        });
+        rt.mount();
+
+        input.press(pressAt());
+        expect(rt.state.type).toBe('holding');
+        expect(timerCallback).not.toBeNull();
+
+        // Move before long-press matures → drag, not multi-select.
+        input.move({ point: { x: 10, y: 80 }, pointer, native: {}, claim: () => {} });
+        expect(rt.state.type).toBe('dragging');
+        expect(timerCallback).toBeNull();
+
+        input.release({ point: { x: 10, y: 80 }, pointer, native: {}, claim: () => {}, releaseCapture: () => {} });
+        expect(rt.state.type).toBe('idle');
+        expect(commits.length).toBe(1);
+
+        rt.destroy();
+    });
+
     it('multi-block: long-press -> selecting -> move draws range -> second long-press drags the whole range', () => {
         const doc = makeDoc();
         const input = mockInput();
