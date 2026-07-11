@@ -16,7 +16,7 @@ import type { DragNDropSettings, NumericSettingKey } from './settings-types';
  */
 
 const SCHEMA_VERSION_KEY = 'schemaVersion';
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 6;
 
 type RawSettings = Record<string, unknown>;
 
@@ -68,7 +68,7 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
     (data) => {
         const next = { ...data };
         if (next.mouseRangeSelectLongPressMs === 260) {
-            next.mouseRangeSelectLongPressMs = DEFAULT_SETTINGS.mouseRangeSelectLongPressMs;
+            next.mouseRangeSelectLongPressMs = 500;
         }
         return next;
     },
@@ -83,6 +83,15 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
     (data) => {
         const next = { ...data };
         delete next.multiLineSelectionLongPressMs;
+        return next;
+    },
+    // v5 -> v6: lengthen default multi-select hold so it is harder to enter by
+    // accident after the mobile drag-arm threshold. Preserve custom values.
+    (data) => {
+        const next = { ...data };
+        if (next.mouseRangeSelectLongPressMs === 500) {
+            next.mouseRangeSelectLongPressMs = DEFAULT_SETTINGS.mouseRangeSelectLongPressMs;
+        }
         return next;
     },
 ];

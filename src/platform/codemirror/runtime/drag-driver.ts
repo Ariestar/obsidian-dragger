@@ -37,12 +37,6 @@ type SelectionVisual = {
     ranges: Array<{ startLine: number; endLine: number }>;
 };
 
-type PendingBlockMenu = {
-    startLine: number;
-    x: number;
-    y: number;
-};
-
 export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
     return class {
         private readonly view: EditorView;
@@ -64,11 +58,20 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 e.preventDefault();
             }
         };
-        private readonly onGlobalPointerUp = () => this.flushPendingBlockMenu();
+        // CSS touch-action only affects *new* touches. For the active press that
+        // entered holding/ready/drag, scroll must be cancelled via non-passive
+        // touchmove preventDefault while the runtime phase is locked.
+        private readonly onTouchMoveWhileGestureLocked = (e: TouchEvent) => {
+            e.preventDefault();
+        };
+        private readonly onContextMenuWhileDragMode = (e: Event) => {
+            if (!plugin.isMobilePlatform() || !plugin.isMobileDragModeEnabled()) return;
+            e.preventDefault();
+        };
         private readonly pointerMoveClient: GlobalPointerMoveClient;
         private cachedHandleGutterSide: 'left' | 'right';
         private lastPressEvent: PointerEvent | null = null;
-        private pendingBlockMenu: PendingBlockMenu | null = null;
+        private gestureScrollLocked = false;
         // Editor under the live drag pointer — source or another file.
         private currentTargetEntry: DragTargetEntry | null = null;
         private lastIndicatorEntry: DragTargetEntry | null = null;
@@ -85,9 +88,8 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             this.cachedHandleGutterSide = this.resolveConfiguredHandleGutterSide();
             this.syncViewDomState();
             this.view.dom.addEventListener('pointerdown', this.onPointerDown, true);
+            this.view.dom.addEventListener('contextmenu', this.onContextMenuWhileDragMode, true);
             this.view.dom.addEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
-            window.addEventListener('pointerup', this.onGlobalPointerUp, true);
-            window.addEventListener('pointercancel', this.onGlobalPointerUp, true);
             this.context = createEditorContext(this.view);
             this.handleVisibility = new HandleVisibilityController(this.view, {
                 getBlockInfoForHandle: (handle) => this.context.selection.getBlockInfoForHandle(handle),
@@ -178,10 +180,8 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
 
         destroy(): void {
             this.view.dom.removeEventListener('pointerdown', this.onPointerDown, true);
+            this.view.dom.removeEventListener('contextmenu', this.onContextMenuWhileDragMode, true);
             this.view.dom.removeEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
-            window.removeEventListener('pointerup', this.onGlobalPointerUp, true);
-            window.removeEventListener('pointercancel', this.onGlobalPointerUp, true);
-            this.pendingBlockMenu = null;
             this.setGestureScrollLock(false);
             this.hideDragIndicator();
             this.clearGrabVisual();
@@ -221,17 +221,13 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     case 'cancelled':
                         this.hideDragIndicator();
                         if (item.reason === 'press_cancelled') {
-                            const startLine = item.selection?.anchorBlock?.startLine;
-                            const press = this.lastPressEvent;
-                            this.lastPressEvent = null;
-                            if (typeof startLine === 'number') {
-                                // Open after pointerup (see flushPendingBlockMenu).
-                                this.pendingBlockMenu = {
-                                    startLine,
-                                    x: press?.clientX ?? 0,
-                                    y: press?.clientY ?? 0,
-                                };
-                            }
+                            // press_cancelled is emitted *inside* the release
+                            // handler. Opening here (after release has already
+                            // run) avoids the old race where a capture-phase
+                            // pointerup flush ran before pending was set, so
+                            // the menu only appeared on the *next* pointerup
+                            // (e.g. when the user scrolled again).
+                            this.openBlockMenuFromPress(item.selection?.anchorBlock?.startLine);
                         }
                         break;
                     case 'terminal':
@@ -242,20 +238,22 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             this.projectRuntimeVisual();
         }
 
-        private flushPendingBlockMenu(): void {
-            const pending = this.pendingBlockMenu;
-            if (!pending) return;
-            this.pendingBlockMenu = null;
+        private openBlockMenuFromPress(startLine: number | undefined): void {
+            const press = this.lastPressEvent;
+            this.lastPressEvent = null;
+            if (typeof startLine !== 'number') return;
 
-            // Open beside the block line — never under the finger — so the
-            // residual synthetic click cannot hit the menu as outside-dismiss.
-            // Wait for the next frame after pointerup (no artificial delay).
-            const pos = this.menuAnchorForLine(pending.startLine + 1, pending.x, pending.y);
+            // Anchor beside the line — never under the finger — so residual
+            // synthetic click (if any) cannot hit the menu as outside-dismiss.
+            // rAF: open after the current release event stack unwinds; no
+            // artificial delay, no click-swallow.
+            const pos = this.menuAnchorForLine(startLine + 1, press?.clientX ?? 0, press?.clientY ?? 0);
+            const line = startLine + 1;
             requestAnimationFrame(() => {
                 openBlockTypeMenu(
                     this.view,
                     { clientX: pos.x, clientY: pos.y } as PointerEvent,
-                    pending.startLine + 1,
+                    line,
                 );
             });
         }
@@ -287,9 +285,20 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             });
         }
 
-        // Single projection path: runtime state → grab highlight + dragging body class.
+        // Single projection path: runtime state → grab highlight + scroll lock.
         // Layer rule: runtime owns selection; this method only paints DOM.
+        // Scroll lock is independent of grab paint — holding/ready have no
+        // painted selection but MUST still lock scroll for the active press.
         private projectRuntimeVisual(): void {
+            const state = this.dragController.state;
+            const dragging = this.dragController.isGestureActive() || state.type === 'dragging';
+            this.setGestureScrollLock(
+                dragging
+                || state.type === 'selecting'
+                || state.type === 'holding'
+                || state.type === 'ready_to_drag',
+            );
+
             const selection = this.runtimeSelection();
             if (!selection || selection.ranges.length === 0) {
                 this.clearGrabVisual();
@@ -301,28 +310,33 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 endLineNumber: range.endLine + 1,
             }));
             this.handleVisibility.enterGrabVisualState(ranges, null);
-
-            const state = this.dragController.state;
-            const dragging = this.dragController.isGestureActive() || state.type === 'dragging';
             activeDocument.body.classList.toggle(DRAGGING_BODY_CLASS, dragging);
-            // Scroll lock follows runtime phase: holding/ready/selecting/dragging.
-            // Idle drag-mode stays scrollable.
-            this.setGestureScrollLock(
-                dragging
-                || state.type === 'selecting'
-                || state.type === 'holding'
-                || state.type === 'ready_to_drag',
-            );
         }
 
         private setGestureScrollLock(locked: boolean): void {
+            if (this.gestureScrollLocked === locked) return;
+            this.gestureScrollLocked = locked;
             activeDocument.body.classList.toggle(MOBILE_GESTURE_LOCK_CLASS, locked);
+            if (locked) {
+                activeDocument.addEventListener(
+                    'touchmove',
+                    this.onTouchMoveWhileGestureLocked,
+                    { capture: true, passive: false },
+                );
+            } else {
+                activeDocument.removeEventListener(
+                    'touchmove',
+                    this.onTouchMoveWhileGestureLocked,
+                    true,
+                );
+            }
         }
 
+        // Paint only — never touches scroll lock. Lock is owned exclusively by
+        // setGestureScrollLock via projectRuntimeVisual / destroy.
         private clearGrabVisual(): void {
             this.handleVisibility.clearGrabbedLineNumbers();
             activeDocument.body.classList.remove(DRAGGING_BODY_CLASS);
-            this.setGestureScrollLock(false);
         }
 
         private runtimeSelection(): SelectionVisual | null {

@@ -60,7 +60,8 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     indicatorColor: '#7a7a7a',
     enableMultiLineSelection: true,
     mobileDragLongPressMs: 200,
-    mouseRangeSelectLongPressMs: 500,
+    // Slightly longer than drag-arm so multi-select is intentional, not accidental.
+    mouseRangeSelectLongPressMs: 700,
     autoScrollEdgeZonePx: 60,
     autoScrollMaxSpeedPx: 12,
     disableMobileDragModeAfterDrop: true,
@@ -72,3 +73,4 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     handleHorizontalOffsetPx: -8,
     handleGutterPosition: 'left',
 };
+
