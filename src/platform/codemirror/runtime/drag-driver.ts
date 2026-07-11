@@ -55,6 +55,12 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             // (locate returns null); mobile content clicks only enter when
             // drag mode is on. So storing every pointerdown is safe.
             this.lastPressEvent = e;
+            if (plugin.isMobilePlatform() && plugin.isMobileDragModeEnabled()) {
+                // Block native caret/focus on lines AND rendered widgets
+                // (hr, table, embeds). Do not stopPropagation — runtime input
+                // still needs the event.
+                e.preventDefault();
+            }
         };
         private readonly pointerMoveClient: GlobalPointerMoveClient;
         private cachedHandleGutterSide: 'left' | 'right';
@@ -206,10 +212,15 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                         this.hideDragIndicator();
                         if (item.reason === 'press_cancelled') {
                             const startLine = item.selection?.anchorBlock?.startLine;
-                            if (typeof startLine === 'number') {
-                                openBlockTypeMenu(this.view, this.lastPressEvent, startLine + 1);
-                            }
+                            const press = this.lastPressEvent;
                             this.lastPressEvent = null;
+                            if (typeof startLine === 'number') {
+                                // Defer until the originating pointer fully ends;
+                                // opening synchronously is dismissed as outside-click.
+                                window.setTimeout(() => {
+                                    openBlockTypeMenu(this.view, press, startLine + 1);
+                                }, 0);
+                            }
                         }
                         break;
                     case 'terminal':

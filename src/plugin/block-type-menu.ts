@@ -362,8 +362,11 @@ function showMenuAt(
     view: EditorView,
     event: MouseEvent | PointerEvent | null,
 ): void {
-    if (event) {
-        menu.showAtMouseEvent(event);
+    // Never use showAtMouseEvent for short-tap re-open: the originating
+    // pointer is already finishing, and mobile treats it as an outside click
+    // that immediately hides the menu. Always open by absolute position.
+    if (event && typeof event.clientX === 'number' && typeof event.clientY === 'number') {
+        menu.showAtPosition({ x: event.clientX, y: event.clientY });
         return;
     }
     const coords = view.coordsAtPos(view.state.selection.main.head);

@@ -292,6 +292,19 @@ body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-r
     -webkit-touch-callout: none;
 }
 
+/* Mobile drag mode also owns the viewport: no page pan / scroll while mode is on. */
+body.dnd-mobile-drag-mode-enabled {
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor,
+body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-scroller,
+body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content {
+    touch-action: none;
+    overscroll-behavior: none;
+}
+
 /* 拖拽中的状态 */
 body.dnd-dragging {
     cursor: grabbing;

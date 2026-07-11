@@ -35,6 +35,11 @@ export default class DragNDropPlugin extends Plugin {
         if (!this.mobileDragModeEnabled) return;
         this.clearNativeSelection();
     };
+    private readonly onTouchMoveWhileDragMode = (event: TouchEvent) => {
+        if (!this.mobileDragModeEnabled) return;
+        // Mode owns gestures: block page/editor pan. Runtime still gets pointermove.
+        event.preventDefault();
+    };
 
     async onload() {
 
@@ -184,12 +189,18 @@ export default class DragNDropPlugin extends Plugin {
         // Capture phase so we win over editor selection handlers.
         activeDocument.addEventListener('selectstart', this.onSelectStartWhileDragMode, true);
         activeDocument.addEventListener('selectionchange', this.onSelectionChangeWhileDragMode, true);
+        // passive:false required to cancel touch scroll.
+        activeDocument.addEventListener('touchmove', this.onTouchMoveWhileDragMode, {
+            capture: true,
+            passive: false,
+        });
         this.clearNativeSelection();
     }
 
     private removeMobileSelectionLock(): void {
         activeDocument.removeEventListener('selectstart', this.onSelectStartWhileDragMode, true);
         activeDocument.removeEventListener('selectionchange', this.onSelectionChangeWhileDragMode, true);
+        activeDocument.removeEventListener('touchmove', this.onTouchMoveWhileDragMode, true);
     }
 
     private clearNativeSelection(): void {

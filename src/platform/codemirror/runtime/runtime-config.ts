@@ -39,7 +39,9 @@ export function codeMirrorGestureConfig(plugin: RuntimeConfigPlugin): GestureCon
             dragArmMs: plugin.settings.mobileDragLongPressMs,
             multiSelectMs,
             dragStartMoveThresholdPx: 8,
-            dragCancelMoveThresholdPx: 12,
+            // Finger jitter while arming must not cancel into a menu.
+            // Short tap still cancels on release; move after arm starts a drag.
+            dragCancelMoveThresholdPx: Number.POSITIVE_INFINITY,
             multiSelectEnabled,
         };
     }
