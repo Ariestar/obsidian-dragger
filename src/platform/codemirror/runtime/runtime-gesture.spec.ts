@@ -72,17 +72,23 @@ describe('runtime default-ux gesture (end-to-end)', () => {
         rt.destroy();
     });
 
-    it('multi-select: short click does not enter selecting', () => {
+    it('multi-select: short click does not enter selecting, cancels with press_cancelled', () => {
         const doc = makeDoc();
         const input = mockInput();
         let timerCallback: (() => void) | null = null;
         const dropTarget: DropTarget = { targetDoc: doc, targetLineNumber: 5, placement: 'before' };
+        const cancelled: Array<{ reason: string }> = [];
 
         const rt = new DraggerRuntime({
             input: input.source,
             document: { getDoc: () => doc },
             locate: { sourceLineFromInput: () => 1, lineFromPoint: () => 1, resolveDropTarget: () => dropTarget },
             commit: { apply: () => {} },
+            onChange: (result) => {
+                for (const item of result.outputs) {
+                    if (item.type === 'cancelled') cancelled.push({ reason: item.reason });
+                }
+            },
             gestureConfig: {
                 longPressMs: 250,
                 dragStartMoveThresholdPx: 4,
@@ -102,12 +108,13 @@ describe('runtime default-ux gesture (end-to-end)', () => {
         rt.mount();
 
         input.press(pressAt());
-        // Armed for long-press, but pipeline stays idle until the timer fires.
-        expect(rt.state.type).toBe('idle');
+        // Armed: holding, not yet selecting. Platform must not paint holding as multi-select.
+        expect(rt.state.type).toBe('holding');
         expect(timerCallback).not.toBeNull();
 
         input.release({ point: { x: 10, y: 20 }, pointer, native: {}, claim: () => {}, releaseCapture: () => {} });
         expect(rt.state.type).toBe('idle');
+        expect(cancelled.some((c) => c.reason === 'press_cancelled')).toBe(true);
 
         rt.destroy();
     });
@@ -142,7 +149,7 @@ describe('runtime default-ux gesture (end-to-end)', () => {
 
         // First entry requires long-press maturity.
         input.press(pressAt());
-        expect(rt.state.type).toBe('idle');
+        expect(rt.state.type).toBe('holding');
         expect(timerCallback).not.toBeNull();
         timerCallback?.();
         expect(rt.state.type).toBe('selecting');
