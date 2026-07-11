@@ -8,7 +8,6 @@ function createDeps(): ViewUpdateFlowDeps {
     return {
         refreshDecorationsAndEmbeds: vi.fn(),
         handleVisibility: {
-            refreshGrabVisualState: vi.fn(),
             getActiveHandle: vi.fn(() => null),
             setActiveVisibleHandle: vi.fn(),
         } as unknown as ViewUpdateFlowDeps['handleVisibility'],
@@ -30,12 +29,22 @@ function createUpdate(overrides: Partial<ViewUpdate>): ViewUpdate {
 }
 
 describe('applyViewUpdate', () => {
-    it('refreshes grab visuals after editor selection changes', () => {
+    it('does not own grab-visual refresh (driver projects from runtime)', () => {
         const deps = createDeps();
-
         applyViewUpdate(createUpdate({ selectionSet: true }), deps);
-
-        expect(deps.handleVisibility.refreshGrabVisualState).toHaveBeenCalledTimes(1);
         expect(deps.refreshDecorationsAndEmbeds).not.toHaveBeenCalled();
+        expect(deps.reResolveActiveHandle).not.toHaveBeenCalled();
+    });
+
+    it('rebinds a disconnected active handle after viewport change', () => {
+        const disconnected = { isConnected: false } as HTMLElement;
+        const deps = createDeps();
+        (deps.handleVisibility.getActiveHandle as ReturnType<typeof vi.fn>).mockReturnValue(disconnected);
+
+        applyViewUpdate(createUpdate({ viewportChanged: true }), deps);
+
+        expect(deps.refreshDecorationsAndEmbeds).toHaveBeenCalledTimes(1);
+        expect(deps.handleVisibility.setActiveVisibleHandle).toHaveBeenCalledWith(null);
+        expect(deps.reResolveActiveHandle).toHaveBeenCalledTimes(1);
     });
 });

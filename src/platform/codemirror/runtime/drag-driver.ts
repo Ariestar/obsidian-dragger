@@ -3,6 +3,7 @@ import DragNDropPlugin from '../../../plugin/main';
 import {
     MOBILE_GESTURE_LOCK_CLASS,
     DRAGGING_BODY_CLASS,
+    DRAG_HANDLE_CLASS,
 } from '../../../shared/dom-selectors';
 import { DropIndicatorManager } from './drop-indicator';
 import { getVisibleHandleForBlockStart } from '../handle/handle-renderer';
@@ -10,7 +11,6 @@ import { HandleVisibilityController } from '../hover/handle-visibility-controlle
 import { DraggerRuntime } from 'md-dragger/runtime';
 import type { Change, Point } from 'md-dragger/runtime';
 import { openBlockTypeMenu } from '../../../plugin/block-type-menu';
-import { DRAG_HANDLE_CLASS } from '../../../shared/dom-selectors';
 import { SemanticRefreshScheduler } from '../perf/semantic-refresh-scheduler';
 import { DragPerfSessionManager } from '../perf/drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './editor-context';
@@ -21,7 +21,6 @@ import { renderDropPreview, type DropPreviewInput } from './editor-preview';
 import { codeMirrorRuntimeConfig, codeMirrorGestureConfig } from './runtime-config';
 import { applyBlockTransaction } from '../transaction/transaction-applier';
 import { DND_DRAG_SOURCE_HIGHLIGHT_ATTR, DND_DRAG_SOURCE_STYLE_ATTR } from '../../../shared/dom-attrs';
-
 import {
     clearEditorRootClasses,
     ensureEditorRootClasses,
@@ -34,6 +33,10 @@ import { placeHandleGutterForConfiguredSide } from '../handle/gutter';
 import { GlobalPointerMoveClient } from '../hover/global-pointermove-router';
 import { createHoverPointerSnapshot, HoverPointerSnapshot } from '../hover/hover-pointer-snapshot';
 import { pointerInput } from 'md-dragger/adapter/codemirror';
+
+type SelectionVisual = {
+    ranges: Array<{ startLine: number; endLine: number }>;
+};
 
 export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
     return class {
@@ -57,12 +60,11 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private cachedHandleGutterSide: 'left' | 'right';
         private lastPressOnHandle = false;
         private lastPressEvent: PointerEvent | null = null;
-        // The editor under the live drag pointer (this view or another), refreshed
-        // on every resolveDropTarget. Drives cross-file indicator rendering and the
-        // target-side commit dispatch.
+        // Editor under the live drag pointer — source or another file.
         private currentTargetEntry: DragTargetEntry | null = null;
         private lastIndicatorEntry: DragTargetEntry | null = null;
         private readonly unregisterDragTarget: () => void;
+        private visualRefreshScheduled = false;
         private readonly resolveTargetView = (point: Point): EditorView | null => {
             const entry = resolveDragTargetAtPoint(point.x, point.y);
             this.currentTargetEntry = entry;
@@ -84,18 +86,17 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             });
             this.dragPerfSessionManager = new DragPerfSessionManager(this.view);
             this.dropIndicator = new DropIndicatorManager(view, {
-                    isDropHighlightEnabled: () => plugin.settings.enableListDropHighlight !== false,
-                    onFrameMetrics: (metrics) => {
-                        this.dragPerfSessionManager.incrementCounter('drop_indicator_frames');
-                        if (metrics.skipped) {
-                            this.dragPerfSessionManager.incrementCounter('drop_indicator_skipped_frames');
-                        }
-                        if (metrics.reused) {
-                            this.dragPerfSessionManager.incrementCounter('drop_indicator_reused_frames');
-                        }
-                    },
-                }
-            );
+                isDropHighlightEnabled: () => plugin.settings.enableListDropHighlight !== false,
+                onFrameMetrics: (metrics) => {
+                    this.dragPerfSessionManager.incrementCounter('drop_indicator_frames');
+                    if (metrics.skipped) {
+                        this.dragPerfSessionManager.incrementCounter('drop_indicator_skipped_frames');
+                    }
+                    if (metrics.reused) {
+                        this.dragPerfSessionManager.incrementCounter('drop_indicator_reused_frames');
+                    }
+                },
+            });
             this.unregisterDragTarget = registerDragTarget({
                 view: this.view,
                 context: this.context,
@@ -106,14 +107,12 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 document: codeMirrorDocument(this.view),
                 locate: codeMirrorLocate(this.view, this.context, this.resolveTargetView),
                 commit: {
-                    // Route each edit to the view that owns its doc — source view
-                    // for an in-file drop, target view for a cross-file drop.
                     apply: (edits) => {
                         for (const edit of edits) {
-                            const view = edit.doc === this.view.state.doc
+                            const targetView = edit.doc === this.view.state.doc
                                 ? this.view
                                 : (this.currentTargetEntry?.view ?? this.view);
-                            applyBlockTransaction(view, edit);
+                            applyBlockTransaction(targetView, edit);
                         }
                     },
                 },
@@ -137,7 +136,6 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 pointerMoveClient: this.pointerMoveClient,
                 onSettingsUpdated: this.onSettingsUpdated,
             });
-
             this.syncViewDomState();
         }
 
@@ -148,22 +146,24 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 handleVisibility: this.handleVisibility,
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
                 reResolveActiveHandle: () => {
-                   // This is technically hard to satisfy without the pointer tracker,
-                   // we can safely mock it or grab the center of current active handle.
-                   const h = this.handleVisibility.getActiveHandle();
-                   if (h) {
-                        const rect = h.getBoundingClientRect();
-                        this.reResolveActiveHandle(rect.left + rect.width / 2, rect.top + rect.height / 2);
-                   }
+                    const h = this.handleVisibility.getActiveHandle();
+                    if (!h) return;
+                    const rect = h.getBoundingClientRect();
+                    this.reResolveActiveHandle(rect.left + rect.width / 2, rect.top + rect.height / 2);
                 },
             });
+            // Gutter/line nodes may rebuild after this plugin's update callback.
+            // One deferred projection from runtime is enough — no second path.
+            if (update.docChanged || update.geometryChanged || update.selectionSet || update.viewportChanged) {
+                this.scheduleProjectRuntimeVisual();
+            }
         }
 
         destroy(): void {
             this.view.dom.removeEventListener('pointerdown', this.onPointerDown, true);
             this.view.dom.removeEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
             this.hideDragIndicator();
-            this.clearDragSourceVisual();
+            this.clearGrabVisual();
             this.unregisterDragTarget();
             destroyViewLifecycle({
                 semanticRefreshScheduler: this.semanticRefreshScheduler,
@@ -173,22 +173,16 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             });
             this.handleVisibility.clearGrabbedLineNumbers();
             this.handleVisibility.setActiveVisibleHandle(null);
-            this.flushDragPerfSession('destroy');
+            this.dragPerfSessionManager.flush('destroy');
             clearEditorRootClasses(this.view);
             this.view.dom.removeAttribute(DND_DRAG_SOURCE_STYLE_ATTR);
             this.view.dom.removeAttribute(DND_DRAG_SOURCE_HIGHLIGHT_ATTR);
             this.dropIndicator.destroy();
         }
 
-        private flushDragPerfSession(reason: string): void {
-            this.dragPerfSessionManager.flush(reason);
-        }
-
-        // Projects platform visuals from the runtime's output stream, and
-        // recognizes handle tap (a platform ux concern — the runtime only
-        // broadcasts a cancel; whether that cancel is a "tap on the handle
-        // that should open the block-type menu" is the plugin's decision,
-        // using its own press-origin tracking).
+        // Platform side-effects that are *not* grab visuals: drop indicator and
+        // handle-tap menu. Grab/selection paint always goes through
+        // projectRuntimeVisual so DOM classes never diverge from runtime state.
         private handleChange(output: Change): void {
             for (const item of output.outputs) {
                 switch (item.type) {
@@ -198,27 +192,13 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                             target: item.drop.target,
                             allowed: item.drop.rejectReason == null,
                         });
-                        // Highlight the multi-block drag source every frame.
-                        this.applyDragSourceVisual(item.selection);
-                        break;
-                    case 'selection_changed':
-                        // Range-select drawing in progress: preview the (multi-block)
-                        // selection as the grab highlight so the user sees what they
-                        // are sweeping. null = selection cleared → drop the highlight.
-                        if (item.selection) {
-                            this.applyDragSourceVisual(item.selection);
-                        } else {
-                            this.clearDragSourceVisual();
-                        }
                         break;
                     case 'dropped':
                         this.hideDragIndicator();
-                        this.clearDragSourceVisual();
                         plugin.notifyDragDrop();
                         break;
                     case 'cancelled':
                         this.hideDragIndicator();
-                        this.clearDragSourceVisual();
                         if (item.reason === 'press_cancelled' && this.lastPressOnHandle) {
                             const startLine = item.selection?.anchorBlock?.startLine;
                             if (typeof startLine === 'number') {
@@ -229,32 +209,56 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                         break;
                     case 'terminal':
                         this.hideDragIndicator();
-                        this.clearDragSourceVisual();
                         break;
                 }
             }
+            this.projectRuntimeVisual();
         }
 
-        // Paint the drag-source / selection highlight over every range of the
-        // selection (multi-block aware) and lock the body for the drag gesture.
-        private applyDragSourceVisual(selection: { ranges: Array<{ startLine: number; endLine: number }> }): void {
+        private scheduleProjectRuntimeVisual(): void {
+            if (this.visualRefreshScheduled) return;
+            this.visualRefreshScheduled = true;
+            queueMicrotask(() => {
+                this.visualRefreshScheduled = false;
+                this.projectRuntimeVisual();
+            });
+        }
+
+        // Single projection path: runtime state → grab highlight + dragging body class.
+        // Layer rule: runtime owns selection; this method only paints DOM.
+        private projectRuntimeVisual(): void {
+            const selection = this.runtimeSelection();
+            if (!selection || selection.ranges.length === 0) {
+                this.clearGrabVisual();
+                return;
+            }
+
             const ranges = selection.ranges.map((range) => ({
                 startLineNumber: range.startLine + 1,
                 endLineNumber: range.endLine + 1,
             }));
             this.handleVisibility.enterGrabVisualState(ranges, this.handleVisibility.getActiveHandle());
-            activeDocument.body.classList.add(DRAGGING_BODY_CLASS);
+
+            if (this.dragController.isGestureActive() || this.dragController.state.type === 'dragging') {
+                activeDocument.body.classList.add(DRAGGING_BODY_CLASS);
+            } else {
+                activeDocument.body.classList.remove(DRAGGING_BODY_CLASS);
+            }
         }
 
-        private clearDragSourceVisual(): void {
+        private clearGrabVisual(): void {
             this.handleVisibility.clearGrabbedLineNumbers();
             activeDocument.body.classList.remove(DRAGGING_BODY_CLASS);
         }
 
-        // Renders the drop indicator on whichever editor the pointer is over —
-        // the source view for an in-file drag, or the target view for a
-        // cross-file drag. Switches (and hides the previous) as the pointer
-        // crosses between editors.
+        private runtimeSelection(): SelectionVisual | null {
+            const state = this.dragController.state;
+            if (state.type === 'selecting') return state.selection.selection;
+            if (state.type === 'dragging') return state.drag.selection;
+            if (state.type === 'ready_to_drag' || state.type === 'holding') return state.hold.selection;
+            return null;
+        }
+
         private renderDropPreviewOnTarget(preview: DropPreviewInput): void {
             const entry = this.currentTargetEntry;
             if (this.lastIndicatorEntry !== entry) {
@@ -272,9 +276,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         }
 
         private handleDocumentPointerMove(e: PointerEvent): void {
-            if (activeDocument.body.classList.contains(MOBILE_GESTURE_LOCK_CLASS)) {
-                return;
-            }
+            if (activeDocument.body.classList.contains(MOBILE_GESTURE_LOCK_CLASS)) return;
             if (activeDocument.body.classList.contains(DRAGGING_BODY_CLASS)) {
                 this.handleVisibility.setActiveVisibleHandle(null);
                 return;
@@ -283,6 +285,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 this.handleVisibility.setActiveVisibleHandle(this.handleVisibility.getActiveHandle());
                 return;
             }
+
             const hoverSnapshot = this.createHoverPointerSnapshot(e.clientX, e.clientY);
             if (this.semanticRefreshScheduler.isPending && hoverSnapshot.withinHoverActivationZone) {
                 this.semanticRefreshScheduler.ensureSemanticReadyForInteraction();
@@ -293,28 +296,25 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 this.handleVisibility.setActiveVisibleHandle(directHandle);
                 return;
             }
-
-            const handle = this.handleVisibility.resolveVisibleHandleFromPointer(hoverSnapshot);
-            this.handleVisibility.setActiveVisibleHandle(handle);
+            this.handleVisibility.setActiveVisibleHandle(
+                this.handleVisibility.resolveVisibleHandleFromPointer(hoverSnapshot)
+            );
         }
 
         private reResolveActiveHandle(lastX?: number, lastY?: number): void {
             if (lastX === undefined || lastY === undefined) return;
-            const handle = this.handleVisibility.resolveVisibleHandleFromPointer(
-                this.createHoverPointerSnapshot(lastX, lastY)
+            this.handleVisibility.setActiveVisibleHandle(
+                this.handleVisibility.resolveVisibleHandleFromPointer(
+                    this.createHoverPointerSnapshot(lastX, lastY)
+                )
             );
-            this.handleVisibility.setActiveVisibleHandle(handle);
         }
 
         private syncViewDomState(): void {
             ensureEditorRootClasses(this.view);
             placeHandleGutterForConfiguredSide(this.view, this.resolveConfiguredHandleGutterSide());
             syncBlockSelectionStyleAttr(this.view, plugin.settings.selectionVisualStyle);
-            syncBlockSelectionHighlightAttr(this.view, this.isBlockSelectionHighlightEnabled());
-        }
-
-        private isBlockSelectionHighlightEnabled(): boolean {
-            return plugin.settings.enableBlockSelectionHighlight !== false;
+            syncBlockSelectionHighlightAttr(this.view, plugin.settings.enableBlockSelectionHighlight !== false);
         }
 
         private refreshDecorationsAndEmbeds(): void {
@@ -325,16 +325,11 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private handleSettingsUpdated(): void {
             this.cachedHandleGutterSide = this.resolveConfiguredHandleGutterSide();
             this.syncViewDomState();
-            this.dragController.handleMobileDragAvailabilityChanged(
-                plugin.isMobileDragModeEnabled()
-            );
+            this.dragController.handleMobileDragAvailabilityChanged(plugin.isMobileDragModeEnabled());
             this.refreshDecorationsAndEmbeds();
-            this.handleVisibility.refreshGrabVisualState();
+            this.projectRuntimeVisual();
         }
 
-        // Mobile toolbar "select multiple blocks" command: enter range-select
-        // anchored on the current cursor line, no long-press. The command
-        // dispatches the event on the editor dom and reads back `handled`.
         private handleEnterMobileSelectionMode(event: Event): void {
             const detail = (event as CustomEvent<{ handled: boolean }>).detail;
             const lineNumber = this.view.state.doc.lineAt(this.view.state.selection.main.head).number;

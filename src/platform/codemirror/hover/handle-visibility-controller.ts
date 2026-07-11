@@ -4,6 +4,7 @@ import type { HoverContentRect, HoverPointerSnapshot } from './hover-pointer-typ
 import {
     DRAG_HANDLE_CLASS,
     DRAG_SOURCE_EMBED_CLASS,
+    SELECTED_HANDLE_CLASS,
 } from '../../../shared/dom-selectors';
 import { getMainContentLineElementForLine } from '../dom/line-dom';
 import { resolveLineNumberFromDomNodes } from '../dom/element-probe';
@@ -29,10 +30,14 @@ type ActiveHoverBlock = {
     handle: HTMLElement;
 };
 
+// Pure DOM projection for hover + grab visuals. Owns no runtime state: the
+// platform driver decides *what* ranges are selected; this class only paints
+// the current DOM with those ranges and keeps hover-visible handles in sync.
 export class HandleVisibilityController {
     private readonly grabbedLineEls = new Set<HTMLElement>();
     private readonly grabbedEmbedEls = new Set<HTMLElement>();
-    private grabbedLineRanges: GrabLineRange[] = [];
+    private readonly grabbedHandleEls = new Set<HTMLElement>();
+    private grabbedRanges: GrabLineRange[] = [];
     private activeHandle: HTMLElement | null = null;
     private activeHoverBlock: ActiveHoverBlock | null = null;
 
@@ -46,40 +51,36 @@ export class HandleVisibilityController {
     }
 
     clearGrabbedLineNumbers(): void {
-        this.clearGrabbedLineVisualClasses();
-        this.grabbedLineRanges = [];
+        this.clearGrabVisualClasses();
+        this.grabbedRanges = [];
     }
 
+    // Re-apply the last ranges onto whatever DOM is currently live. Call after
+    // CodeMirror rebuilds line/gutter nodes (viewport, selection, geometry).
     refreshGrabVisualState(): void {
-        if (this.grabbedLineRanges.length === 0) return;
-        this.clearGrabbedLineVisualClasses();
-        this.applyGrabbedLineVisualState();
+        if (this.grabbedRanges.length === 0) return;
+        this.clearGrabVisualClasses();
+        this.applyGrabVisualState();
     }
 
     enterGrabVisualState(
         ranges: GrabLineRange[],
         handle: HTMLElement | null
     ): void {
-        this.setActiveVisibleHandle(handle);
-        this.setGrabbedLineRanges(ranges);
-    }
-
-    enterGrabVisualStateForBlock(
-        blockInfo: BlockInfo,
-        handle: HTMLElement | null
-    ): void {
-        this.enterGrabVisualState([{
-            startLineNumber: blockInfo.startLine + 1,
-            endLineNumber: blockInfo.endLine + 1,
-        }], handle);
+        if (handle) this.setActiveVisibleHandle(handle);
+        this.setGrabbedRanges(ranges);
     }
 
     setActiveVisibleHandle(handle: HTMLElement | null): void {
-        if (this.activeHandle === handle) {
-            return;
-        }
+        if (this.activeHandle === handle) return;
+
         if (this.activeHandle) {
-            this.activeHandle.classList.remove('is-visible');
+            // Selected-block handles stay visible via SELECTED_HANDLE_CLASS;
+            // only pure hover visibility is stripped when the pointer leaves.
+            if (!this.grabbedHandleEls.has(this.activeHandle)
+                && !this.activeHandle.classList.contains(SELECTED_HANDLE_CLASS)) {
+                this.activeHandle.classList.remove('is-visible');
+            }
         }
 
         this.activeHandle = handle;
@@ -90,7 +91,6 @@ export class HandleVisibilityController {
         if (this.activeHoverBlock?.handle !== handle) {
             this.activeHoverBlock = null;
         }
-
         handle.classList.add('is-visible');
     }
 
@@ -104,12 +104,9 @@ export class HandleVisibilityController {
 
     resolveVisibleHandleFromTarget(target: EventTarget | null): HTMLElement | null {
         if (!isHTMLElement(target)) return null;
-
         const directHandle = target.closest<HTMLElement>(`.${DRAG_HANDLE_CLASS}`);
         if (!directHandle) return null;
-        if (this.view.dom.contains(directHandle)) {
-            return directHandle;
-        }
+        if (this.view.dom.contains(directHandle)) return directHandle;
         return null;
     }
 
@@ -120,9 +117,7 @@ export class HandleVisibilityController {
         }
 
         const cachedHandle = this.resolveActiveHoverBlock(snapshot);
-        if (cachedHandle) {
-            return cachedHandle;
-        }
+        if (cachedHandle) return cachedHandle;
 
         const blockInfo = this.deps.getDraggableBlockAtVerticalPosition(snapshot.clientY, snapshot.contentRect);
         if (!blockInfo) return null;
@@ -139,7 +134,7 @@ export class HandleVisibilityController {
         return handle;
     }
 
-    private clearGrabbedLineVisualClasses(): void {
+    private clearGrabVisualClasses(): void {
         for (const lineEl of this.grabbedLineEls) {
             removeSourceLineClasses(lineEl);
         }
@@ -148,17 +143,24 @@ export class HandleVisibilityController {
             embedEl.classList.remove(DRAG_SOURCE_EMBED_CLASS);
         }
         this.grabbedEmbedEls.clear();
+        for (const handleEl of this.grabbedHandleEls) {
+            handleEl.classList.remove(SELECTED_HANDLE_CLASS);
+            if (handleEl !== this.activeHandle) {
+                handleEl.classList.remove('is-visible');
+            }
+        }
+        this.grabbedHandleEls.clear();
     }
 
-    private setGrabbedLineRanges(ranges: GrabLineRange[]): void {
-        this.clearGrabbedLineVisualClasses();
-        this.grabbedLineRanges = this.normalizeGrabLineRanges(ranges);
-        this.applyGrabbedLineVisualState();
+    private setGrabbedRanges(ranges: GrabLineRange[]): void {
+        this.clearGrabVisualClasses();
+        this.grabbedRanges = ranges;
+        this.applyGrabVisualState();
     }
 
-    private applyGrabbedLineVisualState(): void {
-        if (this.grabbedLineRanges.length === 0) return;
-        for (const range of this.grabbedLineRanges) {
+    private applyGrabVisualState(): void {
+        if (this.grabbedRanges.length === 0) return;
+        for (const range of this.normalizeGrabLineRanges(this.grabbedRanges)) {
             const safeStart = Math.max(1, Math.min(this.view.state.doc.lines, range.startLineNumber));
             const safeEnd = Math.max(1, Math.min(this.view.state.doc.lines, range.endLineNumber));
             const from = Math.min(safeStart, safeEnd);
@@ -171,6 +173,16 @@ export class HandleVisibilityController {
             }
         }
         this.applyGrabbedEmbedVisualState();
+        this.applyGrabbedHandleVisualState();
+    }
+
+    private applyGrabbedHandleVisualState(): void {
+        for (const range of this.grabbedRanges) {
+            const handle = this.deps.getVisibleHandleForBlockStart?.(range.startLineNumber - 1);
+            if (!handle) continue;
+            handle.classList.add(SELECTED_HANDLE_CLASS, 'is-visible');
+            this.grabbedHandleEls.add(handle);
+        }
     }
 
     private applyGrabbedEmbedVisualState(): void {
@@ -194,13 +206,11 @@ export class HandleVisibilityController {
     }
 
     private isLineNumberInGrabRanges(lineNumber: number): boolean {
-        return isLineNumberInRanges(lineNumber, this.grabbedLineRanges);
+        return isLineNumberInRanges(lineNumber, this.grabbedRanges);
     }
 
     private normalizeGrabLineRanges(ranges: GrabLineRange[]): GrabLineRange[] {
-        const docLines = this.view.state.doc.lines;
-        const merged = mergeLineRanges(docLines, ranges);
-        return merged.map((range) => ({
+        return mergeLineRanges(this.view.state.doc.lines, ranges).map((range) => ({
             startLineNumber: range.startLineNumber,
             endLineNumber: range.endLineNumber,
         }));
@@ -231,7 +241,6 @@ export class HandleVisibilityController {
         if (lineHandle && lineHandle !== this.activeHoverBlock.handle) {
             return null;
         }
-
         return this.activeHoverBlock.handle;
     }
 }

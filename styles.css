@@ -75,6 +75,38 @@
         0 0 8px var(--dnd-handle-color, var(--interactive-accent));
 }
 
+.dnd-drag-handle.dnd-selected-block-handle {
+    opacity: 1;
+    color: var(--interactive-accent);
+}
+
+.dnd-drag-handle.dnd-selected-block-handle.is-visible {
+    opacity: 1;
+}
+
+.dnd-drag-handle.dnd-selected-block-handle .dnd-handle-core {
+    position: relative;
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    background: var(--interactive-accent);
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--interactive-accent) 72%, var(--background-primary)),
+        0 2px 8px color-mix(in srgb, var(--interactive-accent) 28%, transparent);
+}
+
+.dnd-drag-handle.dnd-selected-block-handle .dnd-handle-core::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 2px;
+    width: 4px;
+    height: 7px;
+    border: solid var(--text-on-accent);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
 /* 手柄图标样式：六点抓手 */
 [data-dnd-handle-icon="grip-dots"] .dnd-handle-core {
     width: auto;
@@ -163,6 +195,9 @@ body[data-dnd-drag-source-style="filled"],
         inset -1px 0 0 var(--dnd-drag-source-border);
 }
 
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content.dnd-main-content > .cm-line.dnd-drag-source-line.cm-activeLine {
+    background: var(--dnd-drag-source-bg);
+}
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .dnd-drag-source-embed {
     background: var(--dnd-drag-source-bg);
     border-radius: 6px;

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { EditorState } from '@codemirror/state';
-import type { EditorView } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockInfo, BlockType } from 'md-dragger/domain';
 import { createHoverPointerSnapshot } from './hover-pointer-snapshot';
@@ -15,6 +15,7 @@ import {
     DRAG_SOURCE_LINE_LAST_CLASS,
     DRAG_SOURCE_EMBED_CLASS,
     HANDLE_GUTTER_CLASS,
+    SELECTED_HANDLE_CLASS,
 } from '../../../shared/dom-selectors';
 import { HandleVisibilityController } from './handle-visibility-controller';
 
@@ -156,7 +157,10 @@ describe('HandleVisibilityController', () => {
             getVisibleHandleForBlockStart: () => null,
         });
 
-        controller.enterGrabVisualStateForBlock(createBlock(1, 3), null);
+        controller.enterGrabVisualState([{
+            startLineNumber: 2,
+            endLineNumber: 4,
+        }], null);
 
         expect(lines[1].classList.contains(DRAG_SOURCE_LINE_CLASS)).toBe(true);
         expect(lines[2].classList.contains(DRAG_SOURCE_LINE_CLASS)).toBe(true);
@@ -202,6 +206,48 @@ describe('HandleVisibilityController', () => {
         expect(lines[5].classList.contains(DRAG_SOURCE_LINE_CLASS)).toBe(false);
     });
 
+    it('marks each selected block handle as a checkbox and clears it with grab state', () => {
+        const { view } = createViewStub(4);
+        const firstHandle = appendHandleForLine(view, 1);
+        const secondHandle = appendHandleForLine(view, 2);
+        const controller = new HandleVisibilityController(view, {
+            getBlockInfoForHandle: () => null,
+            getLineNumberAtVerticalPosition: () => null,
+            getDraggableBlockAtVerticalPosition: () => null,
+            getVisibleHandleForBlockStart: (blockStart) => {
+                if (blockStart === 0) return firstHandle;
+                if (blockStart === 1) return secondHandle;
+                return null;
+            },
+        });
+
+        controller.enterGrabVisualState([
+            { startLineNumber: 1, endLineNumber: 1 },
+            { startLineNumber: 2, endLineNumber: 2 },
+        ], null);
+
+        expect(firstHandle.classList.contains(SELECTED_HANDLE_CLASS)).toBe(true);
+        expect(firstHandle.classList.contains('is-visible')).toBe(true);
+        expect(secondHandle.classList.contains(SELECTED_HANDLE_CLASS)).toBe(true);
+        expect(secondHandle.classList.contains('is-visible')).toBe(true);
+
+        firstHandle.classList.remove(SELECTED_HANDLE_CLASS, 'is-visible');
+        secondHandle.classList.remove(SELECTED_HANDLE_CLASS, 'is-visible');
+        controller.refreshGrabVisualState();
+
+        expect(firstHandle.classList.contains(SELECTED_HANDLE_CLASS)).toBe(true);
+        expect(firstHandle.classList.contains('is-visible')).toBe(true);
+        expect(secondHandle.classList.contains(SELECTED_HANDLE_CLASS)).toBe(true);
+        expect(secondHandle.classList.contains('is-visible')).toBe(true);
+
+        controller.clearGrabbedLineNumbers();
+
+        expect(firstHandle.classList.contains(SELECTED_HANDLE_CLASS)).toBe(false);
+        expect(firstHandle.classList.contains('is-visible')).toBe(false);
+        expect(secondHandle.classList.contains(SELECTED_HANDLE_CLASS)).toBe(false);
+        expect(secondHandle.classList.contains('is-visible')).toBe(false);
+    });
+
     it('re-applies drag-source class on refresh when grab state is active', () => {
         const { view, lines } = createViewStub(5);
         const controller = new HandleVisibilityController(view, {
@@ -211,7 +257,10 @@ describe('HandleVisibilityController', () => {
             getVisibleHandleForBlockStart: () => null,
         });
 
-        controller.enterGrabVisualStateForBlock(createBlock(2, 2), null);
+        controller.enterGrabVisualState([{
+            startLineNumber: 3,
+            endLineNumber: 3,
+        }], null);
         expect(lines[2].classList.contains(DRAG_SOURCE_LINE_CLASS)).toBe(true);
         expect(lines[2].classList.contains(DRAG_SOURCE_LINE_SINGLE_CLASS)).toBe(true);
 
@@ -224,6 +273,90 @@ describe('HandleVisibilityController', () => {
         expect(lines[2].classList.contains(DRAG_SOURCE_LINE_SINGLE_CLASS)).toBe(true);
     });
 
+    it('re-applies selected line visual after a CodeMirror selection update', () => {
+        const parent = document.createElement('div');
+        document.body.appendChild(parent);
+        const view = new EditorView({
+            state: EditorState.create({ doc: 'line 1\nline 2\nline 3' }),
+            parent,
+        });
+        const controller = new HandleVisibilityController(view, {
+            getBlockInfoForHandle: () => null,
+            getLineNumberAtVerticalPosition: () => null,
+            getDraggableBlockAtVerticalPosition: () => null,
+            getVisibleHandleForBlockStart: () => null,
+        });
+
+        controller.enterGrabVisualState([
+            { startLineNumber: 1, endLineNumber: 1 },
+            { startLineNumber: 2, endLineNumber: 2 },
+        ], null);
+        view.dispatch({ selection: { anchor: view.state.doc.line(2).from } });
+        controller.refreshGrabVisualState();
+
+        const domAtPos = view.domAtPos(view.state.doc.line(2).from, 1);
+        const base = domAtPos.node.nodeType === Node.TEXT_NODE
+            ? domAtPos.node.parentElement
+            : domAtPos.node;
+        const lineEl = base instanceof Element ? base.closest('.cm-line') : null;
+        expect(lineEl?.classList.contains(DRAG_SOURCE_LINE_CLASS)).toBe(true);
+
+        view.destroy();
+        parent.remove();
+    });
+
+    it('keeps selected handles visible after a later gutter rebuild (text click)', () => {
+        const parent = document.createElement('div');
+        document.body.appendChild(parent);
+        const view = new EditorView({
+            state: EditorState.create({ doc: 'line 1\nline 2\nline 3' }),
+            parent,
+        });
+
+        let firstHandle = appendHandleForLine(view, 1);
+        let secondHandle = appendHandleForLine(view, 2);
+        const controller = new HandleVisibilityController(view, {
+            getBlockInfoForHandle: () => null,
+            getLineNumberAtVerticalPosition: () => null,
+            getDraggableBlockAtVerticalPosition: () => null,
+            getVisibleHandleForBlockStart: (blockStart) => {
+                if (blockStart === 0) return firstHandle.isConnected ? firstHandle : null;
+                if (blockStart === 1) return secondHandle.isConnected ? secondHandle : null;
+                return null;
+            },
+        });
+
+        controller.enterGrabVisualState([
+            { startLineNumber: 1, endLineNumber: 1 },
+            { startLineNumber: 2, endLineNumber: 2 },
+        ], null);
+        expect(firstHandle.classList.contains(SELECTED_HANDLE_CLASS)).toBe(true);
+        expect(secondHandle.classList.contains(SELECTED_HANDLE_CLASS)).toBe(true);
+
+        // Simulate CodeMirror rebuilding gutter handles after a text click /
+        // selectionSet: old nodes are discarded, new nodes appear without classes.
+        firstHandle.remove();
+        secondHandle.remove();
+        firstHandle = appendHandleForLine(view, 1);
+        secondHandle = appendHandleForLine(view, 2);
+        expect(firstHandle.classList.contains(SELECTED_HANDLE_CLASS)).toBe(false);
+
+        // Driver re-projects from runtime; controller just re-applies ranges.
+        controller.refreshGrabVisualState();
+
+        expect(firstHandle.classList.contains(SELECTED_HANDLE_CLASS)).toBe(true);
+        expect(firstHandle.classList.contains('is-visible')).toBe(true);
+        expect(secondHandle.classList.contains(SELECTED_HANDLE_CLASS)).toBe(true);
+        expect(secondHandle.classList.contains('is-visible')).toBe(true);
+
+        // Leaving the hovered handle must not strip selected-handle visibility.
+        controller.setActiveVisibleHandle(null);
+        expect(firstHandle.classList.contains(SELECTED_HANDLE_CLASS)).toBe(true);
+        expect(firstHandle.classList.contains('is-visible')).toBe(true);
+
+        view.destroy();
+        parent.remove();
+    });
     it('applies and clears drag-source class on rendered embed block for selected range', () => {
         const { view } = createViewStub(6);
         const embed = document.createElement('div');
@@ -245,7 +378,10 @@ describe('HandleVisibilityController', () => {
             getVisibleHandleForBlockStart: () => null,
         });
 
-        controller.enterGrabVisualStateForBlock(createBlock(2, 2), null);
+        controller.enterGrabVisualState([{
+            startLineNumber: 3,
+            endLineNumber: 3,
+        }], null);
         expect(embed.classList.contains(DRAG_SOURCE_EMBED_CLASS)).toBe(true);
 
         controller.clearGrabbedLineNumbers();
@@ -295,7 +431,10 @@ describe('HandleVisibilityController', () => {
             getVisibleHandleForBlockStart: () => null,
         });
 
-        controller.enterGrabVisualStateForBlock(createBlock(1, 1), null);
+        controller.enterGrabVisualState([{
+            startLineNumber: 2,
+            endLineNumber: 2,
+        }], null);
         expect(lineNumberEl.className).toBe(CODEMIRROR_GUTTER_ELEMENT_CLASS);
 
         controller.clearGrabbedLineNumbers();

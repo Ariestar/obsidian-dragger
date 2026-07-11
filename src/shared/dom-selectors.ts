@@ -28,6 +28,7 @@ export const DRAG_HANDLE_CLASS = 'dnd-drag-handle';
 export const HANDLE_CORE_CLASS = 'dnd-handle-core';
 export const LINE_HANDLE_CLASS = 'dnd-line-handle';
 export const EMBED_HANDLE_CLASS = 'dnd-embed-handle';
+export const SELECTED_HANDLE_CLASS = 'dnd-selected-block-handle';
 export const HANDLE_GUTTER_CLASS = 'cm-dnd-handle-gutter';
 export const HANDLE_GUTTER_MARKER_CLASS = 'dnd-handle-gutter-marker';
 export const DROP_INDICATOR_CLASS = 'dnd-drop-indicator';

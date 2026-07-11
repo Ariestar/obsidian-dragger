@@ -9,15 +9,13 @@ export interface ViewUpdateFlowDeps {
     reResolveActiveHandle: () => void;
 }
 
+// View-update housekeeping that is *not* grab-visual projection.
+// Selection/drag paint is owned solely by drag-driver.projectRuntimeVisual —
+// this file only keeps decorations/hover handles coherent with CM updates.
 export function applyViewUpdate(update: ViewUpdate, deps: ViewUpdateFlowDeps): void {
     if (update.viewportChanged) {
         deps.refreshDecorationsAndEmbeds();
-        deps.handleVisibility.refreshGrabVisualState();
-        const activeHandle = deps.handleVisibility.getActiveHandle();
-        if (activeHandle && !activeHandle.isConnected) {
-            deps.handleVisibility.setActiveVisibleHandle(null);
-            deps.reResolveActiveHandle();
-        }
+        rebindActiveHandle(deps);
         return;
     }
 
@@ -27,13 +25,13 @@ export function applyViewUpdate(update: ViewUpdate, deps: ViewUpdateFlowDeps): v
         deps.refreshDecorationsAndEmbeds();
     }
 
-    if (update.docChanged || update.geometryChanged || update.selectionSet) {
-        deps.handleVisibility.refreshGrabVisualState();
-    }
+    rebindActiveHandle(deps);
+}
+
+function rebindActiveHandle(deps: ViewUpdateFlowDeps): void {
     const activeHandle = deps.handleVisibility.getActiveHandle();
     if (activeHandle && !activeHandle.isConnected) {
         deps.handleVisibility.setActiveVisibleHandle(null);
         deps.reResolveActiveHandle();
     }
 }
-
