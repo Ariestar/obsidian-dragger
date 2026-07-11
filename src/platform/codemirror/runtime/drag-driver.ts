@@ -249,15 +249,30 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             const pending = this.pendingBlockMenu;
             if (!pending) return;
             this.pendingBlockMenu = null;
-            // One more tick after pointerup so Obsidian finishes outside-click
-            // bookkeeping from the originating touch.
+
+            // Root cause of "opens then instantly closes" on mobile:
+            // press_cancelled fires on pointerup (capture), then the browser still
+            // synthesizes a click. If Menu opens before that click, Obsidian treats
+            // it as an outside-click and hides the menu.
+            //
+            // Fix (platform layer only):
+            // 1) open after the click has had a chance to fire (~50ms, not 0)
+            // 2) swallow the next document click in capture phase
+            // 3) never pass the dead press event into showAtMouseEvent — coords only
+            const swallowNextClick = (event: Event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                activeDocument.removeEventListener('click', swallowNextClick, true);
+            };
+            activeDocument.addEventListener('click', swallowNextClick, true);
             window.setTimeout(() => {
+                activeDocument.removeEventListener('click', swallowNextClick, true);
                 openBlockTypeMenu(
                     this.view,
                     { clientX: pending.x, clientY: pending.y } as PointerEvent,
                     pending.startLine + 1,
                 );
-            }, 0);
+            }, 50);
         }
 
         private scheduleProjectRuntimeVisual(): void {
