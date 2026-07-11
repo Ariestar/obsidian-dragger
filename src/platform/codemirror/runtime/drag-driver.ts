@@ -9,7 +9,7 @@ import { DropIndicatorManager } from './drop-indicator';
 import { getVisibleHandleForBlockStart } from '../handle/handle-renderer';
 import { HandleVisibilityController } from '../hover/handle-visibility-controller';
 import { DraggerRuntime } from 'md-dragger/runtime';
-import type { Change, Point } from 'md-dragger/runtime';
+import type { PipelineResult, Point } from 'md-dragger/runtime';
 import { openBlockTypeMenu } from '../../../plugin/block-type-menu';
 import { SemanticRefreshScheduler } from '../perf/semantic-refresh-scheduler';
 import { DragPerfSessionManager } from '../perf/drag-perf-session-manager';
@@ -116,7 +116,10 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                         }
                     },
                 },
-                onChange: (output) => this.handleChange(output),
+                // Full pipeline result (previous/current/outputs/event). Grab
+                // visuals re-project from runtime.state; only output-specific
+                // side effects (drop indicator, tap menu) live here.
+                onChange: (result) => this.handlePipelineResult(result),
                 config: codeMirrorRuntimeConfig(plugin, this.context),
                 gestureConfig: () => codeMirrorGestureConfig(plugin),
             });
@@ -183,8 +186,8 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         // Platform side-effects that are *not* grab visuals: drop indicator and
         // handle-tap menu. Grab/selection paint always goes through
         // projectRuntimeVisual so DOM classes never diverge from runtime state.
-        private handleChange(output: Change): void {
-            for (const item of output.outputs) {
+        private handlePipelineResult(result: PipelineResult): void {
+            for (const item of result.outputs) {
                 switch (item.type) {
                     case 'drag_over':
                         this.renderDropPreviewOnTarget({
