@@ -306,12 +306,13 @@ body.dnd-dragging .cm-line:hover {
     background-color: transparent;
 }
 
-/* Active gesture lock: only while dragging or multi-select sweeping.
-   Applied by the platform driver, not for the whole drag mode. */
+/* Active gesture lock: follows runtime phase (holding / ready / selecting / dragging).
+   Applied by the platform driver — not for idle drag-mode browsing. */
 body.dnd-dragging,
 body.dnd-mobile-gesture-lock {
     overflow: hidden;
     overscroll-behavior: none;
+    touch-action: none;
 }
 
 body.dnd-dragging .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor,
@@ -322,6 +323,9 @@ body.dnd-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.dnd-root-e
 body.dnd-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content {
     touch-action: none;
     overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 
 /* 放置位置指示器 */

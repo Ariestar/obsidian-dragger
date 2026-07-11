@@ -56,25 +56,19 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private readonly onSettingsUpdated = () => this.handleSettingsUpdated();
         private readonly onEnterMobileSelectionMode = (e: Event) => this.handleEnterMobileSelectionMode(e);
         private readonly onPointerDown = (e: PointerEvent) => {
-            // Snapshot press geometry for deferred block-type menu open.
+            // Snapshot press geometry for block-type menu open.
             this.lastPressEvent = e;
             if (plugin.isMobilePlatform() && plugin.isMobileDragModeEnabled()) {
-                // Block native caret/focus AND iOS callout (paste/select) so a
-                // long-press arm can become a drag without the system UI.
-                // Do not stopPropagation — runtime input still needs the event.
+                // Claim the press for block gestures: no caret, no iOS callout.
+                // Runtime still receives the event (no stopPropagation).
                 e.preventDefault();
-                this.armGestureScrollLock();
             }
         };
-        private readonly onGlobalPointerUp = () => {
-            this.disarmGestureScrollLock();
-            this.flushPendingBlockMenu();
-        };
+        private readonly onGlobalPointerUp = () => this.flushPendingBlockMenu();
         private readonly pointerMoveClient: GlobalPointerMoveClient;
         private cachedHandleGutterSide: 'left' | 'right';
         private lastPressEvent: PointerEvent | null = null;
         private pendingBlockMenu: PendingBlockMenu | null = null;
-        private gestureScrollLockDepth = 0;
         // Editor under the live drag pointer — source or another file.
         private currentTargetEntry: DragTargetEntry | null = null;
         private lastIndicatorEntry: DragTargetEntry | null = null;
@@ -188,8 +182,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             window.removeEventListener('pointerup', this.onGlobalPointerUp, true);
             window.removeEventListener('pointercancel', this.onGlobalPointerUp, true);
             this.pendingBlockMenu = null;
-            this.gestureScrollLockDepth = 0;
-            activeDocument.body.classList.remove(MOBILE_GESTURE_LOCK_CLASS);
+            this.setGestureScrollLock(false);
             this.hideDragIndicator();
             this.clearGrabVisual();
             this.unregisterDragTarget();
@@ -232,8 +225,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                             const press = this.lastPressEvent;
                             this.lastPressEvent = null;
                             if (typeof startLine === 'number') {
-                                // Queue until pointer fully ends — opening during
-                                // the same click stream is dismissed as outside-click.
+                                // Open after pointerup (see flushPendingBlockMenu).
                                 this.pendingBlockMenu = {
                                     startLine,
                                     x: press?.clientX ?? 0,
@@ -255,36 +247,20 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             if (!pending) return;
             this.pendingBlockMenu = null;
 
-            // Root cause of flaky open/close on mobile:
-            // press_cancelled runs on pointerup; the browser still synthesizes a
-            // click. Opening Menu before that click lands makes Obsidian hide it
-            // as outside-click. Position also matters: opening at the press point
-            // puts the menu under the finger so the same click hits a menu item
-            // or outside and dismisses it.
-            //
-            // Platform-layer fix:
-            // 1) open after the synthetic click window (~120ms)
-            // 2) swallow residual click/pointerdown in capture
-            // 3) anchor beside the block line, not under the finger
-            const swallow = (event: Event) => {
-                event.preventDefault();
-                event.stopPropagation();
-            };
-            activeDocument.addEventListener('click', swallow, true);
-            activeDocument.addEventListener('pointerdown', swallow, true);
-            window.setTimeout(() => {
-                activeDocument.removeEventListener('click', swallow, true);
-                activeDocument.removeEventListener('pointerdown', swallow, true);
-                const pos = this.menuAnchorForLine(pending.startLine + 1, pending.x, pending.y);
+            // Open beside the block line — never under the finger — so the
+            // residual synthetic click cannot hit the menu as outside-dismiss.
+            // Wait for the next frame after pointerup (no artificial delay).
+            const pos = this.menuAnchorForLine(pending.startLine + 1, pending.x, pending.y);
+            requestAnimationFrame(() => {
                 openBlockTypeMenu(
                     this.view,
                     { clientX: pos.x, clientY: pos.y } as PointerEvent,
                     pending.startLine + 1,
                 );
-            }, 120);
+            });
         }
 
-        // Prefer a point near the block line (gutter/left), not under the finger.
+        // Menu beside the line (content left), not under the finger.
         private menuAnchorForLine(lineNumber: number, fallbackX: number, fallbackY: number): { x: number; y: number } {
             try {
                 const line = this.view.state.doc.line(lineNumber);
@@ -324,65 +300,34 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 startLineNumber: range.startLine + 1,
                 endLineNumber: range.endLine + 1,
             }));
-            // Don't couple grab paint to the hovered handle — hover visibility
-            // is a separate concern and must not restyle selected handles.
             this.handleVisibility.enterGrabVisualState(ranges, null);
 
-            const dragging = this.dragController.isGestureActive()
-                || this.dragController.state.type === 'dragging';
-            if (dragging) {
-                activeDocument.body.classList.add(DRAGGING_BODY_CLASS);
-            } else {
-                activeDocument.body.classList.remove(DRAGGING_BODY_CLASS);
-            }
-            // Scroll lock only while dragging or multi-select sweeping — not for
-            // the whole mobile drag mode (idle mode must still allow pan/scroll).
+            const state = this.dragController.state;
+            const dragging = this.dragController.isGestureActive() || state.type === 'dragging';
+            activeDocument.body.classList.toggle(DRAGGING_BODY_CLASS, dragging);
+            // Scroll lock follows runtime phase: holding/ready/selecting/dragging.
+            // Idle drag-mode stays scrollable.
             this.setGestureScrollLock(
-                dragging || this.dragController.state.type === 'selecting',
+                dragging
+                || state.type === 'selecting'
+                || state.type === 'holding'
+                || state.type === 'ready_to_drag',
             );
         }
 
         private setGestureScrollLock(locked: boolean): void {
-            if (locked) this.armGestureScrollLock();
-            else this.disarmGestureScrollLock();
-        }
-
-        // Scroll lock from press through drag/selecting so iOS cannot start a
-        // page pan or callout during dragArm long-press. Depth-counted so press
-        // arm + projectRuntimeVisual can both request lock without fighting.
-        private armGestureScrollLock(): void {
-            this.gestureScrollLockDepth += 1;
-            if (this.gestureScrollLockDepth === 1) {
-                activeDocument.body.classList.add(MOBILE_GESTURE_LOCK_CLASS);
-            }
-        }
-
-        private disarmGestureScrollLock(): void {
-            if (this.gestureScrollLockDepth <= 0) {
-                this.gestureScrollLockDepth = 0;
-                activeDocument.body.classList.remove(MOBILE_GESTURE_LOCK_CLASS);
-                return;
-            }
-            this.gestureScrollLockDepth -= 1;
-            if (this.gestureScrollLockDepth === 0) {
-                activeDocument.body.classList.remove(MOBILE_GESTURE_LOCK_CLASS);
-            }
+            activeDocument.body.classList.toggle(MOBILE_GESTURE_LOCK_CLASS, locked);
         }
 
         private clearGrabVisual(): void {
             this.handleVisibility.clearGrabbedLineNumbers();
             activeDocument.body.classList.remove(DRAGGING_BODY_CLASS);
-            // Force clear — visual path ended; press arm will re-lock on next down.
-            this.gestureScrollLockDepth = 0;
-            activeDocument.body.classList.remove(MOBILE_GESTURE_LOCK_CLASS);
+            this.setGestureScrollLock(false);
         }
 
         private runtimeSelection(): SelectionVisual | null {
             const state = this.dragController.state;
             // Only committed multi-select and an active drag paint grab visuals.
-            // holding / ready_to_drag are uncommitted press arms (menu / drag
-            // intent) — painting them makes short clicks look like multi-select
-            // entry and then "lose" the highlight on release.
             if (state.type === 'selecting') return state.selection.selection;
             if (state.type === 'dragging') return state.drag.selection;
             return null;
