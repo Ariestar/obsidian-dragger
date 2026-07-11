@@ -31,10 +31,9 @@ let openChildMenu: Menu | null = null;
 let openChildTrigger: HTMLElement | null = null;
 let openChildMenuEl: HTMLElement | null = null;
 let closeChildMenuTimer: number | null = null;
-// 1-indexed line the open menu operates on. Module-scoped so the nested
-// (asynchronously opened) submenu pages read it after openBlockTypeMenu
-// has returned.
-let menuBlockLine: number = 0;
+// 1-indexed line the open menu operates on. Module-scoped so nested submenu
+// pages (opened after the parent returns) still know the target block.
+let menuBlockLine = 0;
 
 export function openBlockTypeMenu(
     view: EditorView,
@@ -43,20 +42,18 @@ export function openBlockTypeMenu(
 ): void {
     menuBlockLine = lineNumber ?? view.state.doc.lineAt(view.state.selection.main.head).number;
     const menu = new Menu();
+    // Nested popovers need DOM menus; native menus cannot host our child Menu.
+    menu.setUseNativeMenu?.(false);
+
     const nestedGroups: NestedConversionGroup[] = [
-        {
-            label: 'Heading',
-            icon: 'heading',
-            options: HEADING_BLOCK_TYPE_OPTIONS,
-        },
-        {
-            label: 'List',
-            icon: 'list',
-            options: LIST_BLOCK_TYPE_OPTIONS,
-        },
+        { label: 'Heading', icon: 'heading', options: HEADING_BLOCK_TYPE_OPTIONS },
+        { label: 'List', icon: 'list', options: LIST_BLOCK_TYPE_OPTIONS },
     ];
+
     menu.onHide(() => {
-        window.setTimeout(() => hideOpenChildMenu(), 150);
+        // Delay teardown so a click that dismissed the parent can still land on
+        // a nested child item before the child Menu is destroyed.
+        window.setTimeout(() => hideOpenChildMenu(), 200);
     });
 
     addConversionItem(menu, view, PARAGRAPH_BLOCK_TYPE_OPTION, menuBlockLine);
@@ -93,28 +90,44 @@ export function openBlockTypeMenu(
     showMenu(menu, view, event, nestedGroups);
 }
 
-function addConversionItem(menu: Menu, view: EditorView, option: BlockTypeConversionOption, lineNumber: number): void {
+function addConversionItem(
+    menu: Menu,
+    view: EditorView,
+    option: BlockTypeConversionOption,
+    lineNumber: number,
+): void {
+    // Close over primitives so nested menu teardown cannot race the handler.
+    const target = option.target;
+    const line = lineNumber;
     menu.addItem((item) => item
         .setTitle(option.label)
         .setIcon(option.icon)
         .onClick(() => {
-            if (!convertCurrentBlockType(view, option.target, lineNumber)) {
-                new Notice('Unable to change block type.');
-                return;
-            }
-            menu.hide();
+            // Nested/desktop child menus are often torn down in the same event
+            // turn as the click (parent hide cascade). Apply on the next task so
+            // conversion still runs after Obsidian finishes menu cleanup.
+            window.setTimeout(() => {
+                if (!convertCurrentBlockType(view, target, line)) {
+                    new Notice('Unable to change block type.');
+                    return;
+                }
+                hideOpenChildMenu();
+                menu.hide();
+            }, 0);
         }));
 }
 
 function addNestedConversionMenu(
     menu: Menu,
     view: EditorView,
-    group: NestedConversionGroup
+    group: NestedConversionGroup,
 ): void {
     menu.addItem((item) => {
         item
             .setTitle(createSubmenuTitle(group.label))
             .setIcon(group.icon);
+        // Mobile has no reliable hover: open a full child page on tap.
+        // Desktop opens a side popover on pointerenter (see prepareNestedMenuItems).
         if (platform.isMobile) {
             item.onClick(() => {
                 openNestedMenuPage(menu, view, group);
@@ -145,13 +158,14 @@ function createSubmenuTitle(labelText: string): DocumentFragment {
 function openNestedMenuPopover(
     view: EditorView,
     group: NestedConversionGroup,
-    trigger: HTMLElement
+    trigger: HTMLElement,
 ): void {
     cancelChildMenuClose();
     if (openChildMenu && openChildTrigger === trigger) return;
 
     hideOpenChildMenu();
     const child = createNestedConversionMenu(view, group.options, menuBlockLine);
+    child.setUseNativeMenu?.(false);
     openChildMenu = child;
     openChildTrigger = trigger;
     child.onHide(() => {
@@ -166,25 +180,32 @@ function openNestedMenuPopover(
 function openNestedMenuPage(
     parent: Menu,
     view: EditorView,
-    group: NestedConversionGroup
+    group: NestedConversionGroup,
 ): void {
+    const line = menuBlockLine;
     parent.hide();
     const child = new Menu();
+    child.setUseNativeMenu?.(false);
     child.addItem((item) => item
         .setTitle('Back')
         .setIcon('chevron-left')
         .onClick(() => {
             child.hide();
-            openBlockTypeMenu(view, null);
+            openBlockTypeMenu(view, null, line);
         }));
     for (const option of group.options) {
-        addConversionItem(child, view, option, menuBlockLine);
+        addConversionItem(child, view, option, line);
     }
     showMenu(child, view, null);
 }
 
-function createNestedConversionMenu(view: EditorView, options: BlockTypeConversionOption[], lineNumber: number): Menu {
+function createNestedConversionMenu(
+    view: EditorView,
+    options: BlockTypeConversionOption[],
+    lineNumber: number,
+): Menu {
     const child = new Menu();
+    child.setUseNativeMenu?.(false);
     for (const option of options) {
         addConversionItem(child, view, option, lineNumber);
     }
@@ -221,18 +242,33 @@ async function executeMenuAction(menu: Menu, action: BlockMenuAction): Promise<v
 }
 
 function prepareNestedMenuItems(view: EditorView, groups: NestedConversionGroup[]): void {
-    const isMobile = platform.isMobile;
-    const items = activeDocument.querySelectorAll<HTMLElement>('.menu-item');
-    for (const item of Array.from(items)) {
+    if (platform.isMobile) return;
+
+    // Scope to the menus we just opened — never re-bind foreign menus.
+    const menus = Array.from(activeDocument.querySelectorAll<HTMLElement>('.menu'));
+    const latest = menus[menus.length - 1];
+    if (!latest) return;
+
+    for (const item of Array.from(latest.querySelectorAll<HTMLElement>('.menu-item'))) {
+        if (item.dataset.dndSubmenuBound === 'true') continue;
         const title = item.querySelector<HTMLElement>('.dnd-block-type-submenu-title-label')?.textContent?.trim();
         const group = groups.find((candidate) => candidate.label === title);
         if (!group) continue;
 
-        if (isMobile || item.dataset.dndSubmenuBound === 'true') continue;
-
         item.dataset.dndSubmenuBound = 'true';
         item.addEventListener('pointerenter', () => {
             openNestedMenuPopover(view, group, item);
+        });
+        // Keep the child open while the pointer is on the parent row.
+        item.addEventListener('pointerleave', (event) => {
+            const related = event.relatedTarget;
+            if (related instanceof Node && openChildMenuEl?.contains(related)) {
+                cancelChildMenuClose();
+                return;
+            }
+            // Fall through to the shared leave handler via a short delay.
+            cancelChildMenuClose();
+            closeChildMenuTimer = window.setTimeout(() => hideOpenChildMenu(), 120);
         });
     }
 }
@@ -250,7 +286,7 @@ function closeChildMenuWhenPointerLeaves(event: PointerEvent): void {
     cancelChildMenuClose();
     closeChildMenuTimer = window.setTimeout(() => {
         hideOpenChildMenu();
-    }, 80);
+    }, 120);
 }
 
 function cancelChildMenuClose(): void {
@@ -293,7 +329,7 @@ function showMenu(
     menu: Menu,
     view: EditorView,
     event: MouseEvent | PointerEvent | null,
-    nestedGroups: NestedConversionGroup[] = []
+    nestedGroups: NestedConversionGroup[] = [],
 ): void {
     if (event) {
         menu.showAtMouseEvent(event);
@@ -306,5 +342,6 @@ function showMenu(
         }
     }
 
-    prepareNestedMenuItems(view, nestedGroups);
+    // Bind hover after the menu is in the DOM.
+    window.queueMicrotask(() => prepareNestedMenuItems(view, nestedGroups));
 }
