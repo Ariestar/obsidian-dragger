@@ -256,9 +256,12 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
 
         private runtimeSelection(): SelectionVisual | null {
             const state = this.dragController.state;
+            // Only committed multi-select and live drag paint grab visuals.
+            // `holding` is an uncommitted press (waiting for long-press) and must
+            // not look like multi-select entry on a short click.
             if (state.type === 'selecting') return state.selection.selection;
             if (state.type === 'dragging') return state.drag.selection;
-            if (state.type === 'ready_to_drag' || state.type === 'holding') return state.hold.selection;
+            if (state.type === 'ready_to_drag') return state.hold.selection;
             return null;
         }
 

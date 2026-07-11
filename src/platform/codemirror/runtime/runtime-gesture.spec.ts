@@ -2,13 +2,11 @@
 import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
 import { DraggerRuntime } from 'md-dragger/runtime';
-import type { InputSource, PressInput, MoveInput, ReleaseInput, Point, Pointer, DropTarget } from 'md-dragger/runtime';
+import type { InputSource, PressInput, MoveInput, ReleaseInput, Pointer, DropTarget } from 'md-dragger/runtime';
 
-// Regression coverage for the headless runtime's default ux end-to-end.
-// Previously a bug cleared the press session on beginDrag, so neither the
-// in-flight pointer moves (drag_over) nor the release (commitDrop) ever
-// reached the runtime — dragging silently did nothing. These tests drive the
-// full press → drag → release path through the default ux.
+// End-to-end coverage for DefaultUx through DraggerRuntime.
+// Key invariant: multi-select entry requires long-press; a short click must
+// not leave the pipeline in selecting/holding.
 function makeDoc() {
     return EditorState.create({ doc: '- alpha\n- beta\n- gamma\n- delta\n- epsilon' }).doc;
 }
@@ -74,6 +72,46 @@ describe('runtime default-ux gesture (end-to-end)', () => {
         rt.destroy();
     });
 
+    it('multi-select: short click does not enter selecting', () => {
+        const doc = makeDoc();
+        const input = mockInput();
+        let timerCallback: (() => void) | null = null;
+        const dropTarget: DropTarget = { targetDoc: doc, targetLineNumber: 5, placement: 'before' };
+
+        const rt = new DraggerRuntime({
+            input: input.source,
+            document: { getDoc: () => doc },
+            locate: { sourceLineFromInput: () => 1, lineFromPoint: () => 1, resolveDropTarget: () => dropTarget },
+            commit: { apply: () => {} },
+            gestureConfig: {
+                longPressMs: 250,
+                dragStartMoveThresholdPx: 4,
+                dragCancelMoveThresholdPx: 12,
+                multiSelectEnabled: true,
+            },
+            scheduler: {
+                setTimer: (callback) => {
+                    timerCallback = callback;
+                    return 1 as unknown as ReturnType<typeof setTimeout>;
+                },
+                clearTimer: () => {
+                    timerCallback = null;
+                },
+            },
+        });
+        rt.mount();
+
+        input.press(pressAt());
+        // Armed for long-press, but pipeline stays idle until the timer fires.
+        expect(rt.state.type).toBe('idle');
+        expect(timerCallback).not.toBeNull();
+
+        input.release({ point: { x: 10, y: 20 }, pointer, native: {}, claim: () => {}, releaseCapture: () => {} });
+        expect(rt.state.type).toBe('idle');
+
+        rt.destroy();
+    });
+
     it('multi-block: long-press -> selecting -> move draws range -> second long-press drags the whole range', () => {
         const doc = makeDoc();
         const input = mockInput();
@@ -81,7 +119,7 @@ describe('runtime default-ux gesture (end-to-end)', () => {
         const dropTarget: DropTarget = { targetDoc: doc, targetLineNumber: 5, placement: 'before' };
         let sourceLine = 1;
         let lineAtPoint = 2;
-        let longPressMs = 0;
+        let longPressMs = 100;
         let timerCallback: (() => void) | null = null;
 
         const rt = new DraggerRuntime({
@@ -102,7 +140,11 @@ describe('runtime default-ux gesture (end-to-end)', () => {
         });
         rt.mount();
 
+        // First entry requires long-press maturity.
         input.press(pressAt());
+        expect(rt.state.type).toBe('idle');
+        expect(timerCallback).not.toBeNull();
+        timerCallback?.();
         expect(rt.state.type).toBe('selecting');
 
         input.move({ point: { x: 10, y: 80 }, pointer, native: {}, claim: () => {} });
@@ -153,6 +195,7 @@ describe('runtime default-ux gesture (end-to-end)', () => {
         });
         rt.mount();
 
+        // longPressMs 0 = synchronous multi-select entry (for sweep tests).
         input.press(pressAt());
         input.move({ point: { x: 10, y: 80 }, pointer, native: {}, claim: () => {} });
         input.release({ point: { x: 10, y: 80 }, pointer, native: {}, claim: () => {}, releaseCapture: () => {} });
