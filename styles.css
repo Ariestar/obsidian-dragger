@@ -281,6 +281,17 @@ body.dnd-mobile-handles-hidden .dnd-drag-handle {
     display: none;
 }
 
+/* Mobile drag mode: suppress native text selection so presses are for
+   block gestures (menu / drag / multi-select), not caret selection. */
+body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor,
+body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-scroller,
+body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content,
+body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-line {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
 /* 拖拽中的状态 */
 body.dnd-dragging {
     cursor: grabbing;

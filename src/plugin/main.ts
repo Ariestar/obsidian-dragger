@@ -26,6 +26,15 @@ export default class DragNDropPlugin extends Plugin {
     private mobileDragModeActionByView = new WeakMap<MarkdownView, HTMLElement>();
     private readonly mobileDragModeActionEls = new Set<HTMLElement>();
     private mobileDragModeEnabled = false;
+    // Suppress native caret/text selection while mobile drag mode is on.
+    private readonly onSelectStartWhileDragMode = (event: Event) => {
+        if (!this.mobileDragModeEnabled) return;
+        event.preventDefault();
+    };
+    private readonly onSelectionChangeWhileDragMode = () => {
+        if (!this.mobileDragModeEnabled) return;
+        this.clearNativeSelection();
+    };
 
     async onload() {
 
@@ -43,6 +52,7 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     onunload() {
+        this.setMobileDragModeEnabled(false);
         for (const actionEl of this.mobileDragModeActionEls) {
             actionEl.remove();
         }
@@ -161,9 +171,34 @@ export default class DragNDropPlugin extends Plugin {
         this.mobileDragModeEnabled = enabled;
         if (enabled) {
             this.dismissActiveMobileInput();
+            this.installMobileSelectionLock();
+        } else {
+            this.removeMobileSelectionLock();
         }
         this.applySettings();
         this.syncMobileDragModeActionIcons();
+    }
+
+    private installMobileSelectionLock(): void {
+        if (!platform.isMobile) return;
+        // Capture phase so we win over editor selection handlers.
+        activeDocument.addEventListener('selectstart', this.onSelectStartWhileDragMode, true);
+        activeDocument.addEventListener('selectionchange', this.onSelectionChangeWhileDragMode, true);
+        this.clearNativeSelection();
+    }
+
+    private removeMobileSelectionLock(): void {
+        activeDocument.removeEventListener('selectstart', this.onSelectStartWhileDragMode, true);
+        activeDocument.removeEventListener('selectionchange', this.onSelectionChangeWhileDragMode, true);
+    }
+
+    private clearNativeSelection(): void {
+        try {
+            const selection = activeWindow.getSelection?.() ?? window.getSelection?.();
+            if (selection && selection.rangeCount > 0) selection.removeAllRanges();
+        } catch {
+            // ignore selection clear failures on limited mobile webviews
+        }
     }
 
     private dismissActiveMobileInput(): void {
@@ -177,11 +212,7 @@ export default class DragNDropPlugin extends Plugin {
             || !!active.closest('.cm-content');
         if (!shouldBlur) return;
         active.blur();
-        try {
-            window.getSelection()?.removeAllRanges();
-        } catch {
-            // ignore selection clear failures on limited mobile webviews
-        }
+        this.clearNativeSelection();
     }
 
     private registerMobileDragModeActions(): void {
