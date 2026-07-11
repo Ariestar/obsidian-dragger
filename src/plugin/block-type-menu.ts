@@ -1,5 +1,6 @@
 import { Menu, Notice, setIcon } from 'obsidian';
 import { EditorView } from '@codemirror/view';
+import { platform } from './platform';
 import {
     copyCurrentBlock,
     cutCurrentBlock,
@@ -26,21 +27,28 @@ type NestedConversionGroup = {
     options: BlockTypeConversionOption[];
 };
 
+type MenuAnchor = {
+    x: number;
+    y: number;
+};
+
 const NESTED_GROUPS: NestedConversionGroup[] = [
     { label: 'Heading', icon: 'heading', options: HEADING_BLOCK_TYPE_OPTIONS },
     { label: 'List', icon: 'list', options: LIST_BLOCK_TYPE_OPTIONS },
 ];
 
-// Single source of truth for the block this menu session operates on.
-// Nested pages open after the parent returns, so they read this module value.
+// Session state for the open menu. Nested pages open after the root returns,
+// so they read these module values instead of closing over a destroyed Menu.
 let menuBlockLine = 0;
+let menuAnchor: MenuAnchor | null = null;
 
 /**
  * Block-type menu.
  *
- * Architecture: one Menu at a time. Groups (Heading / List) open a child page
- * that replaces the root — never a second floating Menu. That avoids the
- * parent-hide → child-destroy race that made nested item clicks no-ops.
+ * One Menu at a time. Groups (Heading / List) replace the root with a child
+ * page (Back + options). Desktop also opens that page on hover of the group
+ * row. Never a second floating Menu — that model races parent hide against
+ * child clicks.
  */
 export function openBlockTypeMenu(
     view: EditorView,
@@ -48,11 +56,16 @@ export function openBlockTypeMenu(
     lineNumber?: number,
 ): void {
     menuBlockLine = lineNumber ?? view.state.doc.lineAt(view.state.selection.main.head).number;
-    showRootMenu(view, event);
+    menuAnchor = event
+        ? { x: event.clientX, y: event.clientY }
+        : coordsAnchor(view);
+    showRootMenu(view);
 }
 
-function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null): void {
+function showRootMenu(view: EditorView): void {
     const menu = new Menu();
+    // DOM menu required so we can bind hover on group rows after show.
+    menu.setUseNativeMenu(false);
     const line = menuBlockLine;
 
     addConversionItem(menu, view, PARAGRAPH_BLOCK_TYPE_OPTION, line);
@@ -62,8 +75,6 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null)
             .setTitle(createGroupTitle(group.label))
             .setIcon(group.icon)
             .onClick(() => {
-                // Replace root with the group page. Parent hide is intentional
-                // and complete before the child is shown — no dual-menu race.
                 showGroupMenu(view, group, line);
             }));
     }
@@ -93,7 +104,12 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null)
         failureNotice: 'Unable to delete block.',
     });
 
-    showMenuAt(menu, view, event);
+    const el = showMenuAt(menu, view, menuAnchor);
+    // Desktop: hover a group row → same page navigation as click.
+    // Mobile stays click-only (no reliable hover).
+    if (el && platform.isDesktop) {
+        bindGroupHover(view, el, line);
+    }
 }
 
 function showGroupMenu(
@@ -102,19 +118,38 @@ function showGroupMenu(
     line: number,
 ): void {
     const menu = new Menu();
+    menu.setUseNativeMenu(false);
 
     menu.addItem((item) => item
         .setTitle('Back')
         .setIcon('chevron-left')
         .onClick(() => {
-            showRootMenu(view, null);
+            showRootMenu(view);
         }));
 
     for (const option of group.options) {
         addConversionItem(menu, view, option, line);
     }
 
-    showMenuAt(menu, view, null);
+    showMenuAt(menu, view, menuAnchor);
+}
+
+function bindGroupHover(view: EditorView, menuEl: HTMLElement, line: number): void {
+    for (const item of Array.from(menuEl.querySelectorAll<HTMLElement>('.menu-item'))) {
+        if (item.dataset.dndGroupHoverBound === 'true') continue;
+        const title = item
+            .querySelector<HTMLElement>('.dnd-block-type-submenu-title-label')
+            ?.textContent
+            ?.trim();
+        const group = NESTED_GROUPS.find((candidate) => candidate.label === title);
+        if (!group) continue;
+
+        item.dataset.dndGroupHoverBound = 'true';
+        item.addEventListener('pointerenter', () => {
+            // Replace root with the group page. Still one Menu; no dual-menu race.
+            showGroupMenu(view, group, line);
+        });
+    }
 }
 
 function addConversionItem(
@@ -174,22 +209,29 @@ function createGroupTitle(labelText: string): DocumentFragment {
     return fragment;
 }
 
+function coordsAnchor(view: EditorView): MenuAnchor {
+    const coords = view.coordsAtPos(view.state.selection.main.head);
+    if (coords) return { x: coords.left, y: coords.bottom };
+    return {
+        x: activeWindow.innerWidth / 2,
+        y: activeWindow.innerHeight / 2,
+    };
+}
+
 function showMenuAt(
     menu: Menu,
     view: EditorView,
-    event: MouseEvent | PointerEvent | null,
-): void {
-    if (event) {
-        menu.showAtMouseEvent(event);
-        return;
+    anchor: MenuAnchor | null,
+): HTMLElement | null {
+    const position = anchor ?? coordsAnchor(view);
+    const before = new Set(Array.from(activeDocument.querySelectorAll<HTMLElement>('.menu')));
+    menu.showAtPosition(position);
+    // Keep later pages at the same screen spot as the original open.
+    menuAnchor = position;
+
+    const menus = Array.from(activeDocument.querySelectorAll<HTMLElement>('.menu'));
+    for (let i = menus.length - 1; i >= 0; i--) {
+        if (!before.has(menus[i])) return menus[i];
     }
-    const coords = view.coordsAtPos(view.state.selection.main.head);
-    if (coords) {
-        menu.showAtPosition({ x: coords.left, y: coords.bottom });
-        return;
-    }
-    menu.showAtPosition({
-        x: activeWindow.innerWidth / 2,
-        y: activeWindow.innerHeight / 2,
-    });
+    return menus[menus.length - 1] ?? null;
 }
