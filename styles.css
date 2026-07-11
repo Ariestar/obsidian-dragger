@@ -61,6 +61,15 @@
     filter: brightness(1.08);
 }
 
+/* Row hover (is-visible) only fades the handle in — never restyles selected handles. */
+.dnd-drag-handle.dnd-selected-block-handle,
+.dnd-drag-handle.dnd-selected-block-handle:hover,
+.dnd-drag-handle.dnd-selected-block-handle.is-visible {
+    opacity: 1;
+    color: var(--interactive-accent);
+    filter: none;
+}
+
 .dnd-drag-handle:active {
     cursor: grabbing;
 }
@@ -78,10 +87,6 @@
 .dnd-drag-handle.dnd-selected-block-handle {
     opacity: 1;
     color: var(--interactive-accent);
-}
-
-.dnd-drag-handle.dnd-selected-block-handle.is-visible {
-    opacity: 1;
 }
 
 .dnd-drag-handle.dnd-selected-block-handle .dnd-handle-core {

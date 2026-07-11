@@ -242,7 +242,9 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 startLineNumber: range.startLine + 1,
                 endLineNumber: range.endLine + 1,
             }));
-            this.handleVisibility.enterGrabVisualState(ranges, this.handleVisibility.getActiveHandle());
+            // Don't couple grab paint to the hovered handle — hover visibility
+            // is a separate concern and must not restyle selected handles.
+            this.handleVisibility.enterGrabVisualState(ranges, null);
 
             if (this.dragController.isGestureActive() || this.dragController.state.type === 'dragging') {
                 activeDocument.body.classList.add(DRAGGING_BODY_CLASS);
@@ -258,12 +260,12 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
 
         private runtimeSelection(): SelectionVisual | null {
             const state = this.dragController.state;
-            // Only committed multi-select and live drag paint grab visuals.
-            // `holding` is an uncommitted press (waiting for long-press) and must
-            // not look like multi-select entry on a short click.
+            // Only committed multi-select and an active drag paint grab visuals.
+            // holding / ready_to_drag are uncommitted press arms (menu / drag
+            // intent) — painting them makes short clicks look like multi-select
+            // entry and then "lose" the highlight on release.
             if (state.type === 'selecting') return state.selection.selection;
             if (state.type === 'dragging') return state.drag.selection;
-            if (state.type === 'ready_to_drag') return state.hold.selection;
             return null;
         }
 
