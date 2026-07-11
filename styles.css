@@ -282,7 +282,8 @@ body.dnd-mobile-handles-hidden .dnd-drag-handle {
 }
 
 /* Mobile drag mode: suppress native text selection so presses are for
-   block gestures (menu / drag / multi-select), not caret selection. */
+   block gestures (menu / drag / multi-select), not caret selection.
+   Scroll stays enabled while idle in drag mode. */
 body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor,
 body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-scroller,
 body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content,
@@ -290,19 +291,6 @@ body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-r
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
-}
-
-/* Mobile drag mode also owns the viewport: no page pan / scroll while mode is on. */
-body.dnd-mobile-drag-mode-enabled {
-    overflow: hidden;
-    overscroll-behavior: none;
-}
-
-body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor,
-body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-scroller,
-body.dnd-mobile-drag-mode-enabled .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content {
-    touch-action: none;
-    overscroll-behavior: none;
 }
 
 /* 拖拽中的状态 */
@@ -318,16 +306,20 @@ body.dnd-dragging .cm-line:hover {
     background-color: transparent;
 }
 
-/* 移动端手势锁：拖拽期间禁用页面滚动与触摸平移 */
+/* Active gesture lock: only while dragging or multi-select sweeping.
+   Applied by the platform driver, not for the whole drag mode. */
+body.dnd-dragging,
 body.dnd-mobile-gesture-lock {
     overflow: hidden;
     overscroll-behavior: none;
-    touch-action: none;
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-mobile-gesture-lock,
-.markdown-source-view.mod-cm6 .cm-editor.dnd-mobile-gesture-lock .cm-scroller,
-.markdown-source-view.mod-cm6 .cm-editor.dnd-mobile-gesture-lock .cm-content {
+body.dnd-dragging .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor,
+body.dnd-dragging .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-scroller,
+body.dnd-dragging .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content,
+body.dnd-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor,
+body.dnd-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-scroller,
+body.dnd-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content {
     touch-action: none;
     overscroll-behavior: none;
 }

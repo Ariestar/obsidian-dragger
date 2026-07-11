@@ -37,6 +37,12 @@ type SelectionVisual = {
     ranges: Array<{ startLine: number; endLine: number }>;
 };
 
+type PendingBlockMenu = {
+    startLine: number;
+    x: number;
+    y: number;
+};
+
 export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
     return class {
         private readonly view: EditorView;
@@ -50,21 +56,21 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         private readonly onSettingsUpdated = () => this.handleSettingsUpdated();
         private readonly onEnterMobileSelectionMode = (e: Event) => this.handleEnterMobileSelectionMode(e);
         private readonly onPointerDown = (e: PointerEvent) => {
-            // Any press that becomes a runtime gesture may open the block-type
-            // menu on short release. Desktop content clicks never enter runtime
-            // (locate returns null); mobile content clicks only enter when
-            // drag mode is on. So storing every pointerdown is safe.
+            // Snapshot press geometry for deferred block-type menu open.
             this.lastPressEvent = e;
             if (plugin.isMobilePlatform() && plugin.isMobileDragModeEnabled()) {
-                // Block native caret/focus on lines AND rendered widgets
-                // (hr, table, embeds). Do not stopPropagation — runtime input
-                // still needs the event.
+                // Block native caret/focus on lines and rendered widgets.
+                // Do not stopPropagation — runtime input still needs the event.
                 e.preventDefault();
             }
         };
+        // Open the block-type menu only after the originating pointer fully ends,
+        // otherwise Obsidian treats the leftover click as an outside-dismiss.
+        private readonly onGlobalPointerUp = () => this.flushPendingBlockMenu();
         private readonly pointerMoveClient: GlobalPointerMoveClient;
         private cachedHandleGutterSide: 'left' | 'right';
         private lastPressEvent: PointerEvent | null = null;
+        private pendingBlockMenu: PendingBlockMenu | null = null;
         // Editor under the live drag pointer — source or another file.
         private currentTargetEntry: DragTargetEntry | null = null;
         private lastIndicatorEntry: DragTargetEntry | null = null;
@@ -82,6 +88,8 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             this.syncViewDomState();
             this.view.dom.addEventListener('pointerdown', this.onPointerDown, true);
             this.view.dom.addEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
+            window.addEventListener('pointerup', this.onGlobalPointerUp, true);
+            window.addEventListener('pointercancel', this.onGlobalPointerUp, true);
             this.context = createEditorContext(this.view);
             this.handleVisibility = new HandleVisibilityController(this.view, {
                 getBlockInfoForHandle: (handle) => this.context.selection.getBlockInfoForHandle(handle),
@@ -173,6 +181,10 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         destroy(): void {
             this.view.dom.removeEventListener('pointerdown', this.onPointerDown, true);
             this.view.dom.removeEventListener('dnd:enter-mobile-selection-mode', this.onEnterMobileSelectionMode);
+            window.removeEventListener('pointerup', this.onGlobalPointerUp, true);
+            window.removeEventListener('pointercancel', this.onGlobalPointerUp, true);
+            this.pendingBlockMenu = null;
+            this.setGestureScrollLock(false);
             this.hideDragIndicator();
             this.clearGrabVisual();
             this.unregisterDragTarget();
@@ -215,11 +227,13 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                             const press = this.lastPressEvent;
                             this.lastPressEvent = null;
                             if (typeof startLine === 'number') {
-                                // Defer until the originating pointer fully ends;
-                                // opening synchronously is dismissed as outside-click.
-                                window.setTimeout(() => {
-                                    openBlockTypeMenu(this.view, press, startLine + 1);
-                                }, 0);
+                                // Queue until pointer fully ends — opening during
+                                // the same click stream is dismissed as outside-click.
+                                this.pendingBlockMenu = {
+                                    startLine,
+                                    x: press?.clientX ?? 0,
+                                    y: press?.clientY ?? 0,
+                                };
                             }
                         }
                         break;
@@ -229,6 +243,21 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 }
             }
             this.projectRuntimeVisual();
+        }
+
+        private flushPendingBlockMenu(): void {
+            const pending = this.pendingBlockMenu;
+            if (!pending) return;
+            this.pendingBlockMenu = null;
+            // One more tick after pointerup so Obsidian finishes outside-click
+            // bookkeeping from the originating touch.
+            window.setTimeout(() => {
+                openBlockTypeMenu(
+                    this.view,
+                    { clientX: pending.x, clientY: pending.y } as PointerEvent,
+                    pending.startLine + 1,
+                );
+            }, 0);
         }
 
         private scheduleProjectRuntimeVisual(): void {
@@ -257,16 +286,28 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             // is a separate concern and must not restyle selected handles.
             this.handleVisibility.enterGrabVisualState(ranges, null);
 
-            if (this.dragController.isGestureActive() || this.dragController.state.type === 'dragging') {
+            const dragging = this.dragController.isGestureActive()
+                || this.dragController.state.type === 'dragging';
+            if (dragging) {
                 activeDocument.body.classList.add(DRAGGING_BODY_CLASS);
             } else {
                 activeDocument.body.classList.remove(DRAGGING_BODY_CLASS);
             }
+            // Scroll lock only while dragging or multi-select sweeping — not for
+            // the whole mobile drag mode (idle mode must still allow pan/scroll).
+            this.setGestureScrollLock(
+                dragging || this.dragController.state.type === 'selecting',
+            );
+        }
+
+        private setGestureScrollLock(locked: boolean): void {
+            activeDocument.body.classList.toggle(MOBILE_GESTURE_LOCK_CLASS, locked);
         }
 
         private clearGrabVisual(): void {
             this.handleVisibility.clearGrabbedLineNumbers();
             activeDocument.body.classList.remove(DRAGGING_BODY_CLASS);
+            this.setGestureScrollLock(false);
         }
 
         private runtimeSelection(): SelectionVisual | null {
