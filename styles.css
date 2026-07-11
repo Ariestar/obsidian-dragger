@@ -354,6 +354,24 @@ body[data-dnd-list-drop-highlight="off"] .dnd-drop-highlight {
     height: var(--icon-size, 18px);
 }
 
+/* Desktop side flyout for Heading / List — plain DOM panel, not a second Menu */
+.menu.dnd-block-type-flyout {
+    position: fixed;
+    min-width: 10em;
+    max-height: min(70vh, 320px);
+    overflow-y: auto;
+    padding: var(--size-2-1, 4px);
+    z-index: 10000;
+}
+
+.menu.dnd-block-type-flyout .dnd-block-type-flyout-item {
+    cursor: pointer;
+}
+
+.menu.dnd-block-type-flyout .dnd-block-type-flyout-item:hover {
+    background-color: var(--background-modifier-hover);
+}
+
 /* 设置面板顶部 Tab 导航 */
 .dnd-settings-nav {
     display: flex;

@@ -27,60 +27,73 @@ type NestedConversionGroup = {
     options: BlockTypeConversionOption[];
 };
 
-type MenuAnchor = {
-    x: number;
-    y: number;
-};
-
 const NESTED_GROUPS: NestedConversionGroup[] = [
     { label: 'Heading', icon: 'heading', options: HEADING_BLOCK_TYPE_OPTIONS },
     { label: 'List', icon: 'list', options: LIST_BLOCK_TYPE_OPTIONS },
 ];
 
-// Session state for the open menu. Nested pages open after the root returns,
-// so they read these module values instead of closing over a destroyed Menu.
+const FLYOUT_CLASS = 'dnd-block-type-flyout';
+const FLYOUT_ITEM_CLASS = 'dnd-block-type-flyout-item';
+
+// Session: which block the open menu operates on (1-indexed line).
 let menuBlockLine = 0;
-let menuAnchor: MenuAnchor | null = null;
+
+// Desktop flyout state. Not an Obsidian Menu — a plain DOM panel — so parent
+// Menu hide cannot tear down the child before a click lands.
+let flyoutEl: HTMLElement | null = null;
+let flyoutTrigger: HTMLElement | null = null;
+let flyoutCloseTimer: number | null = null;
+let rootMenu: Menu | null = null;
 
 /**
  * Block-type menu.
  *
- * One Menu at a time. Groups (Heading / List) replace the root with a child
- * page (Back + options). Desktop also opens that page on hover of the group
- * row. Never a second floating Menu — that model races parent hide against
- * child clicks.
+ * Desktop: Heading / List open a side flyout on hover (no Back page).
+ * The flyout is plain DOM, not a second Menu, so item clicks always apply.
+ * Mobile: group click opens a replacement page with Back (no hover).
  */
 export function openBlockTypeMenu(
     view: EditorView,
     event: MouseEvent | PointerEvent | null,
     lineNumber?: number,
 ): void {
+    disposeFlyout();
     menuBlockLine = lineNumber ?? view.state.doc.lineAt(view.state.selection.main.head).number;
-    menuAnchor = event
-        ? { x: event.clientX, y: event.clientY }
-        : coordsAnchor(view);
-    showRootMenu(view);
+    showRootMenu(view, event);
 }
 
-function showRootMenu(view: EditorView): void {
+function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null): void {
     const menu = new Menu();
-    // DOM menu required so we can bind hover on group rows after show.
     menu.setUseNativeMenu(false);
+    rootMenu = menu;
     const line = menuBlockLine;
 
-    addConversionItem(menu, view, PARAGRAPH_BLOCK_TYPE_OPTION, line);
+    menu.onHide(() => {
+        // Root closed → drop any open flyout. Delay one frame so a flyout click
+        // that also dismisses the root can still complete its pointerup first.
+        window.requestAnimationFrame(() => {
+            if (rootMenu === menu) rootMenu = null;
+            disposeFlyout();
+        });
+    });
+
+    addConversionItem(menu, view, PARAGRAPH_BLOCK_TYPE_OPTION, line, () => menu.hide());
 
     for (const group of NESTED_GROUPS) {
-        menu.addItem((item) => item
-            .setTitle(createGroupTitle(group.label))
-            .setIcon(group.icon)
-            .onClick(() => {
-                showGroupMenu(view, group, line);
-            }));
+        menu.addItem((item) => {
+            item
+                .setTitle(createGroupTitle(group.label))
+                .setIcon(group.icon);
+            if (platform.isMobile) {
+                item.onClick(() => {
+                    showMobileGroupPage(view, group, line);
+                });
+            }
+        });
     }
 
     for (const option of SIMPLE_BLOCK_TYPE_OPTIONS) {
-        addConversionItem(menu, view, option, line);
+        addConversionItem(menu, view, option, line, () => menu.hide());
     }
 
     menu.addSeparator();
@@ -104,15 +117,15 @@ function showRootMenu(view: EditorView): void {
         failureNotice: 'Unable to delete block.',
     });
 
-    const el = showMenuAt(menu, view, menuAnchor);
-    // Desktop: hover a group row → same page navigation as click.
-    // Mobile stays click-only (no reliable hover).
-    if (el && platform.isDesktop) {
-        bindGroupHover(view, el, line);
+    showMenuAt(menu, view, event);
+
+    if (platform.isDesktop) {
+        // Bind hover after the menu is in the DOM.
+        window.queueMicrotask(() => bindDesktopGroupHover(view, line));
     }
 }
 
-function showGroupMenu(
+function showMobileGroupPage(
     view: EditorView,
     group: NestedConversionGroup,
     line: number,
@@ -124,17 +137,20 @@ function showGroupMenu(
         .setTitle('Back')
         .setIcon('chevron-left')
         .onClick(() => {
-            showRootMenu(view);
+            showRootMenu(view, null);
         }));
 
     for (const option of group.options) {
-        addConversionItem(menu, view, option, line);
+        addConversionItem(menu, view, option, line, () => menu.hide());
     }
 
-    showMenuAt(menu, view, menuAnchor);
+    showMenuAt(menu, view, null);
 }
 
-function bindGroupHover(view: EditorView, menuEl: HTMLElement, line: number): void {
+function bindDesktopGroupHover(view: EditorView, line: number): void {
+    const menuEl = latestMenuElement();
+    if (!menuEl) return;
+
     for (const item of Array.from(menuEl.querySelectorAll<HTMLElement>('.menu-item'))) {
         if (item.dataset.dndGroupHoverBound === 'true') continue;
         const title = item
@@ -146,10 +162,141 @@ function bindGroupHover(view: EditorView, menuEl: HTMLElement, line: number): vo
 
         item.dataset.dndGroupHoverBound = 'true';
         item.addEventListener('pointerenter', () => {
-            // Replace root with the group page. Still one Menu; no dual-menu race.
-            showGroupMenu(view, group, line);
+            openFlyout(view, group, item, line);
+        });
+        item.addEventListener('pointerleave', (event) => {
+            const related = event.relatedTarget;
+            if (related instanceof Node && flyoutEl?.contains(related)) {
+                cancelFlyoutClose();
+                return;
+            }
+            scheduleFlyoutClose();
         });
     }
+}
+
+function openFlyout(
+    view: EditorView,
+    group: NestedConversionGroup,
+    trigger: HTMLElement,
+    line: number,
+): void {
+    cancelFlyoutClose();
+    if (flyoutEl && flyoutTrigger === trigger) return;
+
+    disposeFlyout();
+
+    const panel = activeDocument.createElement('div');
+    panel.className = `menu ${FLYOUT_CLASS}`;
+    panel.setAttribute('role', 'menu');
+
+    for (const option of group.options) {
+        panel.appendChild(createFlyoutItem(view, option, line));
+    }
+
+    panel.addEventListener('pointerenter', () => {
+        cancelFlyoutClose();
+    });
+    panel.addEventListener('pointerleave', (event) => {
+        const related = event.relatedTarget;
+        if (related instanceof Node && flyoutTrigger?.contains(related)) {
+            cancelFlyoutClose();
+            return;
+        }
+        scheduleFlyoutClose();
+    });
+
+    activeDocument.body.appendChild(panel);
+    positionFlyout(panel, trigger);
+
+    flyoutEl = panel;
+    flyoutTrigger = trigger;
+}
+
+function createFlyoutItem(
+    view: EditorView,
+    option: BlockTypeConversionOption,
+    line: number,
+): HTMLElement {
+    const target = option.target;
+    const row = activeDocument.createElement('div');
+    row.className = `menu-item ${FLYOUT_ITEM_CLASS}`;
+    row.setAttribute('role', 'menuitem');
+    row.tabIndex = 0;
+
+    const icon = activeDocument.createElement('div');
+    icon.className = 'menu-item-icon';
+    setIcon(icon, option.icon);
+
+    const title = activeDocument.createElement('div');
+    title.className = 'menu-item-title';
+    title.textContent = option.label;
+
+    row.append(icon, title);
+
+    // Use pointerdown so conversion commits even if the root Menu starts
+    // hiding on the subsequent click (outside-click dismiss).
+    const apply = (event: Event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!convertCurrentBlockType(view, target, line)) {
+            new Notice('Unable to change block type.');
+            return;
+        }
+        disposeFlyout();
+        rootMenu?.hide();
+    };
+    row.addEventListener('pointerdown', apply);
+    row.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        apply(event);
+    });
+
+    return row;
+}
+
+function positionFlyout(panel: HTMLElement, trigger: HTMLElement): void {
+    const rect = trigger.getBoundingClientRect();
+    // Measure after attach so we can flip if near the right edge.
+    const width = panel.offsetWidth || 160;
+    const height = panel.offsetHeight || 0;
+    let x = rect.right + 4;
+    let y = rect.top;
+    if (x + width > activeWindow.innerWidth - 8) {
+        x = Math.max(8, rect.left - width - 4);
+    }
+    if (y + height > activeWindow.innerHeight - 8) {
+        y = Math.max(8, activeWindow.innerHeight - height - 8);
+    }
+    panel.style.position = 'fixed';
+    panel.style.left = `${x}px`;
+    panel.style.top = `${y}px`;
+    panel.style.zIndex = '10000';
+}
+
+function scheduleFlyoutClose(): void {
+    cancelFlyoutClose();
+    flyoutCloseTimer = window.setTimeout(() => {
+        disposeFlyout();
+    }, 100);
+}
+
+function cancelFlyoutClose(): void {
+    if (flyoutCloseTimer === null) return;
+    window.clearTimeout(flyoutCloseTimer);
+    flyoutCloseTimer = null;
+}
+
+function disposeFlyout(): void {
+    cancelFlyoutClose();
+    flyoutEl?.remove();
+    flyoutEl = null;
+    flyoutTrigger = null;
+}
+
+function latestMenuElement(): HTMLElement | null {
+    const menus = Array.from(activeDocument.querySelectorAll<HTMLElement>('.menu'));
+    return menus[menus.length - 1] ?? null;
 }
 
 function addConversionItem(
@@ -157,6 +304,7 @@ function addConversionItem(
     view: EditorView,
     option: BlockTypeConversionOption,
     line: number,
+    afterApply: () => void,
 ): void {
     const target = option.target;
     menu.addItem((item) => item
@@ -167,7 +315,7 @@ function addConversionItem(
                 new Notice('Unable to change block type.');
                 return;
             }
-            menu.hide();
+            afterApply();
         }));
 }
 
@@ -209,29 +357,22 @@ function createGroupTitle(labelText: string): DocumentFragment {
     return fragment;
 }
 
-function coordsAnchor(view: EditorView): MenuAnchor {
-    const coords = view.coordsAtPos(view.state.selection.main.head);
-    if (coords) return { x: coords.left, y: coords.bottom };
-    return {
-        x: activeWindow.innerWidth / 2,
-        y: activeWindow.innerHeight / 2,
-    };
-}
-
 function showMenuAt(
     menu: Menu,
     view: EditorView,
-    anchor: MenuAnchor | null,
-): HTMLElement | null {
-    const position = anchor ?? coordsAnchor(view);
-    const before = new Set(Array.from(activeDocument.querySelectorAll<HTMLElement>('.menu')));
-    menu.showAtPosition(position);
-    // Keep later pages at the same screen spot as the original open.
-    menuAnchor = position;
-
-    const menus = Array.from(activeDocument.querySelectorAll<HTMLElement>('.menu'));
-    for (let i = menus.length - 1; i >= 0; i--) {
-        if (!before.has(menus[i])) return menus[i];
+    event: MouseEvent | PointerEvent | null,
+): void {
+    if (event) {
+        menu.showAtMouseEvent(event);
+        return;
     }
-    return menus[menus.length - 1] ?? null;
+    const coords = view.coordsAtPos(view.state.selection.main.head);
+    if (coords) {
+        menu.showAtPosition({ x: coords.left, y: coords.bottom });
+        return;
+    }
+    menu.showAtPosition({
+        x: activeWindow.innerWidth / 2,
+        y: activeWindow.innerHeight / 2,
+    });
 }
