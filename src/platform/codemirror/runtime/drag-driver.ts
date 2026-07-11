@@ -59,18 +59,22 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             // Snapshot press geometry for deferred block-type menu open.
             this.lastPressEvent = e;
             if (plugin.isMobilePlatform() && plugin.isMobileDragModeEnabled()) {
-                // Block native caret/focus on lines and rendered widgets.
+                // Block native caret/focus AND iOS callout (paste/select) so a
+                // long-press arm can become a drag without the system UI.
                 // Do not stopPropagation — runtime input still needs the event.
                 e.preventDefault();
+                this.armGestureScrollLock();
             }
         };
-        // Open the block-type menu only after the originating pointer fully ends,
-        // otherwise Obsidian treats the leftover click as an outside-dismiss.
-        private readonly onGlobalPointerUp = () => this.flushPendingBlockMenu();
+        private readonly onGlobalPointerUp = () => {
+            this.disarmGestureScrollLock();
+            this.flushPendingBlockMenu();
+        };
         private readonly pointerMoveClient: GlobalPointerMoveClient;
         private cachedHandleGutterSide: 'left' | 'right';
         private lastPressEvent: PointerEvent | null = null;
         private pendingBlockMenu: PendingBlockMenu | null = null;
+        private gestureScrollLockDepth = 0;
         // Editor under the live drag pointer — source or another file.
         private currentTargetEntry: DragTargetEntry | null = null;
         private lastIndicatorEntry: DragTargetEntry | null = null;
@@ -184,7 +188,8 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             window.removeEventListener('pointerup', this.onGlobalPointerUp, true);
             window.removeEventListener('pointercancel', this.onGlobalPointerUp, true);
             this.pendingBlockMenu = null;
-            this.setGestureScrollLock(false);
+            this.gestureScrollLockDepth = 0;
+            activeDocument.body.classList.remove(MOBILE_GESTURE_LOCK_CLASS);
             this.hideDragIndicator();
             this.clearGrabVisual();
             this.unregisterDragTarget();
@@ -250,29 +255,51 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
             if (!pending) return;
             this.pendingBlockMenu = null;
 
-            // Root cause of "opens then instantly closes" on mobile:
-            // press_cancelled fires on pointerup (capture), then the browser still
-            // synthesizes a click. If Menu opens before that click, Obsidian treats
-            // it as an outside-click and hides the menu.
+            // Root cause of flaky open/close on mobile:
+            // press_cancelled runs on pointerup; the browser still synthesizes a
+            // click. Opening Menu before that click lands makes Obsidian hide it
+            // as outside-click. Position also matters: opening at the press point
+            // puts the menu under the finger so the same click hits a menu item
+            // or outside and dismisses it.
             //
-            // Fix (platform layer only):
-            // 1) open after the click has had a chance to fire (~50ms, not 0)
-            // 2) swallow the next document click in capture phase
-            // 3) never pass the dead press event into showAtMouseEvent — coords only
-            const swallowNextClick = (event: Event) => {
+            // Platform-layer fix:
+            // 1) open after the synthetic click window (~120ms)
+            // 2) swallow residual click/pointerdown in capture
+            // 3) anchor beside the block line, not under the finger
+            const swallow = (event: Event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                activeDocument.removeEventListener('click', swallowNextClick, true);
             };
-            activeDocument.addEventListener('click', swallowNextClick, true);
+            activeDocument.addEventListener('click', swallow, true);
+            activeDocument.addEventListener('pointerdown', swallow, true);
             window.setTimeout(() => {
-                activeDocument.removeEventListener('click', swallowNextClick, true);
+                activeDocument.removeEventListener('click', swallow, true);
+                activeDocument.removeEventListener('pointerdown', swallow, true);
+                const pos = this.menuAnchorForLine(pending.startLine + 1, pending.x, pending.y);
                 openBlockTypeMenu(
                     this.view,
-                    { clientX: pending.x, clientY: pending.y } as PointerEvent,
+                    { clientX: pos.x, clientY: pos.y } as PointerEvent,
                     pending.startLine + 1,
                 );
-            }, 50);
+            }, 120);
+        }
+
+        // Prefer a point near the block line (gutter/left), not under the finger.
+        private menuAnchorForLine(lineNumber: number, fallbackX: number, fallbackY: number): { x: number; y: number } {
+            try {
+                const line = this.view.state.doc.line(lineNumber);
+                const coords = this.view.coordsAtPos(line.from);
+                if (coords) {
+                    const content = this.view.contentDOM.getBoundingClientRect();
+                    return {
+                        x: Math.max(8, content.left + 8),
+                        y: coords.bottom + 4,
+                    };
+                }
+            } catch {
+                // fall through
+            }
+            return { x: fallbackX, y: fallbackY };
         }
 
         private scheduleProjectRuntimeVisual(): void {
@@ -316,13 +343,38 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
         }
 
         private setGestureScrollLock(locked: boolean): void {
-            activeDocument.body.classList.toggle(MOBILE_GESTURE_LOCK_CLASS, locked);
+            if (locked) this.armGestureScrollLock();
+            else this.disarmGestureScrollLock();
+        }
+
+        // Scroll lock from press through drag/selecting so iOS cannot start a
+        // page pan or callout during dragArm long-press. Depth-counted so press
+        // arm + projectRuntimeVisual can both request lock without fighting.
+        private armGestureScrollLock(): void {
+            this.gestureScrollLockDepth += 1;
+            if (this.gestureScrollLockDepth === 1) {
+                activeDocument.body.classList.add(MOBILE_GESTURE_LOCK_CLASS);
+            }
+        }
+
+        private disarmGestureScrollLock(): void {
+            if (this.gestureScrollLockDepth <= 0) {
+                this.gestureScrollLockDepth = 0;
+                activeDocument.body.classList.remove(MOBILE_GESTURE_LOCK_CLASS);
+                return;
+            }
+            this.gestureScrollLockDepth -= 1;
+            if (this.gestureScrollLockDepth === 0) {
+                activeDocument.body.classList.remove(MOBILE_GESTURE_LOCK_CLASS);
+            }
         }
 
         private clearGrabVisual(): void {
             this.handleVisibility.clearGrabbedLineNumbers();
             activeDocument.body.classList.remove(DRAGGING_BODY_CLASS);
-            this.setGestureScrollLock(false);
+            // Force clear — visual path ended; press arm will re-lock on next down.
+            this.gestureScrollLockDepth = 0;
+            activeDocument.body.classList.remove(MOBILE_GESTURE_LOCK_CLASS);
         }
 
         private runtimeSelection(): SelectionVisual | null {
