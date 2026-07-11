@@ -16,7 +16,7 @@ import { DragPerfSessionManager } from '../perf/drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './editor-context';
 import { codeMirrorDocument } from './editor-document';
 import { codeMirrorLocate } from './editor-locate';
-import { registerDragTarget, resolveDragTargetAtPoint, type DragTargetEntry } from './drag-target-registry';
+import { registerDragTarget, resolveDragTargetAtPoint, resolveDragTargetByDoc, type DragTargetEntry } from './drag-target-registry';
 import { renderDropPreview, type DropPreviewInput } from './editor-preview';
 import { codeMirrorRuntimeConfig, codeMirrorGestureConfig } from './runtime-config';
 import { applyBlockTransaction } from '../transaction/transaction-applier';
@@ -108,11 +108,14 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 locate: codeMirrorLocate(this.view, this.context, this.resolveTargetView),
                 commit: {
                     apply: (edits) => {
+                        // Route each edit by Doc identity. Do NOT use
+                        // currentTargetEntry here: handlePipelineResult runs
+                        // on the dropped output *before* apply and clears it.
                         for (const edit of edits) {
-                            const targetView = edit.doc === this.view.state.doc
+                            const owner = edit.doc === this.view.state.doc
                                 ? this.view
-                                : (this.currentTargetEntry?.view ?? this.view);
-                            applyBlockTransaction(targetView, edit);
+                                : (resolveDragTargetByDoc(edit.doc)?.view ?? this.view);
+                            applyBlockTransaction(owner, edit);
                         }
                     },
                 },
