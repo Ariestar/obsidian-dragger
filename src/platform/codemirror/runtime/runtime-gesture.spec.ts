@@ -55,6 +55,7 @@ describe('runtime default-ux gesture (end-to-end)', () => {
             document: { getDoc: () => doc },
             locate: { sourceLineFromInput: () => 1, lineFromPoint: () => 1, resolveDropTarget: () => dropTarget },
             commit: { apply: (edits) => { commits.push(edits); } },
+            config: { tabSize: 4, listIndentUnit: 2 },
         });
         rt.mount();
 
@@ -83,6 +84,7 @@ describe('runtime default-ux gesture (end-to-end)', () => {
             document: { getDoc: () => doc },
             locate: { sourceLineFromInput: () => 1, lineFromPoint: () => 1, resolveDropTarget: () => dropTarget },
             commit: { apply: () => {} },
+            config: { tabSize: 4, listIndentUnit: 2 },
             onChange: (result) => {
                 for (const item of result.outputs) {
                     if (item.type === 'cancelled') cancelled.push({ reason: item.reason });
@@ -135,6 +137,7 @@ describe('runtime default-ux gesture (end-to-end)', () => {
                 resolveDropTarget: () => dropTarget,
             },
             commit: { apply: (edits) => { commits.push(edits); } },
+            config: { tabSize: 4, listIndentUnit: 2 },
             ux: {
                 gesture: {
                     multiSelectMs: 250,
@@ -186,6 +189,7 @@ describe('runtime default-ux gesture (end-to-end)', () => {
             document: { getDoc: () => doc },
             locate: { sourceLineFromInput: () => sourceLine, lineFromPoint: () => lineAtPoint, resolveDropTarget: () => dropTarget },
             commit: { apply: (edits) => { commits.push(edits); } },
+            config: { tabSize: 4, listIndentUnit: 2 },
             ux: {
                 gesture: () => ({ dragArmMs, multiSelectMs, multiSelectEnabled: true }),
             },
@@ -254,6 +258,7 @@ describe('runtime default-ux gesture (end-to-end)', () => {
             document: { getDoc: () => doc },
             locate: { sourceLineFromInput: () => sourceLine, lineFromPoint: () => lineAtPoint, resolveDropTarget: () => dropTarget },
             commit: { apply: () => {} },
+            config: { tabSize: 4, listIndentUnit: 2 },
             ux: {
                 gesture: () => ({ dragArmMs, multiSelectMs, multiSelectEnabled: true }),
             },

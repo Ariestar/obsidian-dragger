@@ -19,6 +19,8 @@ export function codeMirrorRuntimeConfig(
 ): Config {
     return () => ({
         tabSize: context.tabSize,
+        // Common markdown list step. Host-owned; not inferred from the document.
+        listIndentUnit: 2,
     });
 }
 

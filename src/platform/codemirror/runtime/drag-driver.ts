@@ -125,11 +125,12 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     this.view.state.facet(EditorState.tabSize),
                 ).parseLine,
             });
+            const runtimeConfig = codeMirrorRuntimeConfig(plugin, this.context);
             // DefaultUx config: gesture knobs + optional modules. Runtime only forwards them.
             this.dragController = new DraggerRuntime({
                 input: pointerInput(this.view),
                 document: codeMirrorDocument(this.view),
-                locate: codeMirrorLocate(this.view, this.context, this.resolveTargetView, plugin),
+                locate: codeMirrorLocate(this.view, this.context, this.resolveTargetView, plugin, runtimeConfig),
                 commit: {
                     apply: (edits) => {
                         // Route each edit by Doc identity. Do NOT use
@@ -144,7 +145,7 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     },
                 },
                 onChange: (result) => this.handlePipelineResult(result),
-                config: codeMirrorRuntimeConfig(plugin, this.context),
+                config: runtimeConfig,
                 ux: {
                     gesture: () => codeMirrorGestureConfig(plugin),
                     modules: [

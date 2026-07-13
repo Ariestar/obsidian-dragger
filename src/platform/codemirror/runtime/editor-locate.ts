@@ -1,6 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import { resolveDropTarget as cmResolveDropTarget, lineNumberFromPoint } from 'md-dragger/adapter/codemirror';
-import type { Point, PressInput, RuntimeOptions } from 'md-dragger/runtime';
+import type { Config, Point, PressInput, RuntimeOptions } from 'md-dragger/runtime';
 import { DRAG_HANDLE_CLASS } from '../../../shared/dom-selectors';
 import type { EditorContext } from './editor-context';
 
@@ -14,6 +14,7 @@ export function codeMirrorLocate(
     _context: EditorContext,
     resolveTargetView: (point: Point) => EditorView | null,
     plugin: LocatePlugin,
+    config: Config,
 ): RuntimeOptions['locate'] {
     return {
         sourceLineFromInput: (input) => sourceLineFromInput(view, input, plugin),
@@ -25,7 +26,9 @@ export function codeMirrorLocate(
             // emerge without any flag on the host.
             const targetView = resolveTargetView(point);
             if (!targetView) return null;
-            return cmResolveDropTarget(targetView, point, ctx.selection, {});
+            // Must pass host config (tabSize + listIndentUnit). Empty options
+            // used to silently drop listIndentUnit and nest by the wrong unit.
+            return cmResolveDropTarget(targetView, point, ctx.selection, { config });
         },
     };
 }
