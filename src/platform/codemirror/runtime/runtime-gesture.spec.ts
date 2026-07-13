@@ -55,7 +55,6 @@ describe('runtime default-ux gesture (end-to-end)', () => {
             document: { getDoc: () => doc },
             locate: { sourceLineFromInput: () => 1, lineFromPoint: () => 1, resolveDropTarget: () => dropTarget },
             commit: { apply: (edits) => { commits.push(edits); } },
-            gestureConfig: { dragArmMs: 0, multiSelectMs: 0, dragStartMoveThresholdPx: 4, dragCancelMoveThresholdPx: 12, multiSelectEnabled: false },
         });
         rt.mount();
 
@@ -89,12 +88,11 @@ describe('runtime default-ux gesture (end-to-end)', () => {
                     if (item.type === 'cancelled') cancelled.push({ reason: item.reason });
                 }
             },
-            gestureConfig: {
-                dragArmMs: 0,
-                multiSelectMs: 250,
-                dragStartMoveThresholdPx: 4,
-                dragCancelMoveThresholdPx: 12,
-                multiSelectEnabled: true,
+            ux: {
+                gesture: {
+                    multiSelectMs: 250,
+                    multiSelectEnabled: true,
+                },
             },
             scheduler: {
                 setTimer: (callback) => {
@@ -137,12 +135,12 @@ describe('runtime default-ux gesture (end-to-end)', () => {
                 resolveDropTarget: () => dropTarget,
             },
             commit: { apply: (edits) => { commits.push(edits); } },
-            gestureConfig: {
-                dragArmMs: 0,
-                multiSelectMs: 250,
-                dragStartMoveThresholdPx: 4,
-                dragCancelMoveThresholdPx: Number.POSITIVE_INFINITY,
-                multiSelectEnabled: true,
+            ux: {
+                gesture: {
+                    multiSelectMs: 250,
+                    dragCancelMoveThresholdPx: Number.POSITIVE_INFINITY,
+                    multiSelectEnabled: true,
+                },
             },
             scheduler: {
                 setTimer: (callback) => {
@@ -188,7 +186,9 @@ describe('runtime default-ux gesture (end-to-end)', () => {
             document: { getDoc: () => doc },
             locate: { sourceLineFromInput: () => sourceLine, lineFromPoint: () => lineAtPoint, resolveDropTarget: () => dropTarget },
             commit: { apply: (edits) => { commits.push(edits); } },
-            gestureConfig: () => ({ dragArmMs, multiSelectMs, dragStartMoveThresholdPx: 4, dragCancelMoveThresholdPx: 12, multiSelectEnabled: true }),
+            ux: {
+                gesture: () => ({ dragArmMs, multiSelectMs, multiSelectEnabled: true }),
+            },
             scheduler: {
                 setTimer: (callback) => {
                     timerCallback = callback;
@@ -254,7 +254,9 @@ describe('runtime default-ux gesture (end-to-end)', () => {
             document: { getDoc: () => doc },
             locate: { sourceLineFromInput: () => sourceLine, lineFromPoint: () => lineAtPoint, resolveDropTarget: () => dropTarget },
             commit: { apply: () => {} },
-            gestureConfig: () => ({ dragArmMs, multiSelectMs, dragStartMoveThresholdPx: 4, dragCancelMoveThresholdPx: 12, multiSelectEnabled: true }),
+            ux: {
+                gesture: () => ({ dragArmMs, multiSelectMs, multiSelectEnabled: true }),
+            },
         });
         rt.mount();
 

@@ -7,9 +7,13 @@ import {
 import { DropIndicatorManager } from './drop-indicator';
 import { getVisibleHandleForBlockStart } from '../handle/handle-renderer';
 import { HandleVisibilityController } from '../hover/handle-visibility-controller';
+import { EditorState } from '@codemirror/state';
+import { createLineParsingContext } from 'md-dragger/domain';
 import { DraggerRuntime } from 'md-dragger/runtime';
 import type { PipelineResult, Point } from 'md-dragger/runtime';
+import { autoScroll, foldRestore } from 'md-dragger/runtime/modules';
 import { openBlockTypeMenu } from '../../../plugin/block-type-menu';
+import { createBlockFoldStateManager } from '../../obsidian/block-fold-state';
 import { SemanticRefreshScheduler } from '../perf/semantic-refresh-scheduler';
 import { DragPerfSessionManager } from '../perf/drag-perf-session-manager';
 import { createEditorContext, EditorContext } from './editor-context';
@@ -115,6 +119,13 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 context: this.context,
                 dropIndicator: this.dropIndicator,
             });
+            const foldManager = createBlockFoldStateManager({
+                app: plugin.app,
+                parseLineWithQuote: createLineParsingContext(
+                    this.view.state.facet(EditorState.tabSize),
+                ).parseLine,
+            });
+            // DefaultUx config: gesture knobs + optional modules. Runtime only forwards them.
             this.dragController = new DraggerRuntime({
                 input: pointerInput(this.view),
                 document: codeMirrorDocument(this.view),
@@ -132,12 +143,45 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                         }
                     },
                 },
-                // Full pipeline result (previous/current/outputs/event). Grab
-                // visuals re-project from runtime.state; only output-specific
-                // side effects (drop indicator, tap menu) live here.
                 onChange: (result) => this.handlePipelineResult(result),
                 config: codeMirrorRuntimeConfig(plugin, this.context),
-                gestureConfig: () => codeMirrorGestureConfig(plugin),
+                ux: {
+                    gesture: () => codeMirrorGestureConfig(plugin),
+                    modules: [
+                        autoScroll(
+                            {
+                                nudge: (point, cfg) => {
+                                    const scroller = this.view.scrollDOM;
+                                    const rect = scroller.getBoundingClientRect();
+                                    let dy = 0;
+                                    const top = point.y - rect.top;
+                                    const bottom = rect.bottom - point.y;
+                                    if (top >= 0 && top < cfg.edgeZonePx) {
+                                        dy = -cfg.maxSpeedPx * (1 - top / cfg.edgeZonePx);
+                                    } else if (bottom >= 0 && bottom < cfg.edgeZonePx) {
+                                        dy = cfg.maxSpeedPx * (1 - bottom / cfg.edgeZonePx);
+                                    }
+                                    if (dy !== 0) scroller.scrollTop += dy;
+                                },
+                            },
+                            () => ({
+                                edgeZonePx: plugin.settings.autoScrollEdgeZonePx,
+                                maxSpeedPx: plugin.settings.autoScrollMaxSpeedPx,
+                            }),
+                        ),
+                        foldRestore({
+                            capture: (selection) => foldManager.capture(this.view, selection.anchorBlock),
+                            restore: (snapshot, selectionAfter) => {
+                                if (!snapshot || !selectionAfter) return;
+                                foldManager.restore(
+                                    this.view,
+                                    selectionAfter.anchorBlock.startLine + 1,
+                                    snapshot as ReturnType<typeof foldManager.capture>,
+                                );
+                            },
+                        }),
+                    ],
+                },
             });
 
             this.semanticRefreshScheduler = new SemanticRefreshScheduler(this.view, {
