@@ -265,13 +265,21 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                     case 'cancelled':
                         this.hideDragIndicator();
                         if (item.reason === 'press_cancelled') {
-                            // press_cancelled is emitted *inside* the release
-                            // handler. Opening here (after release has already
-                            // run) avoids the old race where a capture-phase
-                            // pointerup flush ran before pending was set, so
-                            // the menu only appeared on the *next* pointerup
-                            // (e.g. when the user scrolled again).
-                            this.openBlockMenuFromPress(item.selection?.anchorBlock?.startLine);
+                            // Open at the press point after release unwinds.
+                            const press = this.lastPressEvent;
+                            this.lastPressEvent = null;
+                            const startLine = item.selection?.anchorBlock?.startLine;
+                            if (press && typeof startLine === 'number') {
+                                const { clientX, clientY } = press;
+                                const line = startLine + 1;
+                                requestAnimationFrame(() => {
+                                    openBlockTypeMenu(
+                                        this.view,
+                                        { clientX, clientY } as PointerEvent,
+                                        line,
+                                    );
+                                });
+                            }
                         }
                         break;
                     case 'terminal':
@@ -280,44 +288,6 @@ export function createCodeMirrorDragDriverPluginClass(plugin: DragNDropPlugin) {
                 }
             }
             this.projectRuntimeVisual();
-        }
-
-        private openBlockMenuFromPress(startLine: number | undefined): void {
-            const press = this.lastPressEvent;
-            this.lastPressEvent = null;
-            if (typeof startLine !== 'number') return;
-
-            // Anchor beside the line — never under the finger — so residual
-            // synthetic click (if any) cannot hit the menu as outside-dismiss.
-            // rAF: open after the current release event stack unwinds; no
-            // artificial delay, no click-swallow.
-            const pos = this.menuAnchorForLine(startLine + 1, press?.clientX ?? 0, press?.clientY ?? 0);
-            const line = startLine + 1;
-            requestAnimationFrame(() => {
-                openBlockTypeMenu(
-                    this.view,
-                    { clientX: pos.x, clientY: pos.y } as PointerEvent,
-                    line,
-                );
-            });
-        }
-
-        // Menu beside the line (content left), not under the finger.
-        private menuAnchorForLine(lineNumber: number, fallbackX: number, fallbackY: number): { x: number; y: number } {
-            try {
-                const line = this.view.state.doc.line(lineNumber);
-                const coords = this.view.coordsAtPos(line.from);
-                if (coords) {
-                    const content = this.view.contentDOM.getBoundingClientRect();
-                    return {
-                        x: Math.max(8, content.left + 8),
-                        y: coords.bottom + 4,
-                    };
-                }
-            } catch {
-                // fall through
-            }
-            return { x: fallbackX, y: fallbackY };
         }
 
         private scheduleProjectRuntimeVisual(): void {
