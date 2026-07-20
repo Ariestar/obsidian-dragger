@@ -280,9 +280,17 @@ body.dnd-handles-always .dnd-drag-handle {
     opacity: 0.6;
 }
 
-body.dnd-handles-always .md-dragger-handle,
-body.dnd-handles-always .dnd-drag-handle.is-visible {
+body.dnd-handles-always .md-dragger-handle:hover,
+body.dnd-handles-always .dnd-drag-handle:hover {
     opacity: 1;
+}
+
+/* 默认 hover 模式：悬停 gutter 行即可看见手柄（无 JS is-visible 链） */
+body:not(.dnd-handles-always):not(.dnd-handles-hidden):not(.dnd-mobile-handles-hidden)
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.md-dragger-gutter .cm-gutterElement:hover > .md-dragger-handle,
+body:not(.dnd-handles-always):not(.dnd-handles-hidden):not(.dnd-mobile-handles-hidden)
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.md-dragger-gutter .cm-gutterElement:hover > .dnd-drag-handle {
+    opacity: 0.5;
 }
 
 /* 隐藏模式：完全不显示手柄 */
