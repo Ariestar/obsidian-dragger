@@ -27,8 +27,8 @@ export default class DragNDropPlugin extends Plugin {
     private readonly mobileDragModeActionEls = new Set<HTMLElement>();
     private mobileDragModeEnabled = false;
     // Suppress native caret/text selection while mobile drag mode is on.
-    // Scroll/pan is NOT locked for the whole mode — only during active drag /
-    // multi-select sweep (see drag-driver gesture-lock class).
+    // Scroll/pan is NOT locked for the whole mode — only during active gesture
+    // (see mobile gesture lock class driven by state_changed).
     private readonly onSelectStartWhileDragMode = (event: Event) => {
         if (!this.mobileDragModeEnabled) return;
         event.preventDefault();
@@ -143,8 +143,7 @@ export default class DragNDropPlugin extends Plugin {
         this.syncMobileDragModeActionVisibility();
     }
 
-    // Called by the drag-driver when a drop commits. Drives mobile-mode
-    // auto-disable — the only cross-cutting concern that needed a drag signal.
+    // Called when a drop commits. Drives mobile-mode auto-disable.
     notifyDragDrop(): void {
         if (!platform.isMobile) return;
         if (this.settings.disableMobileDragModeAfterDrop === false) return;

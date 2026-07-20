@@ -1,19 +1,17 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import {
-    planBlockTypeConversionChanges,
     detectBlock,
+    planConvert,
+    planDelete,
+    selectOne,
+    isReject,
+    type ConvertTo,
+    type Block,
     BlockType,
-    createDeleteCommand,
-    createBlockSelection,
-    planBlockCommandTransaction,
-    type BlockTypeConversion,
-    type BlockInfo,
-    type CommandReject,
 } from 'md-dragger/domain';
-import { applyBlockTransaction } from '../platform/codemirror/transaction/transaction-applier';
 
-export type BlockTypeConversionOption = { target: BlockTypeConversion; label: string; icon: string };
+export type BlockTypeConversionOption = { target: ConvertTo; label: string; icon: string };
 
 export const PARAGRAPH_BLOCK_TYPE_OPTION: BlockTypeConversionOption = {
     target: { type: BlockType.Paragraph },
@@ -42,11 +40,15 @@ export const SIMPLE_BLOCK_TYPE_OPTIONS: BlockTypeConversionOption[] = [
     { target: { type: BlockType.MathBlock }, label: 'Math block', icon: 'sigma' },
 ];
 
-export function convertCurrentBlockType(view: EditorView, conversion: BlockTypeConversion, lineNumber?: number): boolean {
+export function convertCurrentBlockType(view: EditorView, conversion: ConvertTo, lineNumber?: number): boolean {
     const block = getBlockAt(view, lineNumber);
     if (!block) return false;
 
-    const changes = planBlockTypeConversionChanges(view.state.doc, block.startLine + 1, block.endLine + 1, conversion);
+    const changes = planConvert({
+        doc: view.state.doc,
+        block,
+        to: conversion,
+    });
     if (changes.length === 0) return false;
 
     view.dispatch({
@@ -60,15 +62,16 @@ export function deleteCurrentBlock(view: EditorView, lineNumber?: number): boole
     const block = getBlockAt(view, lineNumber);
     if (!block) return false;
 
-    const transaction = planBlockCommandTransaction({
+    const result = planDelete({
         doc: view.state.doc,
-        command: createDeleteCommand(createBlockSelection(block, [{
-            startLine: block.startLine,
-            endLine: block.endLine,
-        }])),
+        selection: selectOne(block),
     });
-    if (isCommandReject(transaction)) return false;
-    applyBlockTransaction(view, transaction, { anchor: block.from });
+    if (isReject(result)) return false;
+
+    view.dispatch({
+        changes: result.changes,
+        scrollIntoView: false,
+    });
     return true;
 }
 
@@ -87,7 +90,9 @@ export async function cutCurrentBlock(view: EditorView, lineNumber?: number): Pr
 function getBlockAtText(view: EditorView, lineNumber?: number): string | null {
     const block = getBlockAt(view, lineNumber);
     if (!block) return null;
-    return view.state.doc.sliceString(block.from, block.to);
+    const from = view.state.doc.line(block.lines.startLine).from;
+    const to = view.state.doc.line(block.lines.endLine).to;
+    return view.state.doc.sliceString(from, to);
 }
 
 async function writeClipboardText(text: string): Promise<boolean> {
@@ -100,25 +105,9 @@ async function writeClipboardText(text: string): Promise<boolean> {
     }
 }
 
-function getBlockAt(view: EditorView, lineNumber?: number): BlockInfo | null {
+function getBlockAt(view: EditorView, lineNumber?: number): Block | null {
     const resolved = lineNumber ?? view.state.doc.lineAt(view.state.selection.main.head).number;
-    const block = detectBlock(view.state.doc, resolved, { tabSize: view.state.facet(EditorState.tabSize) });
-    if (block) return block;
-    const line = view.state.doc.line(resolved);
-    return {
-        type: BlockType.Paragraph,
-        startLine: resolved - 1,
-        endLine: resolved - 1,
-        from: line.from,
-        to: line.to,
-        indentLevel: 0,
-        content: line.text,
-    };
-}
-
-function isCommandReject(value: unknown): value is CommandReject {
-    return typeof value === 'object'
-        && value !== null
-        && 'type' in value
-        && value.type === 'reject';
+    return detectBlock(view.state.doc, resolved, {
+        tabSize: view.state.facet(EditorState.tabSize),
+    });
 }

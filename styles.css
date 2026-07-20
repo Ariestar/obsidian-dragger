@@ -4,7 +4,8 @@
     display: none;
 }
 
-/* 拖拽手柄 */
+/* 拖拽手柄（adapter class + legacy dnd class） */
+.md-dragger-handle,
 .dnd-drag-handle {
     position: relative;
     width: var(--dnd-handle-size, 20px);
@@ -18,12 +19,17 @@
     color: var(--dnd-handle-color, var(--interactive-accent));
     border-radius: 999px;
     z-index: 3;
+    border: 0;
+    background: transparent;
+    padding: 0;
 }
 
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutters {
     overflow: visible;
 }
 
+/* Adapter gutter (md-dragger) — keep zero-width overlay layout used by Obsidian CSS. */
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.md-dragger-gutter,
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter {
     flex: 0 0 0;
     width: 0;
@@ -34,6 +40,7 @@
     z-index: 4;
 }
 
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.md-dragger-gutter .cm-gutterElement,
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter .cm-gutterElement.dnd-handle-gutter-marker {
     position: relative;
     display: block;
@@ -48,6 +55,8 @@
     text-align: center;
 }
 
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.md-dragger-gutter .cm-gutterElement > .md-dragger-handle,
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.md-dragger-gutter .cm-gutterElement > .dnd-drag-handle,
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.cm-dnd-handle-gutter .cm-gutterElement.dnd-handle-gutter-marker > .dnd-drag-handle.dnd-handle-gutter-bound {
     display: inline-flex;
     vertical-align: middle;
@@ -55,6 +64,7 @@
     pointer-events: auto;
 }
 
+.md-dragger-handle:hover,
 .dnd-drag-handle:hover {
     opacity: 1;
     color: var(--dnd-handle-color-hover, var(--dnd-handle-color, var(--text-accent)));
@@ -70,6 +80,7 @@
     filter: none;
 }
 
+.md-dragger-handle:active,
 .dnd-drag-handle:active {
     cursor: grabbing;
 }
@@ -264,19 +275,23 @@ body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-edi
 }
 
 /* 常态显示拖拽手柄 */
+body.dnd-handles-always .md-dragger-handle,
 body.dnd-handles-always .dnd-drag-handle {
     opacity: 0.6;
 }
 
+body.dnd-handles-always .md-dragger-handle,
 body.dnd-handles-always .dnd-drag-handle.is-visible {
     opacity: 1;
 }
 
 /* 隐藏模式：完全不显示手柄 */
+body.dnd-handles-hidden .md-dragger-handle,
 body.dnd-handles-hidden .dnd-drag-handle {
     display: none;
 }
 
+body.dnd-mobile-handles-hidden .md-dragger-handle,
 body.dnd-mobile-handles-hidden .dnd-drag-handle {
     display: none;
 }
