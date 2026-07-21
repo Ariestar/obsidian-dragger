@@ -1,4 +1,5 @@
 import type { Extension } from '@codemirror/state';
+import { EditorState } from '@codemirror/state';
 import { EditorView, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import {
   HANDLE_CLASS,
@@ -7,7 +8,7 @@ import {
   lineAtPoint,
   sourceLineFromInput as handleSourceLineFromInput,
 } from 'md-dragger/adapter/codemirror';
-import type { BlockSelection, DropPosition } from 'md-dragger/domain';
+import { detectBlock, type BlockSelection, type DropPosition } from 'md-dragger/domain';
 import type { PipelineResult } from 'md-dragger/runtime';
 import { autoScroll } from 'md-dragger/runtime/modules';
 import { openBlockTypeMenu } from '../../plugin/block-type-menu';
@@ -101,6 +102,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
     }),
     dropIndicatorPaint(),
     selectionPaint(),
+    handleHover(),
     gestureShell(plugin),
   ];
 }
@@ -293,6 +295,57 @@ function buildSelectionDecorations(view: EditorView, selection: BlockSelection |
 }
 
 const sourceLineDecoration = Decoration.line({ class: DRAG_SOURCE_LINE_CLASS });
+
+/**
+ * Host display only: pointer over content → show that block's handle.
+ * Uses adapter lineAtPoint + domain detectBlock + data-block-start.
+ */
+function handleHover(): Extension {
+  return ViewPlugin.fromClass(class {
+    private visible: HTMLElement | null = null;
+    private readonly onMove = (e: PointerEvent) => {
+      if (activeDocument.body.classList.contains(DRAGGING_BODY_CLASS)) {
+        this.setVisible(null);
+        return;
+      }
+      const line = lineAtPoint(this.view, { x: e.clientX, y: e.clientY });
+      if (line === null) {
+        this.setVisible(null);
+        return;
+      }
+      const block = detectBlock(this.view.state.doc, line, {
+        tabSize: this.view.state.facet(EditorState.tabSize),
+      });
+      if (!block) {
+        this.setVisible(null);
+        return;
+      }
+      const handle = this.view.dom.querySelector(
+        `.${HANDLE_CLASS}[data-block-start="${block.lines.startLine}"]`,
+      ) as HTMLElement | null;
+      this.setVisible(handle);
+    };
+    private readonly onLeave = () => this.setVisible(null);
+
+    constructor(private readonly view: EditorView) {
+      this.view.dom.addEventListener('pointermove', this.onMove);
+      this.view.dom.addEventListener('pointerleave', this.onLeave);
+    }
+
+    destroy() {
+      this.view.dom.removeEventListener('pointermove', this.onMove);
+      this.view.dom.removeEventListener('pointerleave', this.onLeave);
+      this.setVisible(null);
+    }
+
+    private setVisible(handle: HTMLElement | null) {
+      if (this.visible === handle) return;
+      this.visible?.classList.remove('is-visible');
+      this.visible = handle;
+      handle?.classList.add('is-visible');
+    }
+  });
+}
 
 function gestureShell(plugin: ObsidianDraggerHost): Extension {
   return ViewPlugin.fromClass(class {

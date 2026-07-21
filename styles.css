@@ -204,7 +204,9 @@ body.dnd-handles-always .md-dragger-handle:hover {
     opacity: 1;
 }
 
-/* 默认 hover：悬停 adapter gutter 行显示手柄 */
+/* 默认 hover：指针在该块行上时 host 加 is-visible；gutter 自身 hover 也显示 */
+body:not(.dnd-handles-always):not(.dnd-handles-hidden):not(.dnd-mobile-handles-hidden)
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .md-dragger-handle.is-visible,
 body:not(.dnd-handles-always):not(.dnd-handles-hidden):not(.dnd-mobile-handles-hidden)
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-gutter.md-dragger-gutter .cm-gutterElement:hover > .md-dragger-handle {
     opacity: 0.5;
