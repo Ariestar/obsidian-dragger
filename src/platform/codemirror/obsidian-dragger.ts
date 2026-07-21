@@ -1,6 +1,5 @@
 import type { Extension } from '@codemirror/state';
-import { EditorState } from '@codemirror/state';
-import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import { EditorView, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import {
   HANDLE_CLASS,
   mdDragger,
@@ -226,8 +225,8 @@ function dropIndicatorPaint(): Extension {
 
 function selectionPaint(): Extension {
   return ViewPlugin.fromClass(class {
+    decorations: DecorationSet = Decoration.none;
     private selection: BlockSelection | null = null;
-    private readonly painted = new Set<HTMLElement>();
     private readonly unsub: () => void;
 
     constructor(private readonly view: EditorView) {
@@ -236,13 +235,16 @@ function selectionPaint(): Extension {
 
     update(update: ViewUpdate) {
       if (update.docChanged || update.viewportChanged || update.geometryChanged) {
-        this.repaint();
+        this.decorations = buildSelectionDecorations(this.view, this.selection);
+        this.syncSelectedHandles();
       }
     }
 
     destroy() {
       this.unsub();
-      this.clear();
+      this.selection = null;
+      this.decorations = Decoration.none;
+      this.syncSelectedHandles();
     }
 
     consume(outputs: PipelineResult['outputs']) {
@@ -260,41 +262,41 @@ function selectionPaint(): Extension {
       }
       if (next === undefined) return;
       this.selection = next;
-      this.repaint();
+      this.decorations = buildSelectionDecorations(this.view, this.selection);
+      this.syncSelectedHandles();
     }
 
-    private clear() {
-      for (const el of this.painted) el.classList.remove(DRAG_SOURCE_LINE_CLASS);
-      this.painted.clear();
-    }
-
-    private repaint() {
-      this.clear();
-      const selection = this.selection;
-      if (!selection?.blocks.length) return;
-      for (const block of selection.blocks) {
-        const from = Math.max(1, block.lines.startLine);
-        const to = Math.min(this.view.state.doc.lines, block.lines.endLine);
-        for (let line = from; line <= to; line++) {
-          try {
-            const pos = this.view.state.doc.line(line).from;
-            const dom = this.view.domAtPos(pos);
-            let node: Node | null = dom.node;
-            if (node.nodeType === 3) node = node.parentElement;
-            const lineEl = node instanceof HTMLElement
-              ? node.closest('.cm-line') as HTMLElement | null
-              : null;
-            if (!lineEl) continue;
-            lineEl.classList.add(DRAG_SOURCE_LINE_CLASS);
-            this.painted.add(lineEl);
-          } catch {
-            // skip
-          }
-        }
+    private syncSelectedHandles() {
+      const starts = new Set(
+        this.selection?.blocks.map((block) => block.lines.startLine) ?? [],
+      );
+      const handles = Array.from(
+        this.view.dom.querySelectorAll(`.${HANDLE_CLASS}[data-block-start]`),
+      ) as HTMLElement[];
+      for (const handle of handles) {
+        const line = Number(handle.getAttribute('data-block-start'));
+        handle.classList.toggle('is-selected', Number.isInteger(line) && starts.has(line));
       }
     }
+  }, {
+    decorations: (value) => value.decorations,
   });
 }
+
+function buildSelectionDecorations(view: EditorView, selection: BlockSelection | null): DecorationSet {
+  if (!selection?.blocks.length) return Decoration.none;
+  const ranges = [];
+  for (const block of selection.blocks) {
+    const fromLine = Math.max(1, block.lines.startLine);
+    const toLine = Math.min(view.state.doc.lines, block.lines.endLine);
+    for (let line = fromLine; line <= toLine; line++) {
+      ranges.push(sourceLineDecoration.range(view.state.doc.line(line).from));
+    }
+  }
+  return Decoration.set(ranges, true);
+}
+
+const sourceLineDecoration = Decoration.line({ class: DRAG_SOURCE_LINE_CLASS });
 
 function gestureShell(plugin: ObsidianDraggerHost): Extension {
   return ViewPlugin.fromClass(class {

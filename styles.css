@@ -68,6 +68,37 @@
     cursor: grabbing;
 }
 
+/* Multi-select: selected block handles become checkboxes. */
+.md-dragger-handle.is-selected,
+.md-dragger-handle.is-selected:hover {
+    opacity: 1;
+    color: var(--interactive-accent);
+    filter: none;
+}
+
+.md-dragger-handle.is-selected .dnd-handle-core {
+    position: relative;
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    background: var(--interactive-accent);
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--interactive-accent) 72%, var(--background-primary)),
+        0 2px 8px color-mix(in srgb, var(--interactive-accent) 28%, transparent);
+}
+
+.md-dragger-handle.is-selected .dnd-handle-core::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 2px;
+    width: 4px;
+    height: 7px;
+    border: solid var(--text-on-accent);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
 .dnd-handle-core {
     width: var(--dnd-handle-core-size, 10px);
     height: var(--dnd-handle-core-size, 10px);
