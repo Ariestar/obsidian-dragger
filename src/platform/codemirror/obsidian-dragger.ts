@@ -1,4 +1,5 @@
 import type { Extension } from '@codemirror/state';
+import { EditorState } from '@codemirror/state';
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import {
   HANDLE_CLASS,
@@ -20,7 +21,7 @@ import {
   ROOT_EDITOR_CLASS,
 } from '../../shared/dom-selectors';
 
-/** Minimal plugin surface used by the editor extension (avoids circular import with main). */
+/** Minimal plugin surface used by the editor extension. */
 export type ObsidianDraggerHost = {
   settings: {
     enableMultiLineSelection: boolean;
@@ -36,16 +37,16 @@ export type ObsidianDraggerHost = {
 
 /**
  * Obsidian host: mdDragger + paint/shell only.
- * No host Runtime, no second handle gutter, no drag-target-registry.
  */
 export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
   return [
     EditorView.editorAttributes.of({ class: ROOT_EDITOR_CLASS }),
     ...mdDragger({
-      config: () => ({
+      // tabSize is always read live from EditorState.tabSize by the adapter.
+      config: {
         tabSize: 4,
         listIndentUnit: 2,
-      }),
+      },
       handle: {
         render: () => createObsidianHandle(),
       },
@@ -58,7 +59,6 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
           autoScroll(
             {
               nudge: (point, cfg) => {
-                // Scroll the editor under the pointer (multi-pane safe enough via active element).
                 const scroller = document.elementFromPoint(point.x, point.y)
                   ?.closest('.cm-scroller') as HTMLElement | null;
                 if (!scroller) return;
@@ -96,8 +96,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
 
 function createObsidianHandle(): HTMLElement {
   const handle = activeDocument.createElement('div');
-  // Keep dnd-* for existing Obsidian CSS; HANDLE_CLASS for adapter hit-test.
-  handle.className = `${HANDLE_CLASS} dnd-drag-handle dnd-line-handle`;
+  handle.className = HANDLE_CLASS;
   const core = activeDocument.createElement('span');
   core.className = 'dnd-handle-core';
   core.setAttribute('aria-hidden', 'true');
@@ -142,8 +141,6 @@ function gestureConfig(plugin: ObsidianDraggerHost) {
   };
 }
 
-// --- paint bus: last-mounted visual plugins consume onChange ---
-
 type PaintHost = { consume(outputs: PipelineResult['outputs']): void };
 
 const paintBus = {
@@ -184,7 +181,9 @@ function dropIndicatorPaint(): Extension {
     consume(outputs: PipelineResult['outputs']) {
       for (const output of outputs) {
         if (output.type === 'drag_over') {
-          this.position = output.drop.rejectReason == null ? output.drop.position : null;
+          // Only paint on the view that owns the drop doc.
+          const position = output.drop.rejectReason == null ? output.drop.position : null;
+          this.position = position && position.doc === this.view.state.doc ? position : null;
           this.paint();
         } else if (
           output.type === 'dropped'
@@ -297,7 +296,6 @@ function selectionPaint(): Extension {
   });
 }
 
-/** Mobile scroll lock + short-press block menu from pipeline outputs only. */
 function gestureShell(plugin: ObsidianDraggerHost): Extension {
   return ViewPlugin.fromClass(class {
     private lastPress: PointerEvent | null = null;

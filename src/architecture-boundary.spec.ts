@@ -2,13 +2,9 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// Boundary guard for the plugin after it was slimmed down to a pure
-// md-dragger consumer. The domain/pipeline/runtime engine now lives in the
-// external package (guarded by md-dragger's own architecture spec); here we
-// only guard the seams that are the plugin's responsibility:
-//   1. platform/plugin reach the engine ONLY through md-dragger's public
-//      entry points, never a deep dist/internal path.
-//   2. platform/codemirror stays grouped by adapter responsibility.
+// Boundary guard: plugin is a pure md-dragger consumer.
+//   1. Only public md-dragger entry points.
+//   2. No package dist/src deep imports.
 
 const srcRoot = join(process.cwd(), 'src');
 
@@ -70,23 +66,13 @@ describe('plugin architecture boundaries', () => {
         expect(offenders.sort()).toEqual([]);
     });
 
-    it('keeps CodeMirror grouped by adapter responsibility', () => {
-        const codemirrorRoot = join(srcRoot, 'platform', 'codemirror');
-        const dirs = readdirSync(codemirrorRoot)
-            .filter((entry) => statSync(join(codemirrorRoot, entry)).isDirectory())
+    it('hosts mdDragger from a single codemirror entry module', () => {
+        const files = readProductionFiles()
+            .filter((file) => file.rel.startsWith('src/platform/codemirror/'))
+            .map((file) => file.rel)
             .sort();
-        expect(dirs).toEqual([
-            'dom',
-            'handle',
-            'hover',
-            'perf',
-            'runtime',
-            'selection',
-            'transaction',
+        expect(files).toEqual([
+            'src/platform/codemirror/obsidian-dragger.ts',
         ]);
-        const looseRootFiles = readProductionFiles()
-            .filter((file) => /^src\/platform\/codemirror\/[^/]+\.ts$/.test(file.rel))
-            .map((file) => file.rel);
-        expect(looseRootFiles).toEqual([]);
     });
 });

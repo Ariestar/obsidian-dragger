@@ -1,5 +1,5 @@
 import { MarkdownView, Plugin, setIcon } from 'obsidian';
-import { dragHandleExtension } from '../platform/codemirror/runtime/editor-extension';
+import { dragHandleExtension } from '../platform/codemirror/obsidian-dragger';
 import {
     HANDLE_CORE_SIZE_RATIO,
     GRIP_DOTS_CORE_SIZE_RATIO,
