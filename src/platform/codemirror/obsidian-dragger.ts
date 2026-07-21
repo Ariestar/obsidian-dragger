@@ -111,12 +111,112 @@ function sourceLineFromInput(
   const fromHandle = handleSourceLineFromInput(view, input);
   if (fromHandle !== null) return fromHandle;
 
-  if (!plugin.isMobilePlatform() || !plugin.isMobileDragModeEnabled()) return null;
-
   const event = input.native instanceof PointerEvent ? input.native : null;
   const target = event?.target instanceof Element ? event.target : null;
   if (target && !view.dom.contains(target)) return null;
-  return lineAtPoint(view, input.point);
+
+  const mobileDrag = plugin.isMobilePlatform() && plugin.isMobileDragModeEnabled();
+  if (mobileDrag) {
+    return resolveSourceLineAtPoint(view, input.point, target);
+  }
+
+  // Desktop: only arm from non-handle presses on replaced widgets
+  // (table/callout/hr/math…). Plain cm-line text stays for caret editing.
+  if (target && isReplacedWidgetTarget(target)) {
+    return resolveSourceLineAtPoint(view, input.point, target);
+  }
+  return null;
+}
+
+function isReplacedWidgetTarget(target: Element): boolean {
+  return !!target.closest(
+    [
+      '.cm-embed-block',
+      '.cm-callout',
+      '.cm-table-widget',
+      '.table-wrapper',
+      '.cm-preview-code-block',
+      '.cm-math',
+      '.math',
+      '.HyperMD-hr-line',
+      'hr',
+      '.cm-hr',
+      '.MathJax',
+      '.mjx-container',
+    ].join(','),
+  );
+}
+
+/** Map a press on source lines or replaced widgets to a 1-based source line. */
+function resolveSourceLineAtPoint(
+  view: EditorView,
+  point: { x: number; y: number },
+  target: Element | null,
+): number | null {
+  if (target) {
+    const fromDom = lineFromWidgetOrLineDom(view, target);
+    if (fromDom !== null) return fromDom;
+  }
+
+  const fromPoint = lineAtPoint(view, point);
+  if (fromPoint !== null) return fromPoint;
+
+  if (typeof document !== 'undefined') {
+    const hit = document.elementFromPoint(point.x, point.y);
+    if (hit && view.dom.contains(hit)) {
+      return lineFromWidgetOrLineDom(view, hit);
+    }
+  }
+  return null;
+}
+
+/**
+ * Obsidian LP replaces tables/callouts/hr/math with widgets.
+ * Walk to a cm-line or embed root and resolve via posAtDOM.
+ */
+function lineFromWidgetOrLineDom(view: EditorView, target: Element): number | null {
+  const lineEl = target.closest('.cm-line');
+  if (lineEl && view.dom.contains(lineEl)) {
+    const line = lineFromDom(view, lineEl);
+    if (line !== null) return line;
+  }
+
+  const widget = target.closest(
+    [
+      '.cm-embed-block',
+      '.cm-callout',
+      '.cm-table-widget',
+      '.table-wrapper',
+      '.cm-preview-code-block',
+      '.cm-math',
+      '.math',
+      '.HyperMD-hr-line',
+      'hr',
+      '.cm-hr',
+      '.MathJax',
+      '.mjx-container',
+    ].join(','),
+  );
+  if (widget && view.dom.contains(widget)) {
+    const line = lineFromDom(view, widget);
+    if (line !== null) return line;
+    const siblingLine = widget.parentElement?.querySelector('.cm-line');
+    if (siblingLine) {
+      const sibling = lineFromDom(view, siblingLine);
+      if (sibling !== null) return sibling;
+    }
+  }
+
+  return null;
+}
+
+function lineFromDom(view: EditorView, el: Element): number | null {
+  try {
+    const pos = view.posAtDOM(el, 0);
+    return view.state.doc.lineAt(pos).number;
+  } catch {
+    return null;
+  }
 }
 
 function gestureConfig(plugin: ObsidianDraggerHost) {
