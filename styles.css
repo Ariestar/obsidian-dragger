@@ -4,6 +4,13 @@
     display: none;
 }
 
+.dnd-list-indent-probe {
+    position: fixed;
+    visibility: hidden;
+    pointer-events: none;
+    height: 0;
+}
+
 .md-dragger-handle {
     position: relative;
     width: var(--dnd-handle-size, 20px);
@@ -178,21 +185,31 @@ body[data-dnd-drag-source-style="filled"],
 }
 
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content > .cm-line.dnd-drag-source-line {
+    background: transparent;
+}
+
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content > .cm-line.dnd-drag-source-line::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--dnd-drag-source-inset, 0px);
+    width: var(--dnd-drag-source-width, 0px);
     background: var(--dnd-drag-source-bg);
-    border-radius: 0;
     box-shadow:
         inset 1px 0 0 var(--dnd-drag-source-border),
         inset -1px 0 0 var(--dnd-drag-source-border);
-}
-
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content > .cm-line.dnd-drag-source-line.cm-activeLine {
-    background: var(--dnd-drag-source-bg);
+    pointer-events: none;
 }
 
 body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content > .cm-line.dnd-drag-source-line,
 .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-highlight="off"] .cm-content > .cm-line.dnd-drag-source-line {
     background: transparent;
-    box-shadow: none;
+}
+
+body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content > .cm-line.dnd-drag-source-line::before,
+.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-highlight="off"] .cm-content > .cm-line.dnd-drag-source-line::before {
+    display: none;
 }
 
 /* 常态显示拖拽手柄 */

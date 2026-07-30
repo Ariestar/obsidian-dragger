@@ -5,8 +5,11 @@ import {
   HANDLE_CLASS,
   mdDragger,
   dropSeam,
+  lineBand,
   lineAtPoint,
   sourceLineFromInput as handleSourceLineFromInput,
+  type CodeMirrorGeometryOptions,
+  type MdDraggerCodeMirrorOptions,
 } from 'md-dragger/adapter/codemirror';
 import { detectBlock, type BlockSelection, type DropPosition } from 'md-dragger/domain';
 import type { PipelineResult } from 'md-dragger/runtime';
@@ -39,72 +42,96 @@ export type ObsidianDraggerHost = {
  * Obsidian host: mdDragger + paint/shell only.
  */
 export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
-  return [
-    EditorView.editorAttributes.of({ class: ROOT_EDITOR_CLASS }),
-    ...mdDragger({
-      // tabSize is always read live from EditorState.tabSize by the adapter.
-      config: {
-        tabSize: 4,
-        listIndentUnit: 2,
-      },
-      handle: {
-        render: () => createObsidianHandle(),
-      },
-      locate: (view) => ({
-        sourceLineFromInput: (input) => {
-          // Adapter already resolves handle → data-block-start.
-          // Host only adds mobile row-as-handle.
-          if (!plugin.isMobilePlatform() || !plugin.isMobileDragModeEnabled()) {
-            return handleSourceLineFromInput(view, input);
-          }
-          const fromHandle = handleSourceLineFromInput(view, input);
-          if (fromHandle !== null) return fromHandle;
-          const event = input.native instanceof PointerEvent ? input.native : null;
-          const target = event?.target instanceof Element ? event.target : null;
-          if (target && !view.dom.contains(target)) return null;
-          return lineAtPoint(view, input.point);
-        },
-      }),
-      ux: {
-        gesture: () => gestureConfig(plugin),
-        modules: [
-          autoScroll(
-            {
-              nudge: (point, cfg) => {
-                const scroller = document.elementFromPoint(point.x, point.y)
-                  ?.closest('.cm-scroller') as HTMLElement | null;
-                if (!scroller) return;
-                const rect = scroller.getBoundingClientRect();
-                let dy = 0;
-                const top = point.y - rect.top;
-                const bottom = rect.bottom - point.y;
-                if (top >= 0 && top < cfg.edgeZonePx) {
-                  dy = -cfg.maxSpeedPx * (1 - top / cfg.edgeZonePx);
-                } else if (bottom >= 0 && bottom < cfg.edgeZonePx) {
-                  dy = cfg.maxSpeedPx * (1 - bottom / cfg.edgeZonePx);
-                }
-                if (dy !== 0) scroller.scrollTop += dy;
-              },
-            },
-            () => ({
-              edgeZonePx: plugin.settings.autoScrollEdgeZonePx,
-              maxSpeedPx: plugin.settings.autoScrollMaxSpeedPx,
-            }),
-          ),
-        ],
-      },
-      onChange: (result) => {
-        paintBus.emit(result);
-        for (const item of result.outputs) {
-          if (item.type === 'dropped') plugin.notifyDragDrop();
+  const options: MdDraggerCodeMirrorOptions = {
+    // tabSize is always read live from EditorState.tabSize by the adapter.
+    config: {
+      tabSize: 4,
+      listIndentUnit: 4,
+    },
+    listIndentWidthPx: obsidianListIndentWidthPx,
+    handle: {
+      render: () => createObsidianHandle(),
+    },
+    locate: (view) => ({
+      sourceLineFromInput: (input) => {
+        // Adapter already resolves handle → data-block-start.
+        // Host only adds mobile row-as-handle.
+        if (!plugin.isMobilePlatform() || !plugin.isMobileDragModeEnabled()) {
+          return handleSourceLineFromInput(view, input);
         }
+        const fromHandle = handleSourceLineFromInput(view, input);
+        if (fromHandle !== null) return fromHandle;
+        const event = input.native instanceof PointerEvent ? input.native : null;
+        const target = event?.target instanceof Element ? event.target : null;
+        if (target && !view.dom.contains(target)) return null;
+        return lineAtPoint(view, input.point);
       },
     }),
-    dropIndicatorPaint(),
-    selectionPaint(),
+    ux: {
+      gesture: () => gestureConfig(plugin),
+      modules: [
+        autoScroll(
+          {
+            nudge: (point, cfg) => {
+              const scroller = activeDocument.elementFromPoint(point.x, point.y)
+                ?.closest('.cm-scroller') as HTMLElement | null;
+              if (!scroller) return;
+              const rect = scroller.getBoundingClientRect();
+              let dy = 0;
+              const top = point.y - rect.top;
+              const bottom = rect.bottom - point.y;
+              if (top >= 0 && top < cfg.edgeZonePx) {
+                dy = -cfg.maxSpeedPx * (1 - top / cfg.edgeZonePx);
+              } else if (bottom >= 0 && bottom < cfg.edgeZonePx) {
+                dy = cfg.maxSpeedPx * (1 - bottom / cfg.edgeZonePx);
+              }
+              if (dy !== 0) scroller.scrollTop += dy;
+            },
+          },
+          () => ({
+            edgeZonePx: plugin.settings.autoScrollEdgeZonePx,
+            maxSpeedPx: plugin.settings.autoScrollMaxSpeedPx,
+          }),
+        ),
+      ],
+    },
+    onChange: (result) => {
+      paintBus.emit(result);
+      for (const item of result.outputs) {
+        if (item.type === 'dropped') plugin.notifyDragDrop();
+      }
+    },
+  };
+
+  return [
+    EditorView.editorAttributes.of({ class: ROOT_EDITOR_CLASS }),
+    ...mdDragger(options),
+    dropIndicatorPaint(options),
+    selectionPaint(options),
     handleHover(),
     gestureShell(plugin),
   ];
+}
+
+function obsidianListIndentWidthPx(view: EditorView): number {
+  const ownerWindow = view.dom.ownerDocument.defaultView;
+  if (!ownerWindow) {
+    throw new Error('obsidian-dragger: editor window is unavailable');
+  }
+  const computed = ownerWindow.getComputedStyle(view.contentDOM);
+  const cssWidth = computed.getPropertyValue('--list-indent').trim();
+  if (!cssWidth) {
+    throw new Error('obsidian-dragger: --list-indent must be defined');
+  }
+  const probe = view.dom.ownerDocument.createElement('div');
+  probe.className = 'dnd-list-indent-probe';
+  probe.setAttribute('aria-hidden', 'true');
+  probe.style.fontSize = computed.fontSize;
+  probe.style.width = cssWidth;
+  view.dom.ownerDocument.body.appendChild(probe);
+  const width = probe.getBoundingClientRect().width;
+  probe.remove();
+  return width;
 }
 
 function createObsidianHandle(): HTMLElement {
@@ -151,7 +178,7 @@ const paintBus = {
   },
 };
 
-function dropIndicatorPaint(): Extension {
+function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
   return ViewPlugin.fromClass(class {
     private readonly el: HTMLDivElement;
     private position: DropPosition | null = null;
@@ -206,7 +233,7 @@ function dropIndicatorPaint(): Extension {
         this.el.classList.add(HIDDEN_CLASS);
         return;
       }
-      const seam = dropSeam(this.view, this.position);
+      const seam = dropSeam(this.view, this.position, options);
       if (!seam) {
         this.el.classList.add(HIDDEN_CLASS);
         return;
@@ -215,13 +242,13 @@ function dropIndicatorPaint(): Extension {
       this.el.setCssStyles({
         top: `${seam.y}px`,
         left: `${seam.left}px`,
-        width: `${Math.max(8, seam.right - seam.left)}px`,
+        width: `${seam.right - seam.left}px`,
       });
     }
   });
 }
 
-function selectionPaint(): Extension {
+function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
   return ViewPlugin.fromClass(class {
     decorations: DecorationSet = Decoration.none;
     private selection: BlockSelection | null = null;
@@ -233,7 +260,7 @@ function selectionPaint(): Extension {
 
     update(update: ViewUpdate) {
       if (update.docChanged || update.viewportChanged || update.geometryChanged) {
-        this.decorations = buildSelectionDecorations(this.view, this.selection);
+        this.decorations = buildSelectionDecorations(this.view, this.selection, options);
         this.syncSelectedHandles();
       }
     }
@@ -260,7 +287,7 @@ function selectionPaint(): Extension {
       }
       if (next === undefined) return;
       this.selection = next;
-      this.decorations = buildSelectionDecorations(this.view, this.selection);
+      this.decorations = buildSelectionDecorations(this.view, this.selection, options);
       this.syncSelectedHandles();
     }
 
@@ -281,20 +308,34 @@ function selectionPaint(): Extension {
   });
 }
 
-function buildSelectionDecorations(view: EditorView, selection: BlockSelection | null): DecorationSet {
+function buildSelectionDecorations(
+  view: EditorView,
+  selection: BlockSelection | null,
+  options: CodeMirrorGeometryOptions,
+): DecorationSet {
   if (!selection?.blocks.length) return Decoration.none;
   const ranges = [];
   for (const block of selection.blocks) {
     const fromLine = Math.max(1, block.lines.startLine);
     const toLine = Math.min(view.state.doc.lines, block.lines.endLine);
     for (let line = fromLine; line <= toLine; line++) {
-      ranges.push(sourceLineDecoration.range(view.state.doc.line(line).from));
+      const band = lineBand(view, line, options);
+      if (!band) continue;
+      ranges.push(sourceLineDecoration(band.inset, band.right - band.left)
+        .range(view.state.doc.line(line).from));
     }
   }
   return Decoration.set(ranges, true);
 }
 
-const sourceLineDecoration = Decoration.line({ class: DRAG_SOURCE_LINE_CLASS });
+function sourceLineDecoration(insetPx: number, widthPx: number) {
+  return Decoration.line({
+    class: DRAG_SOURCE_LINE_CLASS,
+    attributes: {
+      style: `--dnd-drag-source-inset: ${insetPx}px; --dnd-drag-source-width: ${widthPx}px`,
+    },
+  });
+}
 
 /**
  * Host display only: pointer over content → show that block's handle.
