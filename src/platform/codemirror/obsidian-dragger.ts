@@ -469,6 +469,10 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
             destroy() {
                 this.unsub();
                 this.setLock(false);
+                // The consuming plugin may be destroyed before the runtime flushes its
+                // final state; always clear the global dragging class so the cursor
+                // never stays stuck in grab mode.
+                activeDocument.body.classList.remove(DRAGGING_BODY_CLASS);
                 this.view.dom.removeEventListener('pointerdown', this.onPointerDown, true);
                 this.view.dom.removeEventListener('contextmenu', this.onContextMenu, true);
             }
