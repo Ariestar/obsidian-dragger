@@ -4,13 +4,6 @@
     display: none;
 }
 
-.dnd-list-indent-probe {
-    position: fixed;
-    visibility: hidden;
-    pointer-events: none;
-    height: 0;
-}
-
 .md-dragger-handle {
     position: relative;
     width: var(--dnd-handle-size, 20px);
@@ -184,31 +177,28 @@ body[data-dnd-drag-source-style="filled"],
     --dnd-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 38%, transparent);
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content > .cm-line.dnd-drag-source-line {
-    background: transparent;
+/* 选区高亮：固定定位覆盖盒，与落点指示线同一坐标系（视口坐标）。
+   左缘 = 内容带（含 marker），顶层/嵌套一致。 */
+.dnd-drag-source-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 9998;
+    pointer-events: none;
 }
 
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content > .cm-line.dnd-drag-source-line::before {
-    content: '';
-    position: absolute;
+.dnd-drag-source-box {
+    position: fixed;
     top: 0;
-    bottom: 0;
-    left: var(--dnd-drag-source-inset, 0px);
-    width: var(--dnd-drag-source-width, 0px);
+    left: 0;
+    pointer-events: none;
     background: var(--dnd-drag-source-bg);
     box-shadow:
         inset 1px 0 0 var(--dnd-drag-source-border),
         inset -1px 0 0 var(--dnd-drag-source-border);
-    pointer-events: none;
 }
 
-body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content > .cm-line.dnd-drag-source-line,
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-highlight="off"] .cm-content > .cm-line.dnd-drag-source-line {
-    background: transparent;
-}
-
-body[data-dnd-drag-source-highlight="off"] .markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor .cm-content > .cm-line.dnd-drag-source-line::before,
-.markdown-source-view.mod-cm6 .cm-editor.dnd-root-editor[data-dnd-drag-source-highlight="off"] .cm-content > .cm-line.dnd-drag-source-line::before {
+body[data-dnd-drag-source-highlight="off"] .dnd-drag-source-box {
     display: none;
 }
 

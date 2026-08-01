@@ -1,6 +1,6 @@
 import type { Extension } from '@codemirror/state';
 import { EditorState } from '@codemirror/state';
-import { EditorView, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import {
   HANDLE_CLASS,
   mdDragger,
@@ -11,14 +11,14 @@ import {
   type CodeMirrorGeometryOptions,
   type MdDraggerCodeMirrorOptions,
 } from 'md-dragger/adapter/codemirror';
-import { detectBlock, type BlockSelection, type DropPosition } from 'md-dragger/domain';
+import { detectBlock, parseLine, type BlockSelection, type DropPosition } from 'md-dragger/domain';
 import type { PipelineResult } from 'md-dragger/runtime';
 import { autoScroll } from 'md-dragger/runtime/modules';
 import { openBlockTypeMenu } from '../../plugin/block-type-menu';
 import {
   DROP_INDICATOR_CLASS,
   DRAGGING_BODY_CLASS,
-  DRAG_SOURCE_LINE_CLASS,
+  DRAG_SOURCE_BOX_CLASS,
   HIDDEN_CLASS,
   MOBILE_GESTURE_LOCK_CLASS,
   ROOT_EDITOR_CLASS,
@@ -41,14 +41,17 @@ export type ObsidianDraggerHost = {
 /**
  * Obsidian host: mdDragger + paint/shell only.
  */
+// Source-mode list indent: 4 columns per level (Obsidian default).
+const LIST_INDENT_UNIT = 4;
+
 export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
   const options: MdDraggerCodeMirrorOptions = {
     // tabSize is always read live from EditorState.tabSize by the adapter.
     config: {
       tabSize: 4,
-      listIndentUnit: 4,
+      listIndentUnit: LIST_INDENT_UNIT,
     },
-    listIndentWidthPx: obsidianListIndentWidthPx,
+    listIndentWidthPx: (view) => obsidianListIndentWidthPx(view, LIST_INDENT_UNIT),
     handle: {
       render: () => createObsidianHandle(),
     },
@@ -113,25 +116,53 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
   ];
 }
 
-function obsidianListIndentWidthPx(view: EditorView): number {
-  const ownerWindow = view.dom.ownerDocument.defaultView;
-  if (!ownerWindow) {
-    throw new Error('obsidian-dragger: editor window is unavailable');
+// Rendered pixel width of one list nesting level, measured from real rendered
+// list lines (theme-proof). No fallbacks: if the document has no list pair
+// with increasing indent there is nothing to measure — fail explicitly.
+function obsidianListIndentWidthPx(view: EditorView, indentUnit: number): number {
+  const step = measureListIndentStep(view, indentUnit);
+  if (step == null) {
+    throw new Error(
+      'obsidian-dragger: cannot measure list indent width — need a nested list line in the document',
+    );
   }
-  const computed = ownerWindow.getComputedStyle(view.contentDOM);
-  const cssWidth = computed.getPropertyValue('--list-indent').trim();
-  if (!cssWidth) {
-    throw new Error('obsidian-dragger: --list-indent must be defined');
+  return step;
+}
+
+// First pair of list lines with increasing indent: per-column px from their
+// rendered marker-left difference, scaled to one indent unit.
+function measureListIndentStep(view: EditorView, indentUnit: number): number | null {
+  const tabSize = view.state.facet(EditorState.tabSize);
+  let previous: { indent: number; left: number } | null = null;
+  for (let lineNo = 1; lineNo <= view.state.doc.lines; lineNo++) {
+    const line = view.state.doc.line(lineNo);
+    const parsed = parseLine(line.text, tabSize);
+    if (parsed.marker?.kind !== 'list') continue;
+    const left = listMarkerLeft(view, line.from);
+    if (left == null) continue;
+    if (previous && parsed.indent.width > previous.indent) {
+      const perColumn = (left - previous.left) / (parsed.indent.width - previous.indent);
+      const step = perColumn * indentUnit;
+      if (Number.isFinite(step) && step > 0) return step;
+    }
+    previous = { indent: parsed.indent.width, left };
   }
-  const probe = view.dom.ownerDocument.createElement('div');
-  probe.className = 'dnd-list-indent-probe';
-  probe.setAttribute('aria-hidden', 'true');
-  probe.style.fontSize = computed.fontSize;
-  probe.style.width = cssWidth;
-  view.dom.ownerDocument.body.appendChild(probe);
-  const width = probe.getBoundingClientRect().width;
-  probe.remove();
-  return width;
+  return null;
+}
+
+// Rendered left edge of a list line's marker span (the bullet column).
+function listMarkerLeft(view: EditorView, from: number): number | null {
+  const node = view.domAtPos(from).node as Element | null;
+  const lineEl = node?.nodeType === 1
+    ? node.closest('.cm-line')
+    : node?.parentElement?.closest('.cm-line') ?? null;
+  const marker = lineEl?.querySelector('.cm-formatting-list') as HTMLElement | null;
+  return marker?.getBoundingClientRect().left ?? null;
+}
+
+// Per-paint geometry with the live rendered step resolved once per frame.
+function paintGeometry(options: CodeMirrorGeometryOptions, view: EditorView): CodeMirrorGeometryOptions {
+  return { ...options, listIndentWidthPx: obsidianListIndentWidthPx(view, LIST_INDENT_UNIT) };
 }
 
 function createObsidianHandle(): HTMLElement {
@@ -233,7 +264,7 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
         this.el.classList.add(HIDDEN_CLASS);
         return;
       }
-      const seam = dropSeam(this.view, this.position, options);
+      const seam = dropSeam(this.view, this.position, paintGeometry(options, this.view));
       if (!seam) {
         this.el.classList.add(HIDDEN_CLASS);
         return;
@@ -250,25 +281,30 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
 
 function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
   return ViewPlugin.fromClass(class {
-    decorations: DecorationSet = Decoration.none;
+    private readonly layer: HTMLDivElement;
+    private boxes: HTMLDivElement[] = [];
     private selection: BlockSelection | null = null;
+    private raf: number | null = null;
     private readonly unsub: () => void;
 
     constructor(private readonly view: EditorView) {
+      this.layer = activeDocument.createElement('div');
+      this.layer.className = 'dnd-drag-source-layer';
+      activeDocument.body.appendChild(this.layer);
       this.unsub = paintBus.add(this);
     }
 
     update(update: ViewUpdate) {
       if (update.docChanged || update.viewportChanged || update.geometryChanged) {
-        this.decorations = buildSelectionDecorations(this.view, this.selection, options);
-        this.syncSelectedHandles();
+        this.queue();
       }
     }
 
     destroy() {
       this.unsub();
+      if (this.raf !== null) window.cancelAnimationFrame(this.raf);
+      this.layer.remove();
       this.selection = null;
-      this.decorations = Decoration.none;
       this.syncSelectedHandles();
     }
 
@@ -287,8 +323,45 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
       }
       if (next === undefined) return;
       this.selection = next;
-      this.decorations = buildSelectionDecorations(this.view, this.selection, options);
+      this.paint();
       this.syncSelectedHandles();
+    }
+
+    private queue() {
+      if (this.raf !== null) return;
+      this.raf = window.requestAnimationFrame(() => {
+        this.raf = null;
+        this.paint();
+      });
+    }
+
+    private paint() {
+      const rects = selectedBandRects(
+        this.view,
+        this.selection,
+        paintGeometry(options, this.view),
+      );
+      while (this.boxes.length < rects.length) {
+        const box = activeDocument.createElement('div');
+        box.className = `${DRAG_SOURCE_BOX_CLASS} ${HIDDEN_CLASS}`;
+        this.layer.appendChild(box);
+        this.boxes.push(box);
+      }
+      for (let i = 0; i < this.boxes.length; i++) {
+        const box = this.boxes[i];
+        const rect = rects[i];
+        if (!rect) {
+          box.classList.add(HIDDEN_CLASS);
+          continue;
+        }
+        box.classList.remove(HIDDEN_CLASS);
+        box.setCssStyles({
+          top: `${rect.top}px`,
+          left: `${rect.left}px`,
+          width: `${Math.max(0, rect.right - rect.left)}px`,
+          height: `${Math.max(0, rect.bottom - rect.top)}px`,
+        });
+      }
     }
 
     private syncSelectedHandles() {
@@ -303,38 +376,25 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
         handle.classList.toggle('is-selected', Number.isInteger(line) && starts.has(line));
       }
     }
-  }, {
-    decorations: (value) => value.decorations,
   });
 }
 
-function buildSelectionDecorations(
+function selectedBandRects(
   view: EditorView,
   selection: BlockSelection | null,
   options: CodeMirrorGeometryOptions,
-): DecorationSet {
-  if (!selection?.blocks.length) return Decoration.none;
-  const ranges = [];
+): Array<{ left: number; right: number; top: number; bottom: number }> {
+  if (!selection?.blocks.length) return [];
+  const rects = [];
   for (const block of selection.blocks) {
     const fromLine = Math.max(1, block.lines.startLine);
     const toLine = Math.min(view.state.doc.lines, block.lines.endLine);
     for (let line = fromLine; line <= toLine; line++) {
       const band = lineBand(view, line, options);
-      if (!band) continue;
-      ranges.push(sourceLineDecoration(band.inset, band.right - band.left)
-        .range(view.state.doc.line(line).from));
+      if (band) rects.push(band);
     }
   }
-  return Decoration.set(ranges, true);
-}
-
-function sourceLineDecoration(insetPx: number, widthPx: number) {
-  return Decoration.line({
-    class: DRAG_SOURCE_LINE_CLASS,
-    attributes: {
-      style: `--dnd-drag-source-inset: ${insetPx}px; --dnd-drag-source-width: ${widthPx}px`,
-    },
-  });
+  return rects;
 }
 
 /**
