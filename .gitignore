@@ -24,6 +24,7 @@ Thumbs.db
 *.md
 !README.md
 !README.zh-CN.md
+!AGENTS.md
 !docs/release_notes/*.md
 !docs/*.md
 
