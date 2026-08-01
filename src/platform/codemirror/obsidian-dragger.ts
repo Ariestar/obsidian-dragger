@@ -11,7 +11,15 @@ import {
     type CodeMirrorGeometryOptions,
     type MdDraggerCodeMirrorOptions,
 } from 'md-dragger/adapter/codemirror';
-import { detectBlock, parseLine, type BlockSelection, type DropPosition } from 'md-dragger/domain';
+import {
+    detectBlock,
+    isLineNumberInRanges,
+    parseLine,
+    selectionLineRanges,
+    type BlockSelection,
+    type DropPosition,
+    type LineRange,
+} from 'md-dragger/domain';
 import type { PipelineResult } from 'md-dragger/runtime';
 import { autoScroll } from 'md-dragger/runtime/modules';
 import { openBlockTypeMenu } from '../../plugin/block-type-menu';
@@ -280,6 +288,7 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
             private readonly layer: HTMLDivElement;
             private boxes: HTMLDivElement[] = [];
             private selection: BlockSelection | null = null;
+            private selectedRanges: LineRange[] = [];
             private raf: number | null = null;
             private readonly unsub: () => void;
             // Fixed-position overlay uses viewport coords, so it must repaint when the
@@ -306,6 +315,7 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
                 if (this.raf !== null) window.cancelAnimationFrame(this.raf);
                 this.layer.remove();
                 this.selection = null;
+                this.selectedRanges = [];
                 this.syncSelectedHandles();
             }
 
@@ -320,6 +330,7 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
                 }
                 if (next === undefined) return;
                 this.selection = next;
+                this.selectedRanges = selectionLineRanges(this.view.state.doc.lines, this.selection ?? { blocks: [] });
                 this.paint();
                 this.syncSelectedHandles();
             }
@@ -333,7 +344,7 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
             }
 
             private paint() {
-                const rects = selectedBandRects(this.view, this.selection, paintGeometry(options, this.view));
+                const rects = selectedBandRects(this.view, this.selectedRanges, paintGeometry(options, this.view));
                 while (this.boxes.length < rects.length) {
                     const box = activeDocument.createElement('div');
                     box.className = `${DRAG_SOURCE_BOX_CLASS} ${HIDDEN_CLASS}`;
@@ -358,11 +369,13 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
             }
 
             private syncSelectedHandles() {
-                const starts = new Set(this.selection?.blocks.map((block) => block.lines.startLine) ?? []);
                 const handles = Array.from(this.view.dom.querySelectorAll(`.${HANDLE_CLASS}[data-block-start]`));
                 for (const handle of handles) {
                     const line = Number(handle.getAttribute('data-block-start'));
-                    handle.classList.toggle('is-selected', Number.isInteger(line) && starts.has(line));
+                    handle.classList.toggle(
+                        'is-selected',
+                        Number.isInteger(line) && isLineNumberInRanges(line, this.selectedRanges),
+                    );
                 }
             }
         },
@@ -371,15 +384,12 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
 
 function selectedBandRects(
     view: EditorView,
-    selection: BlockSelection | null,
+    ranges: LineRange[],
     options: CodeMirrorGeometryOptions,
 ): Array<{ left: number; right: number; top: number; bottom: number }> {
-    if (!selection?.blocks.length) return [];
     const rects = [];
-    for (const block of selection.blocks) {
-        const fromLine = Math.max(1, block.lines.startLine);
-        const toLine = Math.min(view.state.doc.lines, block.lines.endLine);
-        for (let line = fromLine; line <= toLine; line++) {
+    for (const range of ranges) {
+        for (let line = range.startLine; line <= range.endLine; line++) {
             const band = lineBand(view, line, options);
             if (band) rects.push(band);
         }
