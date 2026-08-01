@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { App, Command, Notice } from 'obsidian';
+import { App, Notice, type Command } from 'obsidian';
 import { getActiveMarkdownView } from '../platform/obsidian/app-adapter';
 import { getCodeMirrorView } from '../platform/obsidian/editor-view';
 import { openBlockTypeMenu } from './block-type-menu';

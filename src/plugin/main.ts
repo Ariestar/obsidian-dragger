@@ -12,11 +12,7 @@ import {
     DND_HANDLE_ICON_ATTR,
     DND_LIST_DROP_HIGHLIGHT_ATTR,
 } from '../shared/dom-attrs';
-import {
-    DragNDropSettings,
-    DragNDropSettingTab,
-    HandleVisibilityMode,
-} from './settings';
+import { type DragNDropSettings, DragNDropSettingTab, type HandleVisibilityMode } from './settings';
 import { migrateSettings } from './settings-migrations';
 import { platform } from './platform';
 import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
@@ -39,7 +35,6 @@ export default class DragNDropPlugin extends Plugin {
     };
 
     async onload() {
-
         await this.loadSettings();
 
         // 注册编辑器扩�?
@@ -80,7 +75,10 @@ export default class DragNDropPlugin extends Plugin {
         const visibility: HandleVisibilityMode = this.settings.handleVisibility;
         body.classList.toggle('dnd-handles-always', visibility === 'always');
         body.classList.toggle('dnd-handles-hidden', visibility === 'hidden');
-        body.classList.toggle('dnd-mobile-handles-hidden', platform.isMobile && !this.settings.enableMobileTextLongPressDrag);
+        body.classList.toggle(
+            'dnd-mobile-handles-hidden',
+            platform.isMobile && !this.settings.enableMobileTextLongPressDrag,
+        );
         body.classList.toggle('dnd-mobile-drag-mode-enabled', this.mobileDragModeEnabled);
 
         const selectionVisualStyle = this.settings.selectionVisualStyle;
@@ -207,10 +205,11 @@ export default class DragNDropPlugin extends Plugin {
         const win = activeWindow as typeof window;
         const active = activeDocument.activeElement;
         if (!(active instanceof win.HTMLElement)) return;
-        const shouldBlur = active.instanceOf(win.HTMLInputElement)
-            || active.instanceOf(win.HTMLTextAreaElement)
-            || active.isContentEditable
-            || !!active.closest('.cm-content');
+        const shouldBlur =
+            active.instanceOf(win.HTMLInputElement) ||
+            active.instanceOf(win.HTMLTextAreaElement) ||
+            active.isContentEditable ||
+            !!active.closest('.cm-content');
         if (!shouldBlur) return;
         active.blur();
         this.clearNativeSelection();
@@ -233,11 +232,15 @@ export default class DragNDropPlugin extends Plugin {
                 this.mobileDragModeActionEls.delete(existingActionEl);
             }
 
-            const actionEl = view.addAction(this.getMobileDragModeActionIcon(), this.getMobileDragModeActionTitle(), (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                this.toggleMobileDragMode();
-            });
+            const actionEl = view.addAction(
+                this.getMobileDragModeActionIcon(),
+                this.getMobileDragModeActionTitle(),
+                (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.toggleMobileDragMode();
+                },
+            );
             this.mobileDragModeActionByView.set(view, actionEl);
             this.mobileDragModeActionEls.add(actionEl);
             this.syncMobileDragModeActionEl(actionEl);
@@ -288,7 +291,9 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     private isMobileDragModeToggleLocationEnabled(location: 'view-action'): boolean {
-        return this.settings.enableMobileTextLongPressDrag
-            && this.settings.mobileDragModeToggleLocations.includes(location);
+        return (
+            this.settings.enableMobileTextLongPressDrag &&
+            this.settings.mobileDragModeToggleLocations.includes(location)
+        );
     }
 }
