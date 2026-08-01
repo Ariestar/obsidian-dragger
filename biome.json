@@ -20,6 +20,7 @@
             "*.ts",
             "*.mjs",
             "scripts/**/*.mjs",
+            "*.json",
             "!**/dist/**",
             "!**/node_modules/**",
             "!**/ob_vault/**",
