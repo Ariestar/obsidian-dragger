@@ -15,27 +15,51 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout md-dragger (sibling dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: Ariestar/md-dragger
+          path: ../md-dragger
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24.13.0
-          cache: npm
+          cache: pnpm
 
-      - name: Pin npm version
-        run: npm i -g npm@11.6.2
+      - name: Install core package (md-dragger)
+        working-directory: ../md-dragger
+        run: pnpm install --frozen-lockfile
+
+      - name: Build core package (md-dragger)
+        working-directory: ../md-dragger
+        run: pnpm run build
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Type check
-        run: npm run typecheck
+        run: pnpm run typecheck
+
+      - name: Lint
+        run: pnpm run lint:review
+
+      - name: Format check
+        run: pnpm exec biome format --changed --since=origin/main
 
       - name: Run tests
-        run: npm test
+        run: pnpm test
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
-      - name: Smoke npm package
-        run: npm run smoke:npm
+      - name: Smoke plugin bundle
+        run: pnpm run smoke:npm
