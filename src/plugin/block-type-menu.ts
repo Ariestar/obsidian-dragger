@@ -81,9 +81,7 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null)
 
     for (const group of NESTED_GROUPS) {
         menu.addItem((item) => {
-            item
-                .setTitle(createGroupTitle(group.label))
-                .setIcon(group.icon);
+            item.setTitle(createGroupTitle(group.label)).setIcon(group.icon);
             if (platform.isMobile) {
                 item.onClick(() => {
                     showMobileGroupPage(view, group, line);
@@ -125,20 +123,18 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null)
     }
 }
 
-function showMobileGroupPage(
-    view: EditorView,
-    group: NestedConversionGroup,
-    line: number,
-): void {
+function showMobileGroupPage(view: EditorView, group: NestedConversionGroup, line: number): void {
     const menu = new Menu();
     menu.setUseNativeMenu(false);
 
-    menu.addItem((item) => item
-        .setTitle('Back')
-        .setIcon('chevron-left')
-        .onClick(() => {
-            showRootMenu(view, null);
-        }));
+    menu.addItem((item) =>
+        item
+            .setTitle('Back')
+            .setIcon('chevron-left')
+            .onClick(() => {
+                showRootMenu(view, null);
+            }),
+    );
 
     for (const option of group.options) {
         addConversionItem(menu, view, option, line, () => menu.hide());
@@ -153,10 +149,7 @@ function bindDesktopGroupHover(view: EditorView, line: number): void {
 
     for (const item of Array.from(menuEl.querySelectorAll<HTMLElement>('.menu-item'))) {
         if (item.dataset.dndGroupHoverBound === 'true') continue;
-        const title = item
-            .querySelector<HTMLElement>('.dnd-block-type-submenu-title-label')
-            ?.textContent
-            ?.trim();
+        const title = item.querySelector<HTMLElement>('.dnd-block-type-submenu-title-label')?.textContent?.trim();
         const group = NESTED_GROUPS.find((candidate) => candidate.label === title);
         if (!group) continue;
 
@@ -175,12 +168,7 @@ function bindDesktopGroupHover(view: EditorView, line: number): void {
     }
 }
 
-function openFlyout(
-    view: EditorView,
-    group: NestedConversionGroup,
-    trigger: HTMLElement,
-    line: number,
-): void {
+function openFlyout(view: EditorView, group: NestedConversionGroup, trigger: HTMLElement, line: number): void {
     cancelFlyoutClose();
     if (flyoutEl && flyoutTrigger === trigger) return;
 
@@ -213,11 +201,7 @@ function openFlyout(
     flyoutTrigger = trigger;
 }
 
-function createFlyoutItem(
-    view: EditorView,
-    option: BlockTypeConversionOption,
-    line: number,
-): HTMLElement {
+function createFlyoutItem(view: EditorView, option: BlockTypeConversionOption, line: number): HTMLElement {
     const target = option.target;
     const row = activeDocument.createElement('div');
     row.className = `menu-item ${FLYOUT_ITEM_CLASS}`;
@@ -268,10 +252,12 @@ function positionFlyout(panel: HTMLElement, trigger: HTMLElement): void {
     if (y + height > activeWindow.innerHeight - 8) {
         y = Math.max(8, activeWindow.innerHeight - height - 8);
     }
-    panel.style.position = 'fixed';
-    panel.style.left = `${x}px`;
-    panel.style.top = `${y}px`;
-    panel.style.zIndex = '10000';
+    panel.setCssStyles({
+        position: 'fixed',
+        left: `${x}px`,
+        top: `${y}px`,
+        zIndex: '10000',
+    });
 }
 
 function scheduleFlyoutClose(): void {
@@ -307,22 +293,23 @@ function addConversionItem(
     afterApply: () => void,
 ): void {
     const target = option.target;
-    menu.addItem((item) => item
-        .setTitle(option.label)
-        .setIcon(option.icon)
-        .onClick(() => {
-            if (!convertCurrentBlockType(view, target, line)) {
-                new Notice('Unable to change block type.');
-                return;
-            }
-            afterApply();
-        }));
+    menu.addItem((item) =>
+        item
+            .setTitle(option.label)
+            .setIcon(option.icon)
+            .onClick(() => {
+                if (!convertCurrentBlockType(view, target, line)) {
+                    new Notice('Unable to change block type.');
+                    return;
+                }
+                afterApply();
+            }),
+    );
 }
 
 function addActionItem(menu: Menu, action: BlockMenuAction): void {
     menu.addItem((item) => {
-        item
-            .setTitle(action.label)
+        item.setTitle(action.label)
             .setIcon(action.icon)
             .onClick(() => {
                 void (async () => {
@@ -357,11 +344,7 @@ function createGroupTitle(labelText: string): DocumentFragment {
     return fragment;
 }
 
-function showMenuAt(
-    menu: Menu,
-    view: EditorView,
-    event: MouseEvent | PointerEvent | null,
-): void {
+function showMenuAt(menu: Menu, view: EditorView, event: MouseEvent | PointerEvent | null): void {
     // Always position by coordinates. Never showAtMouseEvent for a short-tap
     // re-open: the originating touch is finished, and on mobile that API can
     // bind the leftover click as an outside-dismiss.
