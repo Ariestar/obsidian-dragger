@@ -281,7 +281,7 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
        (z 3/4). Never reaches Obsidian's app chrome. */
     z-index: 2;
     border-radius: 2px;
-    box-shadow: 0 0 6px var(--d-drop-indicator-color, var(--interactive-accent));
+    /* Flat accent line, same clean style as the source highlight — no glow. */
 }
 
 .d-drop-highlight {
