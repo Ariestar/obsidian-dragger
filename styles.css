@@ -267,9 +267,10 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
 }
 
 /* Rejected drop (e.g. re-inserting in place): the seam stays visible as a
-   neutral grey line instead of disappearing. */
+   light grey line (--text-faint) instead of disappearing — the muted tone
+   signals the drop is forbidden/invalid. */
 .d-drop-indicator.is-invalid {
-    background: var(--text-muted);
+    background: var(--text-faint);
 }
 
 .d-drop-highlight {
