@@ -160,25 +160,25 @@ body,
 body[data-d-drag-source-style="subtle"],
 .markdown-source-view.mod-cm6 .cm-editor.d-root-editor[data-d-drag-source-style="subtle"] {
     --d-drag-source-bg: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
-    --d-drag-source-border: color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+    --d-drag-source-border: color-mix(in srgb, var(--interactive-accent) 60%, transparent);
     --d-drop-highlight-bg: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
-    --d-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+    --d-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 60%, transparent);
 }
 
 body[data-d-drag-source-style="outline"],
 .markdown-source-view.mod-cm6 .cm-editor.d-root-editor[data-d-drag-source-style="outline"] {
     --d-drag-source-bg: transparent;
-    --d-drag-source-border: color-mix(in srgb, var(--interactive-accent) 42%, transparent);
+    --d-drag-source-border: color-mix(in srgb, var(--interactive-accent) 60%, transparent);
     --d-drop-highlight-bg: transparent;
-    --d-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 42%, transparent);
+    --d-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 60%, transparent);
 }
 
 body[data-d-drag-source-style="filled"],
 .markdown-source-view.mod-cm6 .cm-editor.d-root-editor[data-d-drag-source-style="filled"] {
     --d-drag-source-bg: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
-    --d-drag-source-border: color-mix(in srgb, var(--interactive-accent) 38%, transparent);
+    --d-drag-source-border: color-mix(in srgb, var(--interactive-accent) 60%, transparent);
     --d-drop-highlight-bg: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
-    --d-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 38%, transparent);
+    --d-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 60%, transparent);
 }
 
 /* 选区高亮：编辑器内覆盖盒，与落点指示线同一坐标系（编辑器内坐标）。
@@ -200,7 +200,7 @@ body[data-d-drag-source-style="filled"],
     pointer-events: none;
     background: var(--d-drag-source-bg);
     box-shadow:
-        inset 1px 0 0 var(--d-drag-source-border),
+        inset 2px 0 0 var(--d-drag-source-border),
         inset -1px 0 0 var(--d-drag-source-border);
 }
 
@@ -274,14 +274,15 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
 
 .d-drop-indicator {
     position: absolute;
-    height: 3px;
-    background: var(--d-drop-indicator-color, var(--interactive-accent));
+    height: 2px;
+    background: var(--d-drop-indicator-color, var(--d-drag-source-border, var(--interactive-accent)));
     pointer-events: none;
     /* Inside the editor's stacking context: above text, below handle markers
        (z 3/4). Never reaches Obsidian's app chrome. */
     z-index: 2;
     border-radius: 2px;
-    /* Flat accent line, same clean style as the source highlight — no glow. */
+    /* Flat accent line, same width and color family as the source-highlight
+       leading edge — no glow. */
 }
 
 .d-drop-highlight {

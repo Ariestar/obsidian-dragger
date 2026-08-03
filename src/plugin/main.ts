@@ -112,9 +112,7 @@ export default class DragNDropPlugin extends Plugin {
         }
 
         let indicatorColorValue = '';
-        if (this.settings.indicatorColorMode === 'theme') {
-            indicatorColorValue = 'var(--interactive-accent)';
-        } else if (this.settings.indicatorColor) {
+        if (this.settings.indicatorColorMode === 'custom' && this.settings.indicatorColor) {
             indicatorColorValue = this.settings.indicatorColor;
         }
 
@@ -123,9 +121,10 @@ export default class DragNDropPlugin extends Plugin {
                 '--d-drop-indicator-color': indicatorColorValue,
             });
         } else {
-            body.setCssProps({
-                '--d-drop-indicator-color': '',
-            });
+            // Theme mode: leave the variable unset so the drop indicator falls
+            // back to the same accent-derived color as the source highlight
+            // edge (--d-drag-source-border) in the stylesheet.
+            body.style.removeProperty('--d-drop-indicator-color');
         }
 
         const handleSize = this.settings.handleSize;
