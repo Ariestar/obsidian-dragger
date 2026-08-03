@@ -180,16 +180,16 @@ body[data-d-drag-source-style="filled"],
 /* 选区高亮：CM6 行装饰，与手柄同一渲染管线，随文本流滚动零延迟。
    背景与左右边缘线直接画在行上，无绝对定位 overlay。每行通过行内
    --d-source-left（引擎 lineBand 几何：内容左缘 + 层级 × 缩进步长）
-   留下左侧层级间隙：嵌套越深，蒙版左缘越靠右。 */
+   留下左侧层级间隙：嵌套越深，蒙版左缘越靠右。左缘竖线是定位在
+   --d-source-left 的一层 2px 渐变（box-shadow inset 的可见区域是
+   [0, offset) 整块，会变成一整块深色，所以不能用来画这条线）。 */
 .cm-line.d-drag-source-line {
-    background: linear-gradient(
-        90deg,
-        transparent 0 var(--d-source-left, 0px),
-        var(--d-drag-source-bg) var(--d-source-left, 0px)
-    );
-    box-shadow:
-        inset calc(var(--d-source-left, 0px) + 2px) 0 0 0 var(--d-drag-source-border),
-        inset -1px 0 0 0 var(--d-drag-source-border);
+    background:
+        linear-gradient(var(--d-drag-source-border), var(--d-drag-source-border)) no-repeat,
+        linear-gradient(90deg, transparent 0 var(--d-source-left, 0px), var(--d-drag-source-bg) var(--d-source-left, 0px));
+    background-size: 2px 100%, 100% 100%;
+    background-position: var(--d-source-left, 0px) 0, 0 0;
+    box-shadow: inset -1px 0 0 0 var(--d-drag-source-border);
 }
 
 body[data-d-drag-source-highlight="off"] .cm-line.d-drag-source-line {
