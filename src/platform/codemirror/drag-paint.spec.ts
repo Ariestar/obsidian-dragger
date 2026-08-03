@@ -35,7 +35,7 @@ function pointer(type: string, x: number, y: number): PointerEvent {
 const nextFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
 
 describe('platform/codemirror drag paint', () => {
-    it('does not throw painting a drag on a document without nested lists', async () => {
+    it('highlights the source rows while dragging a plain document', async () => {
         const view = makeView('plain paragraph\nanother line');
         await nextFrame();
 
@@ -44,19 +44,19 @@ describe('platform/codemirror drag paint', () => {
         if (!handle) return;
 
         // Press the handle and move past the drag-arm threshold: this drives
-        // the drag_source_changed → selectionPaint.paint → paintGeometry path
+        // the drag_source_changed → selectionPaint → line-decoration path
         // whose list-indent measurement used to throw on plain documents.
         handle.dispatchEvent(pointer('pointerdown', 0, 0));
         window.dispatchEvent(pointer('pointermove', 0, 0));
         window.dispatchEvent(pointer('pointermove', 12, 12));
         await nextFrame();
 
-        // The paint chain survived; the editor is still interactive.
-        expect(view.dom.isConnected).toBe(true);
+        // The source rows carry the highlight as CM6 line decorations.
+        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
         view.destroy();
     });
 
-    it('does not throw painting a drag on a single-level list document', async () => {
+    it('highlights the source rows while dragging a single-level list document', async () => {
         const view = makeView('- item one\n- item two');
         await nextFrame();
 
@@ -69,12 +69,15 @@ describe('platform/codemirror drag paint', () => {
         window.dispatchEvent(pointer('pointermove', 12, 12));
         await nextFrame();
 
-        expect(view.dom.isConnected).toBe(true);
+        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
         view.destroy();
     });
 
-    it('does not throw painting a rejected drop seam on a plain document', async () => {
-        const view = makeView('plain paragraph\nanother line');
+    it('paints a rejected in-place seam as a grey indicator widget', async () => {
+        // List rows resolve a drop position in jsdom without DOM measurement
+        // (the list branch of lineBand uses the indent step, not coordsAtPos),
+        // so hovering back over the source row yields a real in-place seam.
+        const view = makeView('- item one\n- item two');
         await nextFrame();
 
         const handle = view.dom.querySelector<HTMLElement>('.md-dragger-handle');
@@ -88,7 +91,10 @@ describe('platform/codemirror drag paint', () => {
         window.dispatchEvent(pointer('pointermove', 0, 0));
         await nextFrame();
 
-        expect(view.dom.isConnected).toBe(true);
+        // The seam renders as a CM6 block widget in the seam row, marked grey.
+        const indicator = view.dom.querySelector<HTMLElement>('.d-drop-indicator');
+        expect(indicator).not.toBeNull();
+        expect(indicator?.classList.contains('is-invalid')).toBe(true);
         view.destroy();
     });
 });

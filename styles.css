@@ -1,9 +1,5 @@
 /* Dragger 插件样式 — adapter handle (md-dragger-*) + host paint (d-*) */
 
-.d-hidden {
-    display: none;
-}
-
 .md-dragger-handle {
     position: relative;
     width: var(--d-handle-size, 20px);
@@ -181,31 +177,18 @@ body[data-d-drag-source-style="filled"],
     --d-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 60%, transparent);
 }
 
-/* 选区高亮：编辑器内覆盖盒，与落点指示线同一坐标系（编辑器内坐标）。
-   左缘 = 内容带（含 marker），顶层/嵌套一致。
-   Inside the editor's stacking context: above text (z ~0), below handle
-   markers (z 3/4). Never reaches Obsidian's app chrome. */
-.d-drag-source-layer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 2;
-    pointer-events: none;
-}
-
-.d-drag-source-box {
-    position: absolute;
-    top: 0;
-    left: 0;
-    pointer-events: none;
+/* 选区高亮：CM6 行装饰，与手柄同一渲染管线，随文本流滚动零延迟。
+   背景与左右边缘线直接画在行上，无绝对定位 overlay。 */
+.cm-line.d-drag-source-line {
     background: var(--d-drag-source-bg);
     box-shadow:
         inset 2px 0 0 var(--d-drag-source-border),
         inset -1px 0 0 var(--d-drag-source-border);
 }
 
-body[data-d-drag-source-highlight="off"] .d-drag-source-box {
-    display: none;
+body[data-d-drag-source-highlight="off"] .cm-line.d-drag-source-line {
+    background: transparent;
+    box-shadow: none;
 }
 
 /* 常态显示拖拽手柄 */
@@ -273,16 +256,14 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
 }
 
 .d-drop-indicator {
-    position: absolute;
+    /* CM6 block widget: flows inside the content, x offset set inline from
+       the seam geometry. Same color family as the source-highlight leading
+       edge — flat 2px line, no glow. */
     height: 2px;
     background: var(--d-drop-indicator-color, var(--d-drag-source-border, var(--interactive-accent)));
     pointer-events: none;
-    /* Inside the editor's stacking context: above text, below handle markers
-       (z 3/4). Never reaches Obsidian's app chrome. */
-    z-index: 2;
     border-radius: 2px;
-    /* Flat accent line, same width and color family as the source-highlight
-       leading edge — no glow. */
+    box-sizing: border-box;
 }
 
 /* Rejected drop (e.g. re-inserting in place): the seam stays visible as a

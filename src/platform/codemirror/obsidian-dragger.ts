@@ -1,11 +1,9 @@
-import type { Extension } from '@codemirror/state';
-import { EditorState } from '@codemirror/state';
-import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import { EditorState, StateEffect, StateField, type Extension, type Range } from '@codemirror/state';
+import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from '@codemirror/view';
 import {
     HANDLE_CLASS,
     mdDragger,
     dropSeam,
-    lineBand,
     lineAtPoint,
     sourceLineFromInput as handleSourceLineFromInput,
     type CodeMirrorGeometryOptions,
@@ -25,9 +23,8 @@ import { autoScroll } from 'md-dragger/runtime/modules';
 import { openBlockTypeMenu } from '../../plugin/block-type-menu';
 import {
     DROP_INDICATOR_CLASS,
+    DRAG_SOURCE_LINE_CLASS,
     DRAGGING_BODY_CLASS,
-    DRAG_SOURCE_BOX_CLASS,
-    HIDDEN_CLASS,
     MOBILE_GESTURE_LOCK_CLASS,
     ROOT_EDITOR_CLASS,
 } from '../../shared/dom-selectors';
@@ -119,7 +116,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
         EditorView.editorAttributes.of({ class: ROOT_EDITOR_CLASS }),
         ...mdDragger(options),
         dropIndicatorPaint(options),
-        selectionPaint(options),
+        selectionPaint(),
         handleHover(),
         gestureShell(plugin),
     ];
@@ -216,210 +213,229 @@ const paintBus = {
     },
 };
 
-function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
-    return ViewPlugin.fromClass(
-        class {
-            private readonly el: HTMLDivElement;
-            private position: DropPosition | null = null;
-            private invalid = false;
-            private raf: number | null = null;
-            private readonly unsub: () => void;
+// The drop seam is a CM6 block widget, so it lives in the editor's own
+// render pipeline — same as the gutter handle. Scrolling repaints it with
+// the text flow; no absolute-position overlay, no scroll listener, no lag.
+const setDropIndicator = StateEffect.define<{ position: DropPosition; invalid: boolean } | null>();
 
-            constructor(private readonly view: EditorView) {
-                this.el = activeDocument.createElement('div');
-                this.el.className = `${DROP_INDICATOR_CLASS} ${HIDDEN_CLASS}`;
-                // Live inside the editor so the overlay stays in the editor's
-                // stacking context — it can never rise above Obsidian chrome.
-                view.dom.appendChild(this.el);
-                this.unsub = paintBus.add(this);
-            }
+class DropSeamWidget extends WidgetType {
+    constructor(
+        private readonly position: DropPosition,
+        private readonly invalid: boolean,
+        private readonly geometryOptions: CodeMirrorGeometryOptions,
+    ) {
+        super();
+    }
 
-            update(update: ViewUpdate) {
-                if (update.docChanged || update.geometryChanged || update.viewportChanged) this.queue();
-            }
+    eq(other: DropSeamWidget): boolean {
+        return (
+            other.position.line === this.position.line &&
+            other.position.doc === this.position.doc &&
+            other.position.parent === this.position.parent &&
+            other.invalid === this.invalid
+        );
+    }
 
-            destroy() {
-                this.unsub();
-                if (this.raf !== null) window.cancelAnimationFrame(this.raf);
-                this.el.remove();
-            }
+    estimateHeight(): number {
+        return 2;
+    }
 
-            consume(outputs: PipelineResult['outputs']) {
-                for (const output of outputs) {
-                    if (output.type === 'drag_over') {
-                        // Only paint on the view that owns the drop doc. A
-                        // rejected drop (e.g. re-inserting a block in place)
-                        // still shows a grey seam instead of hiding the
-                        // indicator entirely.
-                        const drop = output.drop;
-                        const onView =
-                            drop.position && drop.position.doc === this.view.state.doc ? drop.position : null;
-                        this.position = onView;
-                        this.invalid = onView !== null && drop.rejectReason != null;
-                        this.paint();
-                    } else if (output.type === 'dropped' || output.type === 'cancelled' || output.type === 'terminal') {
-                        this.position = null;
-                        this.invalid = false;
-                        this.paint();
-                    }
-                }
-            }
-
-            private queue() {
-                if (this.raf !== null) return;
-                this.raf = window.requestAnimationFrame(() => {
-                    this.raf = null;
-                    this.paint();
-                });
-            }
-
-            private paint() {
-                if (!this.position) {
-                    this.el.classList.add(HIDDEN_CLASS);
-                    return;
-                }
-                const seam = dropSeam(this.view, this.position, paintGeometry(options, this.view));
-                if (!seam) {
-                    this.el.classList.add(HIDDEN_CLASS);
-                    return;
-                }
-                // dropSeam returns viewport coordinates; the overlay is
-                // absolutely positioned inside the editor.
-                const origin = this.view.dom.getBoundingClientRect();
-                this.el.classList.remove(HIDDEN_CLASS);
-                this.el.classList.toggle('is-invalid', this.invalid);
-                this.el.setCssStyles({
-                    top: `${seam.y - origin.top}px`,
-                    left: `${seam.left - origin.left}px`,
-                    width: `${seam.right - seam.left}px`,
-                });
-            }
-        },
-    );
+    toDOM(view: EditorView): HTMLElement {
+        const el = activeDocument.createElement('div');
+        el.className = DROP_INDICATOR_CLASS;
+        if (this.invalid) el.classList.add('is-invalid');
+        // The widget's slot is already the seam row; only the x offset within
+        // the content band depends on rendered geometry. A null seam (row not
+        // rendered) keeps the minimal line — never a crash in the paint path.
+        const seam = dropSeam(view, this.position, paintGeometry(this.geometryOptions, view));
+        if (seam) {
+            const contentLeft = view.contentDOM.getBoundingClientRect().left;
+            el.style.marginLeft = `${Math.max(0, seam.left - contentLeft)}px`;
+            el.style.width = `${Math.max(0, seam.right - seam.left)}px`;
+        }
+        return el;
+    }
 }
 
-function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
-    return ViewPlugin.fromClass(
-        class {
-            private readonly layer: HTMLDivElement;
-            private boxes: HTMLDivElement[] = [];
-            private selection: BlockSelection | null = null;
-            private selectedRanges: LineRange[] = [];
-            private raf: number | null = null;
-            private readonly unsub: () => void;
-            // The overlay is absolutely positioned inside the editor, so it
-            // must repaint when the scroller moves — the native scroll event
-            // is the authoritative signal.
-            private readonly onScroll = () => this.queue();
+function buildDropIndicatorDecoration(
+    value: { position: DropPosition; invalid: boolean } | null,
+    state: EditorState,
+    options: CodeMirrorGeometryOptions,
+): DecorationSet {
+    if (value === null) return Decoration.none;
+    const line = Math.min(Math.max(value.position.line, 1), state.doc.lines);
+    const from = state.doc.line(line).from;
+    return Decoration.set([
+        Decoration.widget({
+            widget: new DropSeamWidget(value.position, value.invalid, options),
+            block: true,
+            side: -1,
+        }).range(from),
+    ]);
+}
 
-            constructor(private readonly view: EditorView) {
-                this.layer = activeDocument.createElement('div');
-                this.layer.className = 'd-drag-source-layer';
-                // Live inside the editor so the overlay stays in the editor's
-                // stacking context — it can never rise above Obsidian chrome.
-                view.dom.appendChild(this.layer);
-                this.unsub = paintBus.add(this);
-                view.scrollDOM.addEventListener('scroll', this.onScroll, { passive: true });
-            }
-
-            update(update: ViewUpdate) {
-                if (update.docChanged || update.viewportChanged || update.geometryChanged) {
-                    this.queue();
+function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
+    const dropIndicatorField = StateField.define<DecorationSet>({
+        create: () => Decoration.none,
+        update(deco, tr) {
+            deco = deco.map(tr.changes);
+            for (const effect of tr.effects) {
+                if (effect.is(setDropIndicator)) {
+                    deco = buildDropIndicatorDecoration(effect.value, tr.state, options);
                 }
             }
+            return deco;
+        },
+        provide: (field) => EditorView.decorations.from(field),
+    });
 
-            destroy() {
-                this.unsub();
-                this.view.scrollDOM.removeEventListener('scroll', this.onScroll);
-                if (this.raf !== null) window.cancelAnimationFrame(this.raf);
-                this.layer.remove();
-                this.selection = null;
-                this.selectedRanges = [];
-                this.syncSelectedHandles();
-            }
+    return [
+        dropIndicatorField,
+        ViewPlugin.fromClass(
+            class {
+                private position: DropPosition | null = null;
+                private invalid = false;
+                private readonly unsub: () => void;
 
-            consume(outputs: PipelineResult['outputs']) {
-                let next: BlockSelection | null | undefined;
-                for (const output of outputs) {
-                    if (output.type === 'selection_changed' || output.type === 'drag_source_changed') {
-                        next = output.selection;
-                    } else if (output.type === 'cancelled' || output.type === 'terminal' || output.type === 'dropped') {
-                        next = null;
+                constructor(private readonly view: EditorView) {
+                    this.unsub = paintBus.add(this);
+                }
+
+                destroy() {
+                    this.unsub();
+                }
+
+                consume(outputs: PipelineResult['outputs']) {
+                    let next: DropPosition | null = null;
+                    let invalid = false;
+                    for (const output of outputs) {
+                        if (output.type === 'drag_over') {
+                            // Only paint on the view that owns the drop doc. A
+                            // rejected drop (e.g. re-inserting a block in place)
+                            // still shows a grey seam instead of hiding the
+                            // indicator entirely.
+                            const drop = output.drop;
+                            const onView =
+                                drop.position && drop.position.doc === this.view.state.doc ? drop.position : null;
+                            next = onView;
+                            invalid = onView !== null && drop.rejectReason != null;
+                        } else if (
+                            output.type === 'dropped' ||
+                            output.type === 'cancelled' ||
+                            output.type === 'terminal'
+                        ) {
+                            next = null;
+                        }
                     }
-                }
-                if (next === undefined) return;
-                this.selection = next;
-                this.selectedRanges = selectionLineRanges(this.view.state.doc.lines, this.selection ?? { blocks: [] });
-                this.paint();
-            }
-
-            private queue() {
-                if (this.raf !== null) return;
-                this.raf = window.requestAnimationFrame(() => {
-                    this.raf = null;
-                    this.paint();
-                });
-            }
-
-            private paint() {
-                const rects = selectedBandRects(this.view, this.selectedRanges, paintGeometry(options, this.view));
-                while (this.boxes.length < rects.length) {
-                    const box = activeDocument.createElement('div');
-                    box.className = `${DRAG_SOURCE_BOX_CLASS} ${HIDDEN_CLASS}`;
-                    this.layer.appendChild(box);
-                    this.boxes.push(box);
-                }
-                // selectedBandRects returns viewport coordinates; the overlay
-                // is absolutely positioned inside the editor.
-                const origin = this.view.dom.getBoundingClientRect();
-                for (let i = 0; i < this.boxes.length; i++) {
-                    const box = this.boxes[i];
-                    const rect = rects[i];
-                    if (!rect) {
-                        box.classList.add(HIDDEN_CLASS);
-                        continue;
-                    }
-                    box.classList.remove(HIDDEN_CLASS);
-                    box.setCssStyles({
-                        top: `${rect.top - origin.top}px`,
-                        left: `${rect.left - origin.left}px`,
-                        width: `${Math.max(0, rect.right - rect.left)}px`,
-                        height: `${Math.max(0, rect.bottom - rect.top)}px`,
+                    if (next === this.position && invalid === this.invalid) return;
+                    this.position = next;
+                    this.invalid = invalid;
+                    this.view.dispatch({
+                        effects: setDropIndicator.of(next === null ? null : { position: next, invalid }),
                     });
                 }
-                // Handle markers are only rendered for the visible viewport, so
-                // newly materialized rows after a scroll need their selected
-                // state re-applied here — selection events alone miss them.
-                this.syncSelectedHandles();
-            }
-
-            private syncSelectedHandles() {
-                const handles = Array.from(this.view.dom.querySelectorAll(`.${HANDLE_CLASS}[data-block-start]`));
-                for (const handle of handles) {
-                    const line = Number(handle.getAttribute('data-block-start'));
-                    handle.classList.toggle(
-                        'is-selected',
-                        Number.isInteger(line) && isLineNumberInRanges(line, this.selectedRanges),
-                    );
-                }
-            }
-        },
-    );
+            },
+        ),
+    ];
 }
 
-function selectedBandRects(
-    view: EditorView,
-    ranges: LineRange[],
-    options: CodeMirrorGeometryOptions,
-): Array<{ left: number; right: number; top: number; bottom: number }> {
-    const rects = [];
+// Selected source rows as CM6 line decorations: they ride the editor's own
+// render pipeline (same as the gutter handle), so scrolling repaints them
+// with the text flow — no absolute-position overlay, no scroll listener,
+// no rAF chase, no lag.
+const setDragSourceRanges = StateEffect.define<LineRange[]>();
+
+const dragSourceLinesField = StateField.define<DecorationSet>({
+    create: () => Decoration.none,
+    update(deco, tr) {
+        deco = deco.map(tr.changes);
+        for (const effect of tr.effects) {
+            if (effect.is(setDragSourceRanges)) {
+                deco = buildDragSourceDecoration(effect.value, tr.state);
+            }
+        }
+        return deco;
+    },
+    provide: (field) => EditorView.decorations.from(field),
+});
+
+function buildDragSourceDecoration(ranges: LineRange[], state: EditorState): DecorationSet {
+    const decorations: Range<Decoration>[] = [];
     for (const range of ranges) {
         for (let line = range.startLine; line <= range.endLine; line++) {
-            const band = lineBand(view, line, options);
-            if (band) rects.push(band);
+            if (line < 1 || line > state.doc.lines) continue;
+            decorations.push(Decoration.line({ class: DRAG_SOURCE_LINE_CLASS }).range(state.doc.line(line).from));
         }
     }
-    return rects;
+    return Decoration.set(decorations);
+}
+
+function selectionPaint(): Extension {
+    return [
+        dragSourceLinesField,
+        ViewPlugin.fromClass(
+            class {
+                private selectedRanges: LineRange[] = [];
+                private readonly unsub: () => void;
+
+                constructor(private readonly view: EditorView) {
+                    this.unsub = paintBus.add(this);
+                }
+
+                // The line decoration follows the text flow natively; only the
+                // gutter handle is a separate marker whose DOM re-materializes
+                // per viewport, so re-apply its selected state on every update.
+                update() {
+                    this.syncSelectedHandles();
+                }
+
+                destroy() {
+                    this.unsub();
+                    this.selectedRanges = [];
+                    this.syncSelectedHandles();
+                }
+
+                consume(outputs: PipelineResult['outputs']) {
+                    let next: BlockSelection | null | undefined;
+                    for (const output of outputs) {
+                        if (output.type === 'selection_changed' || output.type === 'drag_source_changed') {
+                            next = output.selection;
+                        } else if (
+                            output.type === 'cancelled' ||
+                            output.type === 'terminal' ||
+                            output.type === 'dropped'
+                        ) {
+                            next = null;
+                        }
+                    }
+                    if (next === undefined) return;
+                    const ranges = selectionLineRanges(this.view.state.doc.lines, next ?? { blocks: [] });
+                    if (sameLineRanges(ranges, this.selectedRanges)) return;
+                    this.selectedRanges = ranges;
+                    this.view.dispatch({ effects: setDragSourceRanges.of(ranges) });
+                }
+
+                private syncSelectedHandles() {
+                    const handles = Array.from(this.view.dom.querySelectorAll(`.${HANDLE_CLASS}[data-block-start]`));
+                    for (const handle of handles) {
+                        const line = Number(handle.getAttribute('data-block-start'));
+                        handle.classList.toggle(
+                            'is-selected',
+                            Number.isInteger(line) && isLineNumberInRanges(line, this.selectedRanges),
+                        );
+                    }
+                }
+            },
+        ),
+    ];
+}
+
+function sameLineRanges(a: LineRange[], b: LineRange[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        if (a[i].startLine !== b[i].startLine || a[i].endLine !== b[i].endLine) return false;
+    }
+    return true;
 }
 
 /**
