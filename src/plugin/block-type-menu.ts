@@ -1,6 +1,5 @@
-import { Menu, Notice, setIcon } from 'obsidian';
+import { Menu, Notice, Platform, setIcon } from 'obsidian';
 import { EditorView } from '@codemirror/view';
-import { platform } from './platform';
 import {
     copyCurrentBlock,
     cutCurrentBlock,
@@ -82,7 +81,7 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null)
     for (const group of NESTED_GROUPS) {
         menu.addItem((item) => {
             item.setTitle(createGroupTitle(group.label)).setIcon(group.icon);
-            if (platform.isMobile) {
+            if (Platform.isMobile) {
                 item.onClick(() => {
                     showMobileGroupPage(view, group, line);
                 });
@@ -117,7 +116,7 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null)
 
     showMenuAt(menu, view, event);
 
-    if (platform.isDesktop) {
+    if (Platform.isDesktop) {
         // Bind hover after the menu is in the DOM.
         window.queueMicrotask(() => bindDesktopGroupHover(view, line));
     }

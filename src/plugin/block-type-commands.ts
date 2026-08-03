@@ -76,26 +76,11 @@ export function deleteCurrentBlock(view: EditorView, lineNumber?: number): boole
 }
 
 export async function copyCurrentBlock(view: EditorView, lineNumber?: number): Promise<boolean> {
-    const text = getBlockAtText(view, lineNumber);
-    if (text === null) return false;
-    return writeClipboardText(text);
-}
-
-export async function cutCurrentBlock(view: EditorView, lineNumber?: number): Promise<boolean> {
-    const copied = await copyCurrentBlock(view, lineNumber);
-    if (!copied) return false;
-    return deleteCurrentBlock(view, lineNumber);
-}
-
-function getBlockAtText(view: EditorView, lineNumber?: number): string | null {
     const block = getBlockAt(view, lineNumber);
-    if (!block) return null;
+    if (!block) return false;
     const from = view.state.doc.line(block.lines.startLine).from;
     const to = view.state.doc.line(block.lines.endLine).to;
-    return view.state.doc.sliceString(from, to);
-}
-
-async function writeClipboardText(text: string): Promise<boolean> {
+    const text = view.state.doc.sliceString(from, to);
     if (typeof navigator === 'undefined' || !navigator.clipboard) return false;
     try {
         await navigator.clipboard.writeText(text);
@@ -103,6 +88,12 @@ async function writeClipboardText(text: string): Promise<boolean> {
     } catch {
         return false;
     }
+}
+
+export async function cutCurrentBlock(view: EditorView, lineNumber?: number): Promise<boolean> {
+    const copied = await copyCurrentBlock(view, lineNumber);
+    if (!copied) return false;
+    return deleteCurrentBlock(view, lineNumber);
 }
 
 function getBlockAt(view: EditorView, lineNumber?: number): Block | null {

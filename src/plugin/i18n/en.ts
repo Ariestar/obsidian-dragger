@@ -52,7 +52,8 @@ export const en: ZhCnStrings = {
     mobileDragLongPressMs: 'Mobile drag arm duration',
     mobileDragLongPressMsDesc: 'On mobile (drag mode on), hold this long before a press can start a drag (ms)',
     mouseRangeSelectLongPressMs: 'Multi-select long-press duration',
-    mouseRangeSelectLongPressMsDesc: 'Hold a handle (or a row in mobile drag mode) this long to enter multi-block selection (ms)',
+    mouseRangeSelectLongPressMsDesc:
+        'Hold a handle (or a row in mobile drag mode) this long to enter multi-block selection (ms)',
     autoScrollEdgeZonePx: 'Auto-scroll edge zone',
     autoScrollEdgeZonePxDesc: 'Distance from viewport edge to trigger auto-scroll while dragging (px)',
     autoScrollMaxSpeedPx: 'Auto-scroll max speed',
@@ -60,10 +61,9 @@ export const en: ZhCnStrings = {
     disableMobileDragModeAfterDrop: 'Disable drag mode after move',
     disableMobileDragModeAfterDropDesc: 'On mobile, automatically exit drag mode after a block is moved successfully',
     mobileTextLongPressDrag: 'Mobile text long-press drag',
-    mobileTextLongPressDragDesc: 'On mobile, long-press a text line or rendered block content to drag the current block directly without using the left handle',
+    mobileTextLongPressDragDesc:
+        'On mobile, long-press a text line or rendered block content to drag the current block directly without using the left handle',
     mobileDragModeToggleLocations: 'Toggle button placement',
-    mobileDragModeToggleLocationsDesc: 'Choose where to show the mobile drag mode toggle. Multiple or none can be selected',
     optionMobileDragModeToggleViewAction: 'View actions',
     mobileOnlyNotice: '⚠️ These settings can only be modified on mobile',
-
 };

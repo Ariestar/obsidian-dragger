@@ -50,19 +50,22 @@ export const ru: ZhCnStrings = {
     multiLineSelection: 'Выбор нескольких блоков',
     multiLineSelectionDesc: 'Отключите, чтобы перетаскивать только один блок за раз',
     mobileDragLongPressMs: 'Длительность готовности к перетаскиванию (моб.)',
-    mobileDragLongPressMsDesc: 'На мобильном (режим перетаскивания включён) сколько удерживать перед началом перетаскивания (мс)',
+    mobileDragLongPressMsDesc:
+        'На мобильном (режим перетаскивания включён) сколько удерживать перед началом перетаскивания (мс)',
     mouseRangeSelectLongPressMs: 'Длительность долгого нажатия для мультивыбора',
-    mouseRangeSelectLongPressMsDesc: 'Сколько удерживать маркер (или строку в мобильном режиме) перед входом в выбор нескольких блоков (мс)',
+    mouseRangeSelectLongPressMsDesc:
+        'Сколько удерживать маркер (или строку в мобильном режиме) перед входом в выбор нескольких блоков (мс)',
     autoScrollEdgeZonePx: 'Зона автопрокрутки',
     autoScrollEdgeZonePxDesc: 'Расстояние от края окна для запуска автопрокрутки при перетаскивании (пикс)',
     autoScrollMaxSpeedPx: 'Макс. скорость автопрокрутки',
     autoScrollMaxSpeedPxDesc: 'Максимальное количество пикселей прокрутки за кадр',
     disableMobileDragModeAfterDrop: 'Отключать режим перетаскивания после перемещения',
-    disableMobileDragModeAfterDropDesc: 'На мобильном автоматически выходить из режима перетаскивания после успешного перемещения блока',
+    disableMobileDragModeAfterDropDesc:
+        'На мобильном автоматически выходить из режима перетаскивания после успешного перемещения блока',
     mobileTextLongPressDrag: 'Перетаскивание долгим нажатием на мобильном',
-    mobileTextLongPressDragDesc: 'На мобильном удерживайте строку текста или блок, чтобы перетащить его напрямую без использования маркера',
+    mobileTextLongPressDragDesc:
+        'На мобильном удерживайте строку текста или блок, чтобы перетащить его напрямую без использования маркера',
     mobileDragModeToggleLocations: 'Расположение кнопки',
-    mobileDragModeToggleLocationsDesc: 'Выберите, где показывать переключатель режима перетаскивания на мобильном. Можно выбрать несколько вариантов или ни одного',
     optionMobileDragModeToggleViewAction: 'Панель действий',
     mobileOnlyNotice: '⚠️ Эти настройки доступны только на мобильном устройстве',
 };

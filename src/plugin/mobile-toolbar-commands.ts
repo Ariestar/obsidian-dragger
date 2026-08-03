@@ -1,15 +1,6 @@
-import { EditorView } from '@codemirror/view';
-import { App, type Command } from 'obsidian';
-import { getActiveMarkdownView } from '../platform/obsidian/app-adapter';
-import { getCodeMirrorView } from '../platform/obsidian/editor-view';
+import { App, Platform, type Command } from 'obsidian';
+import { getActiveMarkdownView, getCodeMirrorView } from '../platform/obsidian/views';
 import { openBlockTypeMenu } from './block-type-menu';
-import { platform } from './platform';
-
-function getActiveEditorView(app: App): EditorView | null {
-    const markdownView = getActiveMarkdownView(app);
-    if (!markdownView) return null;
-    return getCodeMirrorView(markdownView);
-}
 
 export function registerMobileToolbarCommands(plugin: {
     app: App;
@@ -22,8 +13,10 @@ export function registerMobileToolbarCommands(plugin: {
         icon: 'replace',
         mobileOnly: true,
         checkCallback: (checking) => {
-            if (!platform.isMobile) return false;
-            const view = getActiveEditorView(plugin.app);
+            if (!Platform.isMobile) return false;
+            const markdownView = getActiveMarkdownView(plugin.app);
+            if (!markdownView) return false;
+            const view = getCodeMirrorView(markdownView);
             if (!view) return false;
             if (!checking) {
                 openBlockTypeMenu(view, null);
@@ -38,7 +31,7 @@ export function registerMobileToolbarCommands(plugin: {
         icon: 'hand',
         mobileOnly: true,
         checkCallback: (checking) => {
-            if (!platform.isMobile) return false;
+            if (!Platform.isMobile) return false;
             if (!checking) {
                 plugin.toggleMobileDragMode();
             }

@@ -1,20 +1,15 @@
-import { MarkdownView, Plugin, setIcon } from 'obsidian';
+import { MarkdownView, Platform, Plugin, setIcon } from 'obsidian';
 import { dragHandleExtension } from '../platform/codemirror/obsidian-dragger';
-import {
-    HANDLE_CORE_SIZE_RATIO,
-    GRIP_DOTS_CORE_SIZE_RATIO,
-    setHandleHorizontalOffsetPx,
-    setHandleSizePx,
-} from '../shared/constants';
+import { HANDLE_CORE_SIZE_RATIO, GRIP_DOTS_CORE_SIZE_RATIO } from '../shared/constants';
 import {
     DRAG_SOURCE_HIGHLIGHT_ATTR,
     DRAG_SOURCE_STYLE_ATTR,
     HANDLE_ICON_ATTR,
     LIST_DROP_HIGHLIGHT_ATTR,
-} from '../shared/dom-attrs';
-import { type DragNDropSettings, DragNDropSettingTab, type HandleVisibilityMode } from './settings';
+} from '../shared/dom-selectors';
+import { DragNDropSettingTab } from './settings';
+import type { DragNDropSettings, HandleVisibilityMode } from './settings-types';
 import { migrateSettings } from './settings-migrations';
-import { platform } from './platform';
 import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
 
 export default class DragNDropPlugin extends Plugin {
@@ -77,7 +72,7 @@ export default class DragNDropPlugin extends Plugin {
         body.classList.toggle('d-handles-hidden', visibility === 'hidden');
         body.classList.toggle(
             'd-mobile-handles-hidden',
-            platform.isMobile && !this.settings.enableMobileTextLongPressDrag,
+            Platform.isMobile && !this.settings.enableMobileTextLongPressDrag,
         );
         body.classList.toggle('d-mobile-drag-mode-enabled', this.mobileDragModeEnabled);
 
@@ -87,7 +82,6 @@ export default class DragNDropPlugin extends Plugin {
         body.setAttribute(LIST_DROP_HIGHLIGHT_ATTR, this.settings.enableListDropHighlight ? 'on' : 'off');
 
         const handleOffset = this.settings.handleHorizontalOffsetPx;
-        setHandleHorizontalOffsetPx(handleOffset);
         body.setCssProps({
             '--d-handle-horizontal-offset-px': `${handleOffset}px`,
         });
@@ -128,7 +122,6 @@ export default class DragNDropPlugin extends Plugin {
         }
 
         const handleSize = this.settings.handleSize;
-        setHandleSizePx(handleSize);
         body.setCssProps({
             '--d-handle-size': `${handleSize}px`,
             '--d-handle-core-size': `${Math.round(handleSize * HANDLE_CORE_SIZE_RATIO)}px`,
@@ -141,7 +134,7 @@ export default class DragNDropPlugin extends Plugin {
 
     // Called when a drop commits. Drives mobile-mode auto-disable.
     notifyDragDrop(): void {
-        if (!platform.isMobile) return;
+        if (!Platform.isMobile) return;
         if (this.settings.disableMobileDragModeAfterDrop === false) return;
         this.setMobileDragModeEnabled(false);
     }
@@ -151,7 +144,7 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     isMobilePlatform(): boolean {
-        return platform.isMobile;
+        return Platform.isMobile;
     }
 
     toggleMobileDragMode(): boolean {
@@ -177,7 +170,7 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     private installMobileSelectionLock(): void {
-        if (!platform.isMobile) return;
+        if (!Platform.isMobile) return;
         // Capture phase so we win over editor selection handlers.
         activeDocument.addEventListener('selectstart', this.onSelectStartWhileDragMode, true);
         activeDocument.addEventListener('selectionchange', this.onSelectionChangeWhileDragMode, true);
@@ -199,7 +192,7 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     private dismissActiveMobileInput(): void {
-        if (!platform.isMobile) return;
+        if (!Platform.isMobile) return;
         const win = activeWindow as typeof window;
         const active = activeDocument.activeElement;
         if (!(active instanceof win.HTMLElement)) return;
@@ -214,8 +207,8 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     private registerMobileDragModeActions(): void {
-        if (!platform.isMobile) return;
-        if (!this.isMobileDragModeToggleLocationEnabled('view-action')) {
+        if (!Platform.isMobile) return;
+        if (!this.isMobileDragModeToggleEnabled()) {
             this.removeMobileDragModeActions();
             return;
         }
@@ -246,8 +239,8 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     private syncMobileDragModeActionVisibility(): void {
-        if (!platform.isMobile) return;
-        if (!this.isMobileDragModeToggleLocationEnabled('view-action')) {
+        if (!Platform.isMobile) return;
+        if (!this.isMobileDragModeToggleEnabled()) {
             this.removeMobileDragModeActions();
             return;
         }
@@ -288,10 +281,7 @@ export default class DragNDropPlugin extends Plugin {
         return this.mobileDragModeEnabled ? 'Drag mode enabled' : 'Drag mode disabled';
     }
 
-    private isMobileDragModeToggleLocationEnabled(location: 'view-action'): boolean {
-        return (
-            this.settings.enableMobileTextLongPressDrag &&
-            this.settings.mobileDragModeToggleLocations.includes(location)
-        );
+    private isMobileDragModeToggleEnabled(): boolean {
+        return this.settings.enableMobileTextLongPressDrag && this.settings.mobileDragModeToggleEnabled;
     }
 }

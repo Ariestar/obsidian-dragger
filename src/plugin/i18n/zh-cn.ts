@@ -68,10 +68,8 @@ export const zhCn = {
     mobileTextLongPressDrag: '移动端文本长按拖拽',
     mobileTextLongPressDragDesc: '移动端在文本整行或块内容区域长按可直接拖拽当前块，无需左侧手柄',
     mobileDragModeToggleLocations: 'Toggle 按钮位置',
-    mobileDragModeToggleLocationsDesc: '选择移动端拖拽模式开关显示在哪些入口，可多选或不选',
     optionMobileDragModeToggleViewAction: '视图操作栏',
     mobileOnlyNotice: '⚠️ 以下设置仅在移动端可修改',
-
 };
 
 export type ZhCnStrings = typeof zhCn;

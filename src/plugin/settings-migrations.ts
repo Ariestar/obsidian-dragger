@@ -16,7 +16,7 @@ import type { DragNDropSettings, NumericSettingKey } from './settings-types';
  */
 
 const SCHEMA_VERSION_KEY = 'schemaVersion';
-const CURRENT_SCHEMA_VERSION = 6;
+const CURRENT_SCHEMA_VERSION = 7;
 
 type RawSettings = Record<string, unknown>;
 
@@ -94,6 +94,19 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
         }
         return next;
     },
+    // v6 -> v7: the single-value mobile drag mode toggle location collapsed to
+    // a boolean. A persisted array is kept (any 'view-action' entry means on);
+    // the legacy key is dropped in favour of mobileDragModeToggleEnabled. If
+    // the legacy key is absent the default applies.
+    (data) => {
+        const next = { ...data };
+        if ('mobileDragModeToggleLocations' in next) {
+            const raw = next.mobileDragModeToggleLocations;
+            next.mobileDragModeToggleEnabled = Array.isArray(raw) ? raw.includes('view-action') : Boolean(raw);
+            delete next.mobileDragModeToggleLocations;
+        }
+        return next;
+    },
 ];
 
 function isRecord(value: unknown): value is RawSettings {
@@ -110,9 +123,7 @@ function clampNumericSettings(settings: DragNDropSettings): void {
     for (const key of Object.keys(NUMERIC_SETTING_RANGES) as NumericSettingKey[]) {
         const { min, max } = NUMERIC_SETTING_RANGES[key];
         const raw = settings[key];
-        settings[key] = Number.isFinite(raw)
-            ? Math.round(Math.min(max, Math.max(min, raw)))
-            : DEFAULT_SETTINGS[key];
+        settings[key] = Number.isFinite(raw) ? Math.round(Math.min(max, Math.max(min, raw))) : DEFAULT_SETTINGS[key];
     }
 }
 

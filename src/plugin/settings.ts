@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, Platform, PluginSettingTab, Setting } from 'obsidian';
 import DragNDropPlugin from './main';
 import { t } from './i18n';
 import { DEFAULT_SETTINGS, NUMERIC_SETTING_RANGES } from './settings-types';
@@ -7,18 +7,6 @@ import type {
     HandleGutterPosition,
     HandleIconStyle,
     HandleVisibilityMode,
-    MobileDragModeToggleLocation,
-} from './settings-types';
-import { platform } from './platform';
-
-export { DEFAULT_SETTINGS } from './settings-types';
-export type {
-    DragNDropSettings,
-    BlockSelectionVisualStyle,
-    HandleGutterPosition,
-    HandleIconStyle,
-    HandleVisibilityMode,
-    MobileDragModeToggleLocation,
 } from './settings-types';
 
 export class DragNDropSettingTab extends PluginSettingTab {
@@ -282,7 +270,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
             },
         });
 
-        const isMobile = platform.isMobile;
+        const isMobile = Platform.isMobile;
 
         new Setting(containerEl).setName(i.headingMobile).setHeading();
 
@@ -317,24 +305,12 @@ export class DragNDropSettingTab extends PluginSettingTab {
 
             new Setting(containerEl).setName(i.mobileDragModeToggleLocations).setHeading();
 
-            const toggleLocation = async (location: MobileDragModeToggleLocation, enabled: boolean) => {
-                const next = new Set(this.plugin.settings.mobileDragModeToggleLocations);
-                if (enabled) {
-                    next.add(location);
-                } else {
-                    next.delete(location);
-                }
-                this.plugin.settings.mobileDragModeToggleLocations = Array.from(next);
-                await this.plugin.saveSettings();
-            };
-
-            new Setting(containerEl)
-                .setName(i.optionMobileDragModeToggleViewAction)
-                .addToggle((toggle) =>
-                    toggle
-                        .setValue(this.plugin.settings.mobileDragModeToggleLocations.includes('view-action'))
-                        .onChange((value) => toggleLocation('view-action', value)),
-                );
+            new Setting(containerEl).setName(i.optionMobileDragModeToggleViewAction).addToggle((toggle) =>
+                toggle.setValue(this.plugin.settings.mobileDragModeToggleEnabled).onChange(async (value) => {
+                    this.plugin.settings.mobileDragModeToggleEnabled = value;
+                    await this.plugin.saveSettings();
+                }),
+            );
         }
     }
 

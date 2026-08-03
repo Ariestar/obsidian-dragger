@@ -4,7 +4,6 @@ export type HandleVisibilityMode = 'always' | 'hover' | 'hidden';
 export type HandleIconStyle = 'dot' | 'grip-dots' | 'grip-lines' | 'square';
 export type BlockSelectionVisualStyle = 'outline' | 'subtle' | 'filled';
 export type HandleGutterPosition = 'left' | 'right';
-export type MobileDragModeToggleLocation = 'view-action';
 
 export interface DragNDropSettings {
     handleColorMode: 'theme' | 'custom';
@@ -23,7 +22,7 @@ export interface DragNDropSettings {
     autoScrollMaxSpeedPx: number;
     disableMobileDragModeAfterDrop: boolean;
     enableMobileTextLongPressDrag: boolean;
-    mobileDragModeToggleLocations: MobileDragModeToggleLocation[];
+    mobileDragModeToggleEnabled: boolean;
     enableBlockSelectionHighlight: boolean;
     enableListDropHighlight: boolean;
     selectionVisualStyle: BlockSelectionVisualStyle;
@@ -66,11 +65,10 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     autoScrollMaxSpeedPx: 12,
     disableMobileDragModeAfterDrop: true,
     enableMobileTextLongPressDrag: true,
-    mobileDragModeToggleLocations: ['view-action'],
+    mobileDragModeToggleEnabled: true,
     enableBlockSelectionHighlight: true,
     enableListDropHighlight: true,
     selectionVisualStyle: 'subtle',
     handleHorizontalOffsetPx: -8,
     handleGutterPosition: 'left',
 };
-
