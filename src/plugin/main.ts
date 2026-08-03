@@ -7,10 +7,10 @@ import {
     setHandleSizePx,
 } from '../shared/constants';
 import {
-    DND_DRAG_SOURCE_HIGHLIGHT_ATTR,
-    DND_DRAG_SOURCE_STYLE_ATTR,
-    DND_HANDLE_ICON_ATTR,
-    DND_LIST_DROP_HIGHLIGHT_ATTR,
+    DRAG_SOURCE_HIGHLIGHT_ATTR,
+    DRAG_SOURCE_STYLE_ATTR,
+    HANDLE_ICON_ATTR,
+    LIST_DROP_HIGHLIGHT_ATTR,
 } from '../shared/dom-attrs';
 import { type DragNDropSettings, DragNDropSettingTab, type HandleVisibilityMode } from './settings';
 import { migrateSettings } from './settings-migrations';
@@ -73,23 +73,23 @@ export default class DragNDropPlugin extends Plugin {
             this.mobileDragModeEnabled = false;
         }
         const visibility: HandleVisibilityMode = this.settings.handleVisibility;
-        body.classList.toggle('dnd-handles-always', visibility === 'always');
-        body.classList.toggle('dnd-handles-hidden', visibility === 'hidden');
+        body.classList.toggle('d-handles-always', visibility === 'always');
+        body.classList.toggle('d-handles-hidden', visibility === 'hidden');
         body.classList.toggle(
-            'dnd-mobile-handles-hidden',
+            'd-mobile-handles-hidden',
             platform.isMobile && !this.settings.enableMobileTextLongPressDrag,
         );
-        body.classList.toggle('dnd-mobile-drag-mode-enabled', this.mobileDragModeEnabled);
+        body.classList.toggle('d-mobile-drag-mode-enabled', this.mobileDragModeEnabled);
 
         const selectionVisualStyle = this.settings.selectionVisualStyle;
-        body.setAttribute(DND_DRAG_SOURCE_STYLE_ATTR, selectionVisualStyle);
-        body.setAttribute(DND_DRAG_SOURCE_HIGHLIGHT_ATTR, this.settings.enableBlockSelectionHighlight ? 'on' : 'off');
-        body.setAttribute(DND_LIST_DROP_HIGHLIGHT_ATTR, this.settings.enableListDropHighlight ? 'on' : 'off');
+        body.setAttribute(DRAG_SOURCE_STYLE_ATTR, selectionVisualStyle);
+        body.setAttribute(DRAG_SOURCE_HIGHLIGHT_ATTR, this.settings.enableBlockSelectionHighlight ? 'on' : 'off');
+        body.setAttribute(LIST_DROP_HIGHLIGHT_ATTR, this.settings.enableListDropHighlight ? 'on' : 'off');
 
         const handleOffset = this.settings.handleHorizontalOffsetPx;
         setHandleHorizontalOffsetPx(handleOffset);
         body.setCssProps({
-            '--dnd-handle-horizontal-offset-px': `${handleOffset}px`,
+            '--d-handle-horizontal-offset-px': `${handleOffset}px`,
         });
 
         let colorValue = '';
@@ -101,13 +101,13 @@ export default class DragNDropPlugin extends Plugin {
 
         if (colorValue) {
             body.setCssProps({
-                '--dnd-handle-color': colorValue,
-                '--dnd-handle-color-hover': colorValue,
+                '--d-handle-color': colorValue,
+                '--d-handle-color-hover': colorValue,
             });
         } else {
             body.setCssProps({
-                '--dnd-handle-color': '',
-                '--dnd-handle-color-hover': '',
+                '--d-handle-color': '',
+                '--d-handle-color-hover': '',
             });
         }
 
@@ -120,24 +120,23 @@ export default class DragNDropPlugin extends Plugin {
 
         if (indicatorColorValue) {
             body.setCssProps({
-                '--dnd-drop-indicator-color': indicatorColorValue,
+                '--d-drop-indicator-color': indicatorColorValue,
             });
         } else {
             body.setCssProps({
-                '--dnd-drop-indicator-color': '',
+                '--d-drop-indicator-color': '',
             });
         }
 
         const handleSize = this.settings.handleSize;
         setHandleSizePx(handleSize);
         body.setCssProps({
-            '--dnd-handle-size': `${handleSize}px`,
-            '--dnd-handle-core-size': `${Math.round(handleSize * HANDLE_CORE_SIZE_RATIO)}px`,
-            '--dnd-grip-dots-core-size': `${Math.round(handleSize * GRIP_DOTS_CORE_SIZE_RATIO)}px`,
+            '--d-handle-size': `${handleSize}px`,
+            '--d-handle-core-size': `${Math.round(handleSize * HANDLE_CORE_SIZE_RATIO)}px`,
+            '--d-grip-dots-core-size': `${Math.round(handleSize * GRIP_DOTS_CORE_SIZE_RATIO)}px`,
         });
-        body.setAttribute(DND_HANDLE_ICON_ATTR, this.settings.handleIcon);
+        body.setAttribute(HANDLE_ICON_ATTR, this.settings.handleIcon);
 
-        window.dispatchEvent(new Event('dnd:settings-updated'));
         this.syncMobileDragModeActionVisibility();
     }
 

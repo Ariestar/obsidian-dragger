@@ -174,7 +174,7 @@ function createObsidianHandle(): HTMLElement {
     const handle = activeDocument.createElement('div');
     handle.className = HANDLE_CLASS;
     const core = activeDocument.createElement('span');
-    core.className = 'dnd-handle-core';
+    core.className = 'd-handle-core';
     core.setAttribute('aria-hidden', 'true');
     handle.appendChild(core);
     return handle;
@@ -225,7 +225,9 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
             constructor(private readonly view: EditorView) {
                 this.el = activeDocument.createElement('div');
                 this.el.className = `${DROP_INDICATOR_CLASS} ${HIDDEN_CLASS}`;
-                activeDocument.body.appendChild(this.el);
+                // Live inside the editor so the overlay stays in the editor's
+                // stacking context — it can never rise above Obsidian chrome.
+                view.dom.appendChild(this.el);
                 this.unsub = paintBus.add(this);
             }
 
@@ -271,10 +273,13 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
                     this.el.classList.add(HIDDEN_CLASS);
                     return;
                 }
+                // dropSeam returns viewport coordinates; the overlay is
+                // absolutely positioned inside the editor.
+                const origin = this.view.dom.getBoundingClientRect();
                 this.el.classList.remove(HIDDEN_CLASS);
                 this.el.setCssStyles({
-                    top: `${seam.y}px`,
-                    left: `${seam.left}px`,
+                    top: `${seam.y - origin.top}px`,
+                    left: `${seam.left - origin.left}px`,
                     width: `${seam.right - seam.left}px`,
                 });
             }
@@ -291,14 +296,17 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
             private selectedRanges: LineRange[] = [];
             private raf: number | null = null;
             private readonly unsub: () => void;
-            // Fixed-position overlay uses viewport coords, so it must repaint when the
-            // scroller moves — the native scroll event is the authoritative signal.
+            // The overlay is absolutely positioned inside the editor, so it
+            // must repaint when the scroller moves — the native scroll event
+            // is the authoritative signal.
             private readonly onScroll = () => this.queue();
 
             constructor(private readonly view: EditorView) {
                 this.layer = activeDocument.createElement('div');
-                this.layer.className = 'dnd-drag-source-layer';
-                activeDocument.body.appendChild(this.layer);
+                this.layer.className = 'd-drag-source-layer';
+                // Live inside the editor so the overlay stays in the editor's
+                // stacking context — it can never rise above Obsidian chrome.
+                view.dom.appendChild(this.layer);
                 this.unsub = paintBus.add(this);
                 view.scrollDOM.addEventListener('scroll', this.onScroll, { passive: true });
             }
@@ -332,7 +340,6 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
                 this.selection = next;
                 this.selectedRanges = selectionLineRanges(this.view.state.doc.lines, this.selection ?? { blocks: [] });
                 this.paint();
-                this.syncSelectedHandles();
             }
 
             private queue() {
@@ -351,6 +358,9 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
                     this.layer.appendChild(box);
                     this.boxes.push(box);
                 }
+                // selectedBandRects returns viewport coordinates; the overlay
+                // is absolutely positioned inside the editor.
+                const origin = this.view.dom.getBoundingClientRect();
                 for (let i = 0; i < this.boxes.length; i++) {
                     const box = this.boxes[i];
                     const rect = rects[i];
@@ -360,12 +370,16 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
                     }
                     box.classList.remove(HIDDEN_CLASS);
                     box.setCssStyles({
-                        top: `${rect.top}px`,
-                        left: `${rect.left}px`,
+                        top: `${rect.top - origin.top}px`,
+                        left: `${rect.left - origin.left}px`,
                         width: `${Math.max(0, rect.right - rect.left)}px`,
                         height: `${Math.max(0, rect.bottom - rect.top)}px`,
                     });
                 }
+                // Handle markers are only rendered for the visible viewport, so
+                // newly materialized rows after a scroll need their selected
+                // state re-applied here — selection events alone miss them.
+                this.syncSelectedHandles();
             }
 
             private syncSelectedHandles() {

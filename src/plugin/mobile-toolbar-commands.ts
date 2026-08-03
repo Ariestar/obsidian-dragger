@@ -1,11 +1,9 @@
 import { EditorView } from '@codemirror/view';
-import { App, Notice, type Command } from 'obsidian';
+import { App, type Command } from 'obsidian';
 import { getActiveMarkdownView } from '../platform/obsidian/app-adapter';
 import { getCodeMirrorView } from '../platform/obsidian/editor-view';
 import { openBlockTypeMenu } from './block-type-menu';
 import { platform } from './platform';
-
-export type EnterMobileSelectionModeEvent = CustomEvent<{ handled: boolean }>;
 
 function getActiveEditorView(app: App): EditorView | null {
     const markdownView = getActiveMarkdownView(app);
@@ -29,29 +27,6 @@ export function registerMobileToolbarCommands(plugin: {
             if (!view) return false;
             if (!checking) {
                 openBlockTypeMenu(view, null);
-            }
-            return true;
-        },
-    });
-
-    plugin.addCommand({
-        id: 'enter-mobile-block-multi-select',
-        name: 'Select multiple blocks',
-        icon: 'list-checks',
-        mobileOnly: true,
-        checkCallback: (checking) => {
-            if (!platform.isMobile) return false;
-            const view = getActiveEditorView(plugin.app);
-            if (!view) return false;
-            if (!checking) {
-                const event: EnterMobileSelectionModeEvent = new CustomEvent('dnd:enter-mobile-selection-mode', {
-                    bubbles: true,
-                    detail: { handled: false },
-                });
-                view.dom.dispatchEvent(event);
-                if (!event.detail.handled) {
-                    new Notice('Unable to enter block selection mode.');
-                }
             }
             return true;
         },

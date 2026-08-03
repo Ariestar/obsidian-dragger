@@ -32,8 +32,8 @@ const NESTED_GROUPS: NestedConversionGroup[] = [
     { label: 'List', icon: 'list', options: LIST_BLOCK_TYPE_OPTIONS },
 ];
 
-const FLYOUT_CLASS = 'dnd-block-type-flyout';
-const FLYOUT_ITEM_CLASS = 'dnd-block-type-flyout-item';
+const FLYOUT_CLASS = 'd-block-type-flyout';
+const FLYOUT_ITEM_CLASS = 'd-block-type-flyout-item';
 
 // Session: which block the open menu operates on (1-indexed line).
 let menuBlockLine = 0;
@@ -148,12 +148,12 @@ function bindDesktopGroupHover(view: EditorView, line: number): void {
     if (!menuEl) return;
 
     for (const item of Array.from(menuEl.querySelectorAll<HTMLElement>('.menu-item'))) {
-        if (item.dataset.dndGroupHoverBound === 'true') continue;
-        const title = item.querySelector<HTMLElement>('.dnd-block-type-submenu-title-label')?.textContent?.trim();
+        if (item.dataset.dGroupHoverBound === 'true') continue;
+        const title = item.querySelector<HTMLElement>('.d-block-type-submenu-title-label')?.textContent?.trim();
         const group = NESTED_GROUPS.find((candidate) => candidate.label === title);
         if (!group) continue;
 
-        item.dataset.dndGroupHoverBound = 'true';
+        item.dataset.dGroupHoverBound = 'true';
         item.addEventListener('pointerenter', () => {
             openFlyout(view, group, item, line);
         });
@@ -328,14 +328,14 @@ function addActionItem(menu: Menu, action: BlockMenuAction): void {
 function createGroupTitle(labelText: string): DocumentFragment {
     const fragment = activeDocument.createDocumentFragment();
     const title = activeDocument.createElement('span');
-    title.className = 'dnd-block-type-submenu-title';
+    title.className = 'd-block-type-submenu-title';
 
     const label = activeDocument.createElement('span');
-    label.className = 'dnd-block-type-submenu-title-label';
+    label.className = 'd-block-type-submenu-title-label';
     label.textContent = labelText;
 
     const chevron = activeDocument.createElement('span');
-    chevron.className = 'dnd-block-type-submenu-title-chevron';
+    chevron.className = 'd-block-type-submenu-title-chevron';
     chevron.setAttribute('aria-hidden', 'true');
     setIcon(chevron, 'chevron-right');
 
