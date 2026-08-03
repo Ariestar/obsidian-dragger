@@ -91,10 +91,10 @@ describe('platform/codemirror drag paint', () => {
         window.dispatchEvent(pointer('pointermove', 0, 0));
         await nextFrame();
 
-        // The seam renders as a CM6 block widget in the seam row, marked grey.
-        const indicator = view.dom.querySelector<HTMLElement>('.d-drop-indicator');
-        expect(indicator).not.toBeNull();
-        expect(indicator?.classList.contains('is-invalid')).toBe(true);
+        // The seam row carries the line decoration, marked grey (invalid).
+        const row = view.dom.querySelector<HTMLElement>('.cm-line.d-drop-seam');
+        expect(row).not.toBeNull();
+        expect(row?.classList.contains('is-invalid')).toBe(true);
         view.destroy();
     });
 });

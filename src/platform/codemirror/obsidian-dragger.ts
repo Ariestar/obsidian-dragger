@@ -1,10 +1,10 @@
 import { EditorState, StateEffect, StateField, type Extension, type Range } from '@codemirror/state';
-import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from '@codemirror/view';
+import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import {
     HANDLE_CLASS,
     mdDragger,
-    dropSeam,
     lineAtPoint,
+    resolveListIndentUnit,
     sourceLineFromInput as handleSourceLineFromInput,
     type CodeMirrorGeometryOptions,
     type MdDraggerCodeMirrorOptions,
@@ -22,7 +22,7 @@ import type { PipelineResult } from 'md-dragger/runtime';
 import { autoScroll } from 'md-dragger/runtime/modules';
 import { openBlockTypeMenu } from '../../plugin/block-type-menu';
 import {
-    DROP_INDICATOR_CLASS,
+    DROP_SEAM_CLASS,
     DRAG_SOURCE_LINE_CLASS,
     DRAGGING_BODY_CLASS,
     MOBILE_GESTURE_LOCK_CLASS,
@@ -116,6 +116,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
         EditorView.editorAttributes.of({ class: ROOT_EDITOR_CLASS }),
         ...mdDragger(options),
         dropIndicatorPaint(options),
+        listIndentStepView(),
         selectionPaint(),
         handleHover(),
         gestureShell(plugin),
@@ -164,9 +165,33 @@ function listMarkerLeft(view: EditorView, from: number): number | null {
     return marker?.getBoundingClientRect().left ?? null;
 }
 
-// Per-paint geometry with the live rendered step resolved once per frame.
-function paintGeometry(options: CodeMirrorGeometryOptions, view: EditorView): CodeMirrorGeometryOptions {
-    return { ...options, listIndentWidthPx: obsidianListIndentWidthPx(view, LIST_INDENT_UNIT) };
+// Exposes the rendered list-indent step as a CSS variable for the drop
+// seam's x offset (seam level × step). Re-measured when the document or
+// editor geometry changes; the seam decoration itself never needs the view.
+// Measurement needs the view DOM, so the first sync runs on the first update
+// (the constructor runs before the editor's DOM is ready).
+function listIndentStepView(): Extension {
+    return ViewPlugin.fromClass(
+        class {
+            private synced = false;
+
+            constructor(private readonly view: EditorView) {}
+
+            update(update: ViewUpdate) {
+                if (update.docChanged || update.geometryChanged || !this.synced) {
+                    this.synced = true;
+                    this.sync();
+                }
+            }
+
+            private sync() {
+                this.view.dom.style.setProperty(
+                    '--d-drop-list-indent-px',
+                    `${obsidianListIndentWidthPx(this.view, LIST_INDENT_UNIT)}px`,
+                );
+            }
+        },
+    );
 }
 
 function createObsidianHandle(): HTMLElement {
@@ -213,61 +238,14 @@ const paintBus = {
     },
 };
 
-// The drop seam is a height-0 CM6 block widget: it takes no layout space (no
-// line gap) yet rides the editor's render pipeline — same as the gutter
-// handle — so scrolling repaints it with the text flow; no overlay, no lag.
-// The visible 2px line is drawn by an overflowing ::before pseudo-element.
-// eq() returns false so updateDOM drives an in-place restyle of one reused
-// DOM node across the whole drag: the seam slides between rows instead of
-// rebuilding.
+// The drop seam is a plain CM6 line decoration on the seam row (above the
+// first line, or below the previous line). The row itself is untouched — zero
+// layout impact — and it rides the editor's render pipeline like the source
+// highlight, so scrolling repaints it with the text flow. The visible line
+// is drawn by an overflowing ::before/::after pseudo-element; its x offset is
+// `seam level × rendered list-indent step`, both as CSS variables (the level
+// from document text here, the step from a geometry view plugin below).
 const setDropIndicator = StateEffect.define<{ position: DropPosition; invalid: boolean } | null>();
-
-class DropSeamWidget extends WidgetType {
-    constructor(
-        private readonly position: DropPosition,
-        private readonly invalid: boolean,
-        private readonly geometryOptions: CodeMirrorGeometryOptions,
-    ) {
-        super();
-    }
-
-    // eq() returns false on purpose: CodeMirror's widget update only reaches
-    // updateDOM on its second pass (when eq does not match). Returning true
-    // from updateDOM then reuses the same DOM node and restyles it in place,
-    // so the drag keeps one persistent element — no rebuild flash.
-    eq(): boolean {
-        return false;
-    }
-
-    get estimatedHeight(): number {
-        return 0;
-    }
-
-    toDOM(view: EditorView): HTMLElement {
-        const el = activeDocument.createElement('div');
-        el.className = DROP_INDICATOR_CLASS;
-        this.applySeamGeometry(view, el);
-        return el;
-    }
-
-    updateDOM(dom: HTMLElement, view: EditorView): boolean {
-        this.applySeamGeometry(view, dom);
-        return true;
-    }
-
-    private applySeamGeometry(view: EditorView, el: HTMLElement): void {
-        el.classList.toggle('is-invalid', this.invalid);
-        // The widget's slot is already the seam row; only the x offset within
-        // the content band depends on rendered geometry. A null seam (row not
-        // rendered) keeps the minimal line — never a crash in the paint path.
-        const seam = dropSeam(view, this.position, paintGeometry(this.geometryOptions, view));
-        if (seam) {
-            const contentLeft = view.contentDOM.getBoundingClientRect().left;
-            el.style.marginLeft = `${Math.max(0, seam.left - contentLeft)}px`;
-            el.style.width = `${Math.max(0, seam.right - seam.left)}px`;
-        }
-    }
-}
 
 function buildDropIndicatorDecoration(
     value: { position: DropPosition; invalid: boolean } | null,
@@ -275,15 +253,28 @@ function buildDropIndicatorDecoration(
     options: CodeMirrorGeometryOptions,
 ): DecorationSet {
     if (value === null) return Decoration.none;
-    const line = Math.min(Math.max(value.position.line, 1), state.doc.lines);
-    const from = state.doc.line(line).from;
+    const position = value.position;
+    const doc = state.doc;
+    const top = position.line <= 1;
+    const seamRow = top ? 1 : Math.min(position.line - 1, doc.lines);
+    const level = dropSeamLevel(position, state, options);
     return Decoration.set([
-        Decoration.widget({
-            widget: new DropSeamWidget(value.position, value.invalid, options),
-            block: true,
-            side: -1,
-        }).range(from),
+        Decoration.line({
+            class: `${DROP_SEAM_CLASS} ${top ? 'd-drop-seam-top' : 'd-drop-seam-below'}${value.invalid ? ' is-invalid' : ''}`,
+            attributes: { style: `--d-seam-level: ${level}` },
+        }).range(doc.line(seamRow).from),
     ]);
+}
+
+// Nesting level for the seam's x offset: parent indent + 1 (root seam = 0).
+// Pure text computation — no rendered geometry needed at decoration time.
+function dropSeamLevel(position: DropPosition, state: EditorState, options: CodeMirrorGeometryOptions): number {
+    if (!position.parent) return 0;
+    const tabSize = state.facet(EditorState.tabSize);
+    const indentUnit = resolveListIndentUnit(options);
+    const parent = state.doc.line(position.parent.lines.startLine);
+    const indentWidth = parseLine(parent.text, tabSize).indent.width;
+    return Math.floor(indentWidth / indentUnit) + 1;
 }
 
 function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
