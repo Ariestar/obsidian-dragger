@@ -5,6 +5,7 @@ import {
     mdDragger,
     dropSeam,
     lineAtPoint,
+    lineBand,
     sourceLineFromInput as handleSourceLineFromInput,
     type CodeMirrorGeometryOptions,
     type MdDraggerCodeMirrorOptions,
@@ -116,7 +117,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
         EditorView.editorAttributes.of({ class: ROOT_EDITOR_CLASS }),
         ...mdDragger(options),
         dropIndicatorPaint(options),
-        selectionPaint(),
+        selectionPaint(options),
         handleHover(),
         gestureShell(plugin),
     ];
@@ -327,8 +328,13 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
 // Selected source rows as CM6 line decorations: they ride the editor's own
 // render pipeline (same as the gutter handle), so scrolling repaints them
 // with the text flow — no absolute-position overlay, no scroll listener,
-// no rAF chase, no lag.
-const setDragSourceRanges = StateEffect.define<LineRange[]>();
+// no rAF chase, no lag. Each row carries its own left edge (engine lineBand
+// geometry: content edge + nesting level × indent step) as an inline
+// --d-source-left variable, so the highlight band leaves the nesting gap
+// on the left instead of hugging the content edge.
+type DragSourceRows = { ranges: LineRange[]; offsets: ReadonlyMap<number, string> };
+
+const setDragSourceRanges = StateEffect.define<DragSourceRows>();
 
 const dragSourceLinesField = StateField.define<DecorationSet>({
     create: () => Decoration.none,
@@ -344,18 +350,23 @@ const dragSourceLinesField = StateField.define<DecorationSet>({
     provide: (field) => EditorView.decorations.from(field),
 });
 
-function buildDragSourceDecoration(ranges: LineRange[], state: EditorState): DecorationSet {
+function buildDragSourceDecoration(value: DragSourceRows, state: EditorState): DecorationSet {
     const decorations: Range<Decoration>[] = [];
-    for (const range of ranges) {
+    for (const range of value.ranges) {
         for (let line = range.startLine; line <= range.endLine; line++) {
             if (line < 1 || line > state.doc.lines) continue;
-            decorations.push(Decoration.line({ class: DRAG_SOURCE_LINE_CLASS }).range(state.doc.line(line).from));
+            decorations.push(
+                Decoration.line({
+                    class: DRAG_SOURCE_LINE_CLASS,
+                    attributes: { style: `--d-source-left: ${value.offsets.get(line) ?? '0px'}` },
+                }).range(state.doc.line(line).from),
+            );
         }
     }
     return Decoration.set(decorations);
 }
 
-function selectionPaint(): Extension {
+function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
     return [
         dragSourceLinesField,
         ViewPlugin.fromClass(
@@ -370,8 +381,14 @@ function selectionPaint(): Extension {
                 // The line decoration follows the text flow natively; only the
                 // gutter handle is a separate marker whose DOM re-materializes
                 // per viewport, so re-apply its selected state on every update.
-                update() {
+                update(update: ViewUpdate) {
                     this.syncSelectedHandles();
+                    // The nesting offset depends on rendered geometry (indent
+                    // step), so re-measure when it changes; scrolling alone
+                    // never triggers this (offset is scroll-independent).
+                    if (update.geometryChanged && this.selectedRanges.length > 0) {
+                        this.dispatchSourceRows(this.selectedRanges);
+                    }
                 }
 
                 destroy() {
@@ -397,7 +414,17 @@ function selectionPaint(): Extension {
                     const ranges = selectionLineRanges(this.view.state.doc.lines, next ?? { blocks: [] });
                     if (sameLineRanges(ranges, this.selectedRanges)) return;
                     this.selectedRanges = ranges;
-                    this.view.dispatch({ effects: setDragSourceRanges.of(ranges) });
+                    this.dispatchSourceRows(ranges);
+                }
+
+                private dispatchSourceRows(ranges: LineRange[]) {
+                    const offsets = new Map<number, string>();
+                    for (const range of ranges) {
+                        for (let line = range.startLine; line <= range.endLine; line++) {
+                            offsets.set(line, sourceRowLeftPx(this.view, line, options));
+                        }
+                    }
+                    this.view.dispatch({ effects: setDragSourceRanges.of({ ranges, offsets }) });
                 }
 
                 private syncSelectedHandles() {
@@ -413,6 +440,20 @@ function selectionPaint(): Extension {
             },
         ),
     ];
+}
+
+/**
+ * Left edge of the source row relative to the content edge, in px — the
+ * engine's lineBand left (content edge + level × indent step) minus the
+ * content's own left. Scroll-independent: both move together, so the offset
+ * can be baked into the decoration's inline style. Unmeasurable rows fall
+ * back to 0px (content edge, no nesting gap).
+ */
+function sourceRowLeftPx(view: EditorView, line: number, options: CodeMirrorGeometryOptions): string {
+    const band = lineBand(view, line, options);
+    if (!band) return '0px';
+    const contentLeft = view.contentDOM.getBoundingClientRect().left;
+    return `${Math.max(0, Math.round(band.left - contentLeft))}px`;
 }
 
 function sameLineRanges(a: LineRange[], b: LineRange[]): boolean {

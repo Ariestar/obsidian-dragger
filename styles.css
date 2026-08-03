@@ -178,12 +178,18 @@ body[data-d-drag-source-style="filled"],
 }
 
 /* 选区高亮：CM6 行装饰，与手柄同一渲染管线，随文本流滚动零延迟。
-   背景与左右边缘线直接画在行上，无绝对定位 overlay。 */
+   背景与左右边缘线直接画在行上，无绝对定位 overlay。每行通过行内
+   --d-source-left（引擎 lineBand 几何：内容左缘 + 层级 × 缩进步长）
+   留下左侧层级间隙：嵌套越深，蒙版左缘越靠右。 */
 .cm-line.d-drag-source-line {
-    background: var(--d-drag-source-bg);
+    background: linear-gradient(
+        90deg,
+        transparent 0 var(--d-source-left, 0px),
+        var(--d-drag-source-bg) var(--d-source-left, 0px)
+    );
     box-shadow:
-        inset 2px 0 0 var(--d-drag-source-border),
-        inset -1px 0 0 var(--d-drag-source-border);
+        inset calc(var(--d-source-left, 0px) + 2px) 0 0 0 var(--d-drag-source-border),
+        inset -1px 0 0 0 var(--d-drag-source-border);
 }
 
 body[data-d-drag-source-highlight="off"] .cm-line.d-drag-source-line {
