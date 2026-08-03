@@ -126,12 +126,14 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
 }
 
 // Rendered pixel width of one list nesting level, measured from real rendered
-// list lines (theme-proof). No fallbacks: if the document has no list pair
-// with increasing indent there is nothing to measure — fail explicitly.
+// list lines (theme-proof). When the document has no nested list pair to
+// measure, use a zero offset instead of throwing: it is exact for level-0
+// list lines (0 × step = 0) and leaves nested drop seams at their anchor
+// position. A throw here would wedge the drag paint chain on plain documents.
 function obsidianListIndentWidthPx(view: EditorView, indentUnit: number): number {
     const step = measureListIndentStep(view, indentUnit);
     if (step == null) {
-        throw new Error('obsidian-dragger: cannot measure list indent width — need a nested list line in the document');
+        return 0;
     }
     return step;
 }
@@ -219,6 +221,7 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
         class {
             private readonly el: HTMLDivElement;
             private position: DropPosition | null = null;
+            private invalid = false;
             private raf: number | null = null;
             private readonly unsub: () => void;
 
@@ -244,12 +247,19 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
             consume(outputs: PipelineResult['outputs']) {
                 for (const output of outputs) {
                     if (output.type === 'drag_over') {
-                        // Only paint on the view that owns the drop doc.
-                        const position = output.drop.rejectReason == null ? output.drop.position : null;
-                        this.position = position && position.doc === this.view.state.doc ? position : null;
+                        // Only paint on the view that owns the drop doc. A
+                        // rejected drop (e.g. re-inserting a block in place)
+                        // still shows a grey seam instead of hiding the
+                        // indicator entirely.
+                        const drop = output.drop;
+                        const onView =
+                            drop.position && drop.position.doc === this.view.state.doc ? drop.position : null;
+                        this.position = onView;
+                        this.invalid = onView !== null && drop.rejectReason != null;
                         this.paint();
                     } else if (output.type === 'dropped' || output.type === 'cancelled' || output.type === 'terminal') {
                         this.position = null;
+                        this.invalid = false;
                         this.paint();
                     }
                 }
@@ -277,6 +287,7 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
                 // absolutely positioned inside the editor.
                 const origin = this.view.dom.getBoundingClientRect();
                 this.el.classList.remove(HIDDEN_CLASS);
+                this.el.classList.toggle('is-invalid', this.invalid);
                 this.el.setCssStyles({
                     top: `${seam.y - origin.top}px`,
                     left: `${seam.left - origin.left}px`,

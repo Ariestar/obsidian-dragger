@@ -285,6 +285,12 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
        leading edge — no glow. */
 }
 
+/* Rejected drop (e.g. re-inserting in place): the seam stays visible as a
+   neutral grey line instead of disappearing. */
+.d-drop-indicator.is-invalid {
+    background: var(--text-muted);
+}
+
 .d-drop-highlight {
     position: absolute;
     pointer-events: none;
