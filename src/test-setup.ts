@@ -86,6 +86,35 @@ if (
     activeDocument.elementFromPoint = () => null;
 }
 
+// jsdom cannot resolve CSS custom properties; Obsidian defines the list
+// indent tokens (--indent-unit × --indent-size) in its stylesheet. Stand in
+// with the Obsidian defaults so geometry reads work in tests — same class of
+// polyfill as Range/elementFromPoint above.
+if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+    // bind() must capture the original before the replacement below, or the
+    // polyfill would call itself (getComputedStyle resolves at call time).
+    const originalGetComputedStyle = window.getComputedStyle.bind(window) as (el: Element) => CSSStyleDeclaration;
+    window.getComputedStyle = (el: Element) => {
+        const style = originalGetComputedStyle(el);
+        // Capture the original getPropertyValue before replacing it, or the
+        // wrapper would call itself (method lookup is dynamic).
+        const getPropertyValue = style.getPropertyValue.bind(style) as (prop: string) => string;
+        style.getPropertyValue = (prop: string): string => {
+            const value = getPropertyValue(prop);
+            if (value) return value;
+            if (prop === '--indent-unit') return '0.5625em';
+            if (prop === '--indent-size') return '4';
+            return value;
+        };
+        // jsdom ships no UA stylesheet, so computed font-size is empty; a
+        // browser always resolves it to the editor's inherited font size.
+        if (!style.fontSize) {
+            Object.defineProperty(style, 'fontSize', { configurable: true, value: '16px' });
+        }
+        return style;
+    };
+}
+
 // CodeMirror measures via Range geometry, which jsdom leaves unimplemented.
 if (typeof Range !== 'undefined' && typeof Range.prototype.getClientRects !== 'function') {
     Range.prototype.getClientRects = function (): DOMRectList {

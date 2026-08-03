@@ -13,7 +13,6 @@ import {
 import {
     detectBlock,
     isLineNumberInRanges,
-    parseLine,
     selectionLineRanges,
     type BlockSelection,
     type DropPosition,
@@ -57,7 +56,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
             tabSize: 4,
             listIndentUnit: LIST_INDENT_UNIT,
         },
-        listIndentWidthPx: (view) => obsidianListIndentWidthPx(view, LIST_INDENT_UNIT),
+        listIndentWidthPx: (view) => listIndentStepPx(view),
         handle: {
             render: () => createObsidianHandle(),
         },
@@ -123,51 +122,18 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
     ];
 }
 
-// Rendered pixel width of one list nesting level, measured from real rendered
-// list lines (theme-proof). When the document has no nested list pair to
-// measure, use a zero offset instead of throwing: it is exact for level-0
-// list lines (0 × step = 0) and leaves nested drop seams at their anchor
-// position. A throw here would wedge the drag paint chain on plain documents.
-function obsidianListIndentWidthPx(view: EditorView, indentUnit: number): number {
-    const step = measureListIndentStep(view, indentUnit);
-    if (step == null) {
-        return 0;
-    }
-    return step;
+// Rendered pixel width of one list nesting level. Single source of truth:
+// Obsidian's own rendering contract — --indent-unit × --indent-size (default
+// 0.5625em × 4 = 2.25em) — read straight from the theme. No document scan,
+// no fallback: the engine's geometry (level × step, anchor + step) always
+// gets the same stable value, and theme changes apply automatically.
+// --list-indent itself is a calc() chain (getComputedStyle returns it
+// unparsed), so the two literals are read and multiplied instead.
+function listIndentStepPx(view: EditorView): number {
+    const cs = getComputedStyle(view.contentDOM);
+    const em = parseFloat(cs.getPropertyValue('--indent-unit')) * parseFloat(cs.getPropertyValue('--indent-size'));
+    return em * parseFloat(cs.fontSize);
 }
-
-// First pair of list lines with increasing indent: per-column px from their
-// rendered marker-left difference, scaled to one indent unit.
-function measureListIndentStep(view: EditorView, indentUnit: number): number | null {
-    const tabSize = view.state.facet(EditorState.tabSize);
-    let previous: { indent: number; left: number } | null = null;
-    for (let lineNo = 1; lineNo <= view.state.doc.lines; lineNo++) {
-        const line = view.state.doc.line(lineNo);
-        const parsed = parseLine(line.text, tabSize);
-        if (parsed.marker?.kind !== 'list') continue;
-        const left = listMarkerLeft(view, line.from);
-        if (left == null) continue;
-        if (previous && parsed.indent.width > previous.indent) {
-            const perColumn = (left - previous.left) / (parsed.indent.width - previous.indent);
-            const step = perColumn * indentUnit;
-            if (Number.isFinite(step) && step > 0) return step;
-        }
-        previous = { indent: parsed.indent.width, left };
-    }
-    return null;
-}
-
-// Rendered left edge of a list line's marker span (the bullet column).
-function listMarkerLeft(view: EditorView, from: number): number | null {
-    const node = view.domAtPos(from).node as Element | null;
-    const lineEl = node?.nodeType === 1 ? node.closest('.cm-line') : (node?.parentElement?.closest('.cm-line') ?? null);
-    const marker = lineEl?.querySelector('.cm-formatting-list') as HTMLElement | null;
-    return marker?.getBoundingClientRect().left ?? null;
-}
-
-// The rendered indent step is measured here (host-owned rendering knowledge,
-// per md-dragger's contract) and handed to the engine as the listIndentWidthPx
-// option. The engine's dropSeam consumes it; paint never measures itself.
 
 function createObsidianHandle(): HTMLElement {
     const handle = activeDocument.createElement('div');
