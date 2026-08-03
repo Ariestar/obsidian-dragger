@@ -256,20 +256,33 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
 }
 
 .d-drop-indicator {
-    /* CM6 block widget: flows inside the content, x offset set inline from
-       the seam geometry. Same color family as the source-highlight leading
-       edge — flat 2px line, no glow. */
+    /* Height-0 CM6 block widget: takes no layout space, so the indicator
+       never pushes rows apart. The visible line is an overflowing ::before;
+       the widget still rides the editor's render pipeline (scroll-following,
+       zero lag). Color from theme tokens — accent-derived, or --text-faint
+       for a forbidden drop. */
+    position: relative;
+    height: 0;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.d-drop-indicator::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: 0;
+    right: 0;
     height: 2px;
+    border-radius: 2px;
     background: var(--d-drop-indicator-color, var(--d-drag-source-border, var(--interactive-accent)));
     pointer-events: none;
-    border-radius: 2px;
-    box-sizing: border-box;
 }
 
 /* Rejected drop (e.g. re-inserting in place): the seam stays visible as a
    light grey line (--text-faint) instead of disappearing — the muted tone
    signals the drop is forbidden/invalid. */
-.d-drop-indicator.is-invalid {
+.d-drop-indicator.is-invalid::before {
     background: var(--text-faint);
 }
 

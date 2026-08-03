@@ -213,9 +213,13 @@ const paintBus = {
     },
 };
 
-// The drop seam is a CM6 block widget, so it lives in the editor's own
-// render pipeline — same as the gutter handle. Scrolling repaints it with
-// the text flow; no absolute-position overlay, no scroll listener, no lag.
+// The drop seam is a height-0 CM6 block widget: it takes no layout space (no
+// line gap) yet rides the editor's render pipeline — same as the gutter
+// handle — so scrolling repaints it with the text flow; no overlay, no lag.
+// The visible 2px line is drawn by an overflowing ::before pseudo-element.
+// eq() returns false so updateDOM drives an in-place restyle of one reused
+// DOM node across the whole drag: the seam slides between rows instead of
+// rebuilding.
 const setDropIndicator = StateEffect.define<{ position: DropPosition; invalid: boolean } | null>();
 
 class DropSeamWidget extends WidgetType {
@@ -227,23 +231,32 @@ class DropSeamWidget extends WidgetType {
         super();
     }
 
-    eq(other: DropSeamWidget): boolean {
-        return (
-            other.position.line === this.position.line &&
-            other.position.doc === this.position.doc &&
-            other.position.parent === this.position.parent &&
-            other.invalid === this.invalid
-        );
+    // eq() returns false on purpose: CodeMirror's widget update only reaches
+    // updateDOM on its second pass (when eq does not match). Returning true
+    // from updateDOM then reuses the same DOM node and restyles it in place,
+    // so the drag keeps one persistent element — no rebuild flash.
+    eq(): boolean {
+        return false;
     }
 
-    estimateHeight(): number {
-        return 2;
+    get estimatedHeight(): number {
+        return 0;
     }
 
     toDOM(view: EditorView): HTMLElement {
         const el = activeDocument.createElement('div');
         el.className = DROP_INDICATOR_CLASS;
-        if (this.invalid) el.classList.add('is-invalid');
+        this.applySeamGeometry(view, el);
+        return el;
+    }
+
+    updateDOM(dom: HTMLElement, view: EditorView): boolean {
+        this.applySeamGeometry(view, dom);
+        return true;
+    }
+
+    private applySeamGeometry(view: EditorView, el: HTMLElement): void {
+        el.classList.toggle('is-invalid', this.invalid);
         // The widget's slot is already the seam row; only the x offset within
         // the content band depends on rendered geometry. A null seam (row not
         // rendered) keeps the minimal line — never a crash in the paint path.
@@ -253,7 +266,6 @@ class DropSeamWidget extends WidgetType {
             el.style.marginLeft = `${Math.max(0, seam.left - contentLeft)}px`;
             el.style.width = `${Math.max(0, seam.right - seam.left)}px`;
         }
-        return el;
     }
 }
 
