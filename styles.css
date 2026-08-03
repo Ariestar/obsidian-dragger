@@ -258,14 +258,14 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
 /* Drop seam: a CM6 line decoration on the seam row (above the first line,
    or below the previous line). The row itself is untouched — zero layout
    impact — and it scrolls with the text flow. The visible line is an
-   overflowing pseudo-element; its x offset is `seam level × rendered
-   list-indent step`, both as CSS variables. */
+   overflowing pseudo-element; its x offset and width come from the engine's
+   dropSeam geometry, exposed as CSS variables by the paint view plugin. */
 .cm-line.d-drop-seam-top::before,
 .cm-line.d-drop-seam-below::after {
     content: '';
     position: absolute;
-    left: calc(var(--d-seam-level, 0) * var(--d-drop-list-indent-px, 0px));
-    right: 0;
+    left: var(--d-seam-left, 0px);
+    width: var(--d-seam-width, auto);
     height: 2px;
     border-radius: 2px;
     background: var(--d-drop-indicator-color, var(--d-drag-source-border, var(--interactive-accent)));

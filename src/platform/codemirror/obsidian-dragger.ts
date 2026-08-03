@@ -3,8 +3,8 @@ import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate
 import {
     HANDLE_CLASS,
     mdDragger,
+    dropSeam,
     lineAtPoint,
-    resolveListIndentUnit,
     sourceLineFromInput as handleSourceLineFromInput,
     type CodeMirrorGeometryOptions,
     type MdDraggerCodeMirrorOptions,
@@ -116,7 +116,6 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
         EditorView.editorAttributes.of({ class: ROOT_EDITOR_CLASS }),
         ...mdDragger(options),
         dropIndicatorPaint(options),
-        listIndentStepView(),
         selectionPaint(),
         handleHover(),
         gestureShell(plugin),
@@ -165,34 +164,9 @@ function listMarkerLeft(view: EditorView, from: number): number | null {
     return marker?.getBoundingClientRect().left ?? null;
 }
 
-// Exposes the rendered list-indent step as a CSS variable for the drop
-// seam's x offset (seam level × step). Re-measured when the document or
-// editor geometry changes; the seam decoration itself never needs the view.
-// Measurement needs the view DOM, so the first sync runs on the first update
-// (the constructor runs before the editor's DOM is ready).
-function listIndentStepView(): Extension {
-    return ViewPlugin.fromClass(
-        class {
-            private synced = false;
-
-            constructor(private readonly view: EditorView) {}
-
-            update(update: ViewUpdate) {
-                if (update.docChanged || update.geometryChanged || !this.synced) {
-                    this.synced = true;
-                    this.sync();
-                }
-            }
-
-            private sync() {
-                this.view.dom.style.setProperty(
-                    '--d-drop-list-indent-px',
-                    `${obsidianListIndentWidthPx(this.view, LIST_INDENT_UNIT)}px`,
-                );
-            }
-        },
-    );
-}
+// The rendered indent step is measured here (host-owned rendering knowledge,
+// per md-dragger's contract) and handed to the engine as the listIndentWidthPx
+// option. The engine's dropSeam consumes it; paint never measures itself.
 
 function createObsidianHandle(): HTMLElement {
     const handle = activeDocument.createElement('div');
@@ -242,39 +216,26 @@ const paintBus = {
 // first line, or below the previous line). The row itself is untouched — zero
 // layout impact — and it rides the editor's render pipeline like the source
 // highlight, so scrolling repaints it with the text flow. The visible line
-// is drawn by an overflowing ::before/::after pseudo-element; its x offset is
-// `seam level × rendered list-indent step`, both as CSS variables (the level
-// from document text here, the step from a geometry view plugin below).
+// is drawn by an overflowing ::before/::after pseudo-element. The decoration
+// is built without a view, so its x offset comes from CSS variables that a
+// view plugin (dropSeamPaint below) fills from the engine's dropSeam geometry
+// — the single geometry source, never re-derived here.
 const setDropIndicator = StateEffect.define<{ position: DropPosition; invalid: boolean } | null>();
 
 function buildDropIndicatorDecoration(
     value: { position: DropPosition; invalid: boolean } | null,
     state: EditorState,
-    options: CodeMirrorGeometryOptions,
 ): DecorationSet {
     if (value === null) return Decoration.none;
     const position = value.position;
     const doc = state.doc;
     const top = position.line <= 1;
     const seamRow = top ? 1 : Math.min(position.line - 1, doc.lines);
-    const level = dropSeamLevel(position, state, options);
     return Decoration.set([
         Decoration.line({
             class: `${DROP_SEAM_CLASS} ${top ? 'd-drop-seam-top' : 'd-drop-seam-below'}${value.invalid ? ' is-invalid' : ''}`,
-            attributes: { style: `--d-seam-level: ${level}` },
         }).range(doc.line(seamRow).from),
     ]);
-}
-
-// Nesting level for the seam's x offset: parent indent + 1 (root seam = 0).
-// Pure text computation — no rendered geometry needed at decoration time.
-function dropSeamLevel(position: DropPosition, state: EditorState, options: CodeMirrorGeometryOptions): number {
-    if (!position.parent) return 0;
-    const tabSize = state.facet(EditorState.tabSize);
-    const indentUnit = resolveListIndentUnit(options);
-    const parent = state.doc.line(position.parent.lines.startLine);
-    const indentWidth = parseLine(parent.text, tabSize).indent.width;
-    return Math.floor(indentWidth / indentUnit) + 1;
 }
 
 function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
@@ -284,7 +245,7 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
             deco = deco.map(tr.changes);
             for (const effect of tr.effects) {
                 if (effect.is(setDropIndicator)) {
-                    deco = buildDropIndicatorDecoration(effect.value, tr.state, options);
+                    deco = buildDropIndicatorDecoration(effect.value, tr.state);
                 }
             }
             return deco;
@@ -306,6 +267,10 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
 
                 destroy() {
                     this.unsub();
+                }
+
+                update(update: ViewUpdate) {
+                    if (update.geometryChanged) this.sync();
                 }
 
                 consume(outputs: PipelineResult['outputs']) {
@@ -333,9 +298,26 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
                     if (next === this.position && invalid === this.invalid) return;
                     this.position = next;
                     this.invalid = invalid;
+                    // Fill the seam geometry (engine's dropSeam, the single
+                    // geometry source) into CSS variables before dispatching,
+                    // so the line decoration renders at the fresh position.
+                    this.sync();
                     this.view.dispatch({
                         effects: setDropIndicator.of(next === null ? null : { position: next, invalid }),
                     });
+                }
+
+                private sync() {
+                    if (this.position === null) {
+                        this.view.dom.style.removeProperty('--d-seam-left');
+                        this.view.dom.style.removeProperty('--d-seam-width');
+                        return;
+                    }
+                    const seam = dropSeam(this.view, this.position, options);
+                    if (!seam) return;
+                    const contentLeft = this.view.contentDOM.getBoundingClientRect().left;
+                    this.view.dom.style.setProperty('--d-seam-left', `${Math.max(0, seam.left - contentLeft)}px`);
+                    this.view.dom.style.setProperty('--d-seam-width', `${Math.max(0, seam.right - seam.left)}px`);
                 }
             },
         ),
