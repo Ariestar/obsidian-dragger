@@ -56,6 +56,23 @@ describe('platform/codemirror drag paint', () => {
         view.destroy();
     });
 
+    it('does not throw painting a drag on a single-level list document', async () => {
+        const view = makeView('- item one\n- item two');
+        await nextFrame();
+
+        const handle = view.dom.querySelector<HTMLElement>('.md-dragger-handle');
+        expect(handle).not.toBeNull();
+        if (!handle) return;
+
+        handle.dispatchEvent(pointer('pointerdown', 0, 0));
+        window.dispatchEvent(pointer('pointermove', 0, 0));
+        window.dispatchEvent(pointer('pointermove', 12, 12));
+        await nextFrame();
+
+        expect(view.dom.isConnected).toBe(true);
+        view.destroy();
+    });
+
     it('does not throw painting a rejected drop seam on a plain document', async () => {
         const view = makeView('plain paragraph\nanother line');
         await nextFrame();
