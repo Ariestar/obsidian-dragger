@@ -42,7 +42,7 @@
     },
     "packageManager": "pnpm@11.19.0",
     "dependencies": {
-        "md-dragger": "^2.0.0"
+        "md-dragger": "^2.0.1"
     },
     "devDependencies": {
         "@biomejs/biome": "^2.5.6",
