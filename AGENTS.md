@@ -7,7 +7,7 @@ Keep this file limited to durable, cross-session guidance. Current progress and 
 ## Project
 
 - Purpose: Obsidian plugin host for markdown block drag-and-drop
-- Core engine: `md-dragger` (`file:../md-dragger`) — **all engine logic lives there**
+- Core engine: `md-dragger` (npm package, `^1.3.4`; dev-time junction link to `../md-dragger`) — **all engine logic lives there**
 - Stack: TypeScript, CodeMirror 6, Obsidian plugin API, esbuild
 - Package manager: pnpm
 
@@ -38,6 +38,7 @@ Reuse rules (the engine owns complexity — do not reimplement it):
 - Typecheck: `pnpm run typecheck`
 - Test: `pnpm test`
 - Lint: `pnpm run lint` (ESLint); formatting: `pnpm run format` / `format:check` (Biome)
+- Consume a newly published engine release: `pnpm update md-dragger` (the lockfile pins the registry version; local engine edits are picked up via the dev link, not by updating)
 
 ## Communication
 
@@ -57,7 +58,7 @@ Build order:
 
 Notes:
 
-- This repo depends on `md-dragger` via `file:../md-dragger`. Core changes are not visible to the plugin until the core package is built (and `pnpm install` re-copies the `file:` dependency into the store).
+- This repo depends on the published `md-dragger` npm package (lockfile-pinned). A `postinstall` script (`scripts/link-md.mjs`) re-points `node_modules/md-dragger` at the sibling checkout (`../md-dragger`), so local engine edits are visible once the core package is rebuilt (`cd ../md-dragger && pnpm run build`); `pnpm install` re-creates the link. To consume a newly published engine version, run `pnpm update md-dragger` — the lockfile stays on the registry version, and the dev link is a local-only override that CI does not have.
 - Plugin build copies artifacts the vault/plugin loader uses; skipping it leaves Obsidian on a stale build.
 - If only docs/AGENTS were edited and no runtime code changed, build is optional.
 - If a relevant build cannot run, state that explicitly in the completion summary.
