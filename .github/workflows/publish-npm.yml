@@ -6,41 +6,32 @@ on:
       - '[0-9]*'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Checkout md-dragger (sibling dependency)
-        uses: actions/checkout@v4
-        with:
-          repository: Ariestar/md-dragger
-          path: ../md-dragger
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6.0.9
         with:
           version: 11.19.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24.13.0
           cache: pnpm
           registry-url: https://registry.npmjs.org
-
-      - name: Install core package (md-dragger)
-        working-directory: ../md-dragger
-        run: pnpm install --frozen-lockfile
-
-      - name: Build core package (md-dragger)
-        working-directory: ../md-dragger
-        run: pnpm run build
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -71,4 +62,4 @@ jobs:
         run: pnpm run smoke:npm
 
       - name: Publish to npm
-        run: pnpm publish --registry=https://registry.npmjs.org --access public
+        run: pnpm publish --registry=https://registry.npmjs.org --access public --provenance
