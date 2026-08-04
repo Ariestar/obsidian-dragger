@@ -82,8 +82,12 @@ export default class DragNDropPlugin extends Plugin {
         body.setAttribute(LIST_DROP_HIGHLIGHT_ATTR, this.settings.enableListDropHighlight ? 'on' : 'off');
 
         const handleOffset = this.settings.handleHorizontalOffsetPx;
+        // A right-side gutter mirrors the offset: the handle sits at the
+        // right edge, so the configured shift flips sign to keep the same
+        // visual margin as on the left.
+        const effectiveOffset = this.settings.handleGutterPosition === 'right' ? -handleOffset : handleOffset;
         body.setCssProps({
-            '--d-handle-horizontal-offset-px': `${handleOffset}px`,
+            '--d-handle-horizontal-offset-px': `${effectiveOffset}px`,
         });
 
         let colorValue = '';

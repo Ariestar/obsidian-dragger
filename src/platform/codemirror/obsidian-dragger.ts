@@ -19,7 +19,7 @@ import {
     type DropPosition,
     type LineRange,
 } from 'md-dragger/domain';
-import { dropSeamState, selectionFromOutputs, type PipelineResult } from 'md-dragger/runtime';
+import { dragSelectionDoc, dropSeamState, selectionFromOutputs, type PipelineResult } from 'md-dragger/runtime';
 import { autoScroll } from 'md-dragger/runtime/modules';
 import { openBlockTypeMenu } from '../../plugin/block-type-menu';
 import { DRAGGING_BODY_CLASS, MOBILE_GESTURE_LOCK_CLASS, ROOT_EDITOR_CLASS } from '../../shared/dom-selectors';
@@ -32,6 +32,7 @@ export type ObsidianDraggerHost = {
         mobileDragLongPressMs: number;
         autoScrollEdgeZonePx: number;
         autoScrollMaxSpeedPx: number;
+        handleGutterPosition: 'left' | 'right';
     };
     isMobilePlatform(): boolean;
     isMobileDragModeEnabled(): boolean;
@@ -54,6 +55,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
         listIndentWidthPx: (view) => listIndentStepPx(view),
         handle: {
             render: () => createObsidianHandle(),
+            side: plugin.settings.handleGutterPosition === 'right' ? 'after' : 'before',
         },
         locate: (view) => ({
             sourceLineFromInput: (input) => {
@@ -140,23 +142,13 @@ function createObsidianHandle(): HTMLElement {
 }
 
 function gestureConfig(plugin: ObsidianDraggerHost) {
-    const multiSelectEnabled = plugin.settings.enableMultiLineSelection !== false;
-    const multiSelectMs = plugin.settings.mouseRangeSelectLongPressMs;
-    if (plugin.isMobilePlatform()) {
-        return {
-            dragArmMs: plugin.settings.mobileDragLongPressMs,
-            multiSelectMs,
-            dragStartMoveThresholdPx: 8,
-            dragCancelMoveThresholdPx: Number.POSITIVE_INFINITY,
-            multiSelectEnabled,
-        };
-    }
+    const mobile = plugin.isMobilePlatform();
     return {
-        dragArmMs: 0,
-        multiSelectMs,
-        dragStartMoveThresholdPx: 4,
+        dragArmMs: mobile ? plugin.settings.mobileDragLongPressMs : 0,
+        multiSelectMs: plugin.settings.mouseRangeSelectLongPressMs,
+        dragStartMoveThresholdPx: mobile ? 8 : 4,
         dragCancelMoveThresholdPx: Number.POSITIVE_INFINITY,
-        multiSelectEnabled,
+        multiSelectEnabled: plugin.settings.enableMultiLineSelection !== false,
     };
 }
 
@@ -268,7 +260,13 @@ function selectionPaint(): Extension {
                     for (const tr of update.transactions) {
                         for (const effect of tr.effects) {
                             if (effect.is(dragTransitionEffect)) {
-                                const selection = selectionFromOutputs(effect.value.outputs);
+                                const outputs = effect.value.outputs;
+                                // Cross-pane broadcasts reach this view for the
+                                // seam only — never sync handles to another
+                                // view's drag selection.
+                                const sourceDoc = dragSelectionDoc(outputs);
+                                if (sourceDoc !== null && sourceDoc !== update.state.doc) continue;
+                                const selection = selectionFromOutputs(outputs);
                                 this.selectedRanges = selectionLineRanges(
                                     update.state.doc.lines,
                                     selection ?? { blocks: [] },
@@ -361,10 +359,16 @@ function handleHover(): Extension {
 function gestureShell(plugin: ObsidianDraggerHost): Extension {
     return ViewPlugin.fromClass(
         class {
-            private lastPress: PointerEvent | null = null;
+            private lastPress: { event: PointerEvent; onHandle: boolean } | null = null;
             private locked = false;
             private readonly onPointerDown = (e: PointerEvent) => {
-                this.lastPress = e;
+                // Only a short press that started on a handle may open the
+                // block menu — cancels from Escape or presses on non-handle
+                // space must not.
+                this.lastPress = {
+                    event: e,
+                    onHandle: e.target instanceof Element && e.target.closest(`.${HANDLE_CLASS}`) !== null,
+                };
                 if (plugin.isMobilePlatform() && plugin.isMobileDragModeEnabled()) {
                     e.preventDefault();
                 }
@@ -411,8 +415,8 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
                         const press = this.lastPress;
                         this.lastPress = null;
                         const startLine = output.selection?.blocks[0]?.lines.startLine;
-                        if (press && typeof startLine === 'number') {
-                            const { clientX, clientY } = press;
+                        if (press && press.onHandle && typeof startLine === 'number') {
+                            const { clientX, clientY } = press.event;
                             window.requestAnimationFrame(() => {
                                 openBlockTypeMenu(this.view, { clientX, clientY } as PointerEvent, startLine);
                             });

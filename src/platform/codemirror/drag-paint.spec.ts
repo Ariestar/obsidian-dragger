@@ -12,6 +12,7 @@ function mockPlugin(): ObsidianDraggerHost {
             mobileDragLongPressMs: 200,
             autoScrollEdgeZonePx: 40,
             autoScrollMaxSpeedPx: 12,
+            handleGutterPosition: 'left',
         },
         isMobilePlatform: () => false,
         isMobileDragModeEnabled: () => false,
