@@ -24,8 +24,6 @@ export const ru: ZhCnStrings = {
     optionBlockSelectionVisualFilled: 'Заливка',
     enableBlockSelectionHighlight: 'Подсветка перетаскиваемого блока',
     enableBlockSelectionHighlightDesc: 'Подсвечивать блок во время перетаскивания',
-    enableListDropHighlight: 'Подсветка места вставки в список',
-    enableListDropHighlightDesc: 'Подсвечивать область вставки в список',
 
     handleIcon: 'Иконка маркера',
     handleIconDesc: 'Выберите стиль иконки для маркеров перетаскивания',

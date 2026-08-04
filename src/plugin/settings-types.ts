@@ -24,7 +24,6 @@ export interface DragNDropSettings {
     enableMobileTextLongPressDrag: boolean;
     mobileDragModeToggleEnabled: boolean;
     enableBlockSelectionHighlight: boolean;
-    enableListDropHighlight: boolean;
     selectionVisualStyle: BlockSelectionVisualStyle;
     handleHorizontalOffsetPx: number;
     handleGutterPosition: HandleGutterPosition;
@@ -67,7 +66,6 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     enableMobileTextLongPressDrag: true,
     mobileDragModeToggleEnabled: true,
     enableBlockSelectionHighlight: true,
-    enableListDropHighlight: true,
     selectionVisualStyle: 'subtle',
     handleHorizontalOffsetPx: -8,
     handleGutterPosition: 'left',

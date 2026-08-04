@@ -27,22 +27,19 @@ describe('migrateSettings', () => {
         expect('alwaysShowHandles' in migrateSettings({ alwaysShowHandles: true })).toBe(false);
     });
 
-    it('migrates legacy selectionVisualStyle "none" with highlights off', () => {
+    it('migrates legacy selectionVisualStyle "none" with the highlight off', () => {
         const result = migrateSettings({ selectionVisualStyle: 'none' });
         expect(result.selectionVisualStyle).toBe('outline');
         expect(result.enableBlockSelectionHighlight).toBe(false);
-        expect(result.enableListDropHighlight).toBe(false);
     });
 
-    it('does not override explicit highlight toggles when migrating "none"', () => {
+    it('does not override the explicit highlight toggle when migrating "none"', () => {
         const result = migrateSettings({
             selectionVisualStyle: 'none',
             enableBlockSelectionHighlight: true,
-            enableListDropHighlight: true,
         });
         expect(result.selectionVisualStyle).toBe('outline');
         expect(result.enableBlockSelectionHighlight).toBe(true);
-        expect(result.enableListDropHighlight).toBe(true);
     });
 
     it('drops removed requireMobileDragMode field', () => {

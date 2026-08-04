@@ -175,16 +175,6 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 }),
             );
 
-        new Setting(containerEl)
-            .setName(i.enableListDropHighlight)
-            .setDesc(i.enableListDropHighlightDesc)
-            .addToggle((toggle) =>
-                toggle.setValue(this.plugin.settings.enableListDropHighlight).onChange(async (value) => {
-                    this.plugin.settings.enableListDropHighlight = value;
-                    await this.plugin.saveSettings();
-                }),
-            );
-
         const indicatorSetting = new Setting(containerEl).setName(i.indicatorColor).setDesc(i.indicatorColorDesc);
 
         indicatorSetting.addDropdown((dropdown) =>

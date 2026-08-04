@@ -33,14 +33,11 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
         delete next.alwaysShowHandles;
 
         // `selectionVisualStyle: 'none'` was split into an 'outline' style with
-        // both highlight toggles off.
+        // the block-selection highlight off.
         if (next.selectionVisualStyle === 'none') {
             next.selectionVisualStyle = 'outline';
             if (!('enableBlockSelectionHighlight' in next)) {
                 next.enableBlockSelectionHighlight = false;
-            }
-            if (!('enableListDropHighlight' in next)) {
-                next.enableListDropHighlight = false;
             }
         }
 

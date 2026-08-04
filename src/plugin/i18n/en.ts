@@ -24,8 +24,6 @@ export const en: ZhCnStrings = {
     optionBlockSelectionVisualFilled: 'Filled highlight',
     enableBlockSelectionHighlight: 'Block selection highlight',
     enableBlockSelectionHighlightDesc: 'Highlight the block being dragged',
-    enableListDropHighlight: 'List drop highlight',
-    enableListDropHighlightDesc: 'Highlight list drop target area',
 
     handleIcon: 'Handle icon',
     handleIconDesc: 'Choose the icon style for drag handles',

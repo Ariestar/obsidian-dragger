@@ -1,12 +1,7 @@
 import { MarkdownView, Platform, Plugin, setIcon } from 'obsidian';
 import { dragHandleExtension } from '../platform/codemirror/obsidian-dragger';
 import { HANDLE_CORE_SIZE_RATIO, GRIP_DOTS_CORE_SIZE_RATIO } from '../shared/constants';
-import {
-    DRAG_SOURCE_HIGHLIGHT_ATTR,
-    DRAG_SOURCE_STYLE_ATTR,
-    HANDLE_ICON_ATTR,
-    LIST_DROP_HIGHLIGHT_ATTR,
-} from '../shared/dom-selectors';
+import { DRAG_SOURCE_HIGHLIGHT_ATTR, DRAG_SOURCE_STYLE_ATTR, HANDLE_ICON_ATTR } from '../shared/dom-selectors';
 import { DragNDropSettingTab } from './settings';
 import type { DragNDropSettings, HandleVisibilityMode } from './settings-types';
 import { migrateSettings } from './settings-migrations';
@@ -79,7 +74,6 @@ export default class DragNDropPlugin extends Plugin {
         const selectionVisualStyle = this.settings.selectionVisualStyle;
         body.setAttribute(DRAG_SOURCE_STYLE_ATTR, selectionVisualStyle);
         body.setAttribute(DRAG_SOURCE_HIGHLIGHT_ATTR, this.settings.enableBlockSelectionHighlight ? 'on' : 'off');
-        body.setAttribute(LIST_DROP_HIGHLIGHT_ATTR, this.settings.enableListDropHighlight ? 'on' : 'off');
 
         const handleOffset = this.settings.handleHorizontalOffsetPx;
         // A right-side gutter mirrors the offset: the handle sits at the

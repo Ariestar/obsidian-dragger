@@ -25,8 +25,6 @@ export const zhCn = {
     optionBlockSelectionVisualFilled: '背景增强',
     enableBlockSelectionHighlight: '拖拽源高亮',
     enableBlockSelectionHighlightDesc: '高亮被拖动的源块',
-    enableListDropHighlight: '列表落点高亮',
-    enableListDropHighlightDesc: '高亮列表内可放置区域',
 
     // Handle icon
     handleIcon: '手柄图标',

@@ -151,30 +151,21 @@
     overflow: visible;
 }
 
-/* 统一拖拽视觉样式变量（源块 + 列表落点） */
+/* 统一拖拽视觉样式变量（源块高亮；attribute 在 body 上） */
 body,
-body[data-d-drag-source-style="subtle"],
-.markdown-source-view.mod-cm6 .cm-editor.d-root-editor[data-d-drag-source-style="subtle"] {
+body[data-d-drag-source-style="subtle"] {
     --d-drag-source-bg: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
     --d-drag-source-border: color-mix(in srgb, var(--interactive-accent) 60%, transparent);
-    --d-drop-highlight-bg: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
-    --d-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 60%, transparent);
 }
 
-body[data-d-drag-source-style="outline"],
-.markdown-source-view.mod-cm6 .cm-editor.d-root-editor[data-d-drag-source-style="outline"] {
+body[data-d-drag-source-style="outline"] {
     --d-drag-source-bg: transparent;
     --d-drag-source-border: color-mix(in srgb, var(--interactive-accent) 60%, transparent);
-    --d-drop-highlight-bg: transparent;
-    --d-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 60%, transparent);
 }
 
-body[data-d-drag-source-style="filled"],
-.markdown-source-view.mod-cm6 .cm-editor.d-root-editor[data-d-drag-source-style="filled"] {
+body[data-d-drag-source-style="filled"] {
     --d-drag-source-bg: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
     --d-drag-source-border: color-mix(in srgb, var(--interactive-accent) 60%, transparent);
-    --d-drop-highlight-bg: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
-    --d-drop-highlight-border: color-mix(in srgb, var(--interactive-accent) 60%, transparent);
 }
 
 /* 选区高亮：CM6 行装饰，与手柄同一渲染管线，随文本流滚动零延迟。
@@ -304,21 +295,6 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
     background: var(--text-faint);
 }
 
-.d-drop-highlight {
-    position: absolute;
-    pointer-events: none;
-    /* Inside the editor's stacking context: above text, below handle markers
-       (z 3/4). Never reaches Obsidian's app chrome. */
-    z-index: 2;
-    border-radius: 6px;
-    background: var(--d-drop-highlight-bg, color-mix(in srgb, var(--interactive-accent) 10%, transparent));
-    box-shadow: inset 0 0 0 1px var(--d-drop-highlight-border, color-mix(in srgb, var(--interactive-accent) 30%, transparent));
-}
-
-body[data-d-list-drop-highlight="off"] .d-drop-highlight {
-    display: none;
-}
-
 .d-block-type-submenu-title {
     display: flex;
     align-items: center;
@@ -396,16 +372,6 @@ body[data-d-list-drop-highlight="off"] .d-drop-highlight {
     width: 4em;
     text-align: center;
     font-variant-numeric: tabular-nums;
-}
-
-.d-setting-indent {
-    padding-left: 1.5em;
-    border-top: none;
-}
-
-.d-setting-disabled {
-    opacity: 0.5;
-    pointer-events: none;
 }
 
 .d-theme-accent-probe {
