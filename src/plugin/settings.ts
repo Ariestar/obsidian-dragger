@@ -370,7 +370,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
     }
 
     private resolveThemeAccent(): string {
-        const el = activeDocument.body.createEl('div', { cls: 'd-theme-accent-probe' });
+        const el = activeDocument.body.createDiv({ cls: 'd-theme-accent-probe' });
         const rgb = getComputedStyle(el).backgroundColor;
         el.remove();
         const match = rgb.match(/(\d+),\s*(\d+),\s*(\d+)/);

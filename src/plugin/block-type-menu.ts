@@ -173,7 +173,7 @@ function openFlyout(view: EditorView, group: NestedConversionGroup, trigger: HTM
 
     disposeFlyout();
 
-    const panel = activeDocument.createElement('div');
+    const panel = activeWindow.createDiv();
     panel.className = `menu ${FLYOUT_CLASS}`;
     panel.setAttribute('role', 'menu');
 
@@ -202,16 +202,16 @@ function openFlyout(view: EditorView, group: NestedConversionGroup, trigger: HTM
 
 function createFlyoutItem(view: EditorView, option: BlockTypeConversionOption, line: number): HTMLElement {
     const target = option.target;
-    const row = activeDocument.createElement('div');
+    const row = activeWindow.createDiv();
     row.className = `menu-item ${FLYOUT_ITEM_CLASS}`;
     row.setAttribute('role', 'menuitem');
     row.tabIndex = 0;
 
-    const icon = activeDocument.createElement('div');
+    const icon = activeWindow.createDiv();
     icon.className = 'menu-item-icon';
     setIcon(icon, option.icon);
 
-    const title = activeDocument.createElement('div');
+    const title = activeWindow.createDiv();
     title.className = 'menu-item-title';
     title.textContent = option.label;
 
@@ -325,15 +325,15 @@ function addActionItem(menu: Menu, action: BlockMenuAction): void {
 }
 
 function createGroupTitle(labelText: string): DocumentFragment {
-    const fragment = activeDocument.createDocumentFragment();
-    const title = activeDocument.createElement('span');
+    const fragment = activeWindow.createFragment();
+    const title = activeWindow.createSpan();
     title.className = 'd-block-type-submenu-title';
 
-    const label = activeDocument.createElement('span');
+    const label = activeWindow.createSpan();
     label.className = 'd-block-type-submenu-title-label';
     label.textContent = labelText;
 
-    const chevron = activeDocument.createElement('span');
+    const chevron = activeWindow.createSpan();
     chevron.className = 'd-block-type-submenu-title-chevron';
     chevron.setAttribute('aria-hidden', 'true');
     setIcon(chevron, 'chevron-right');

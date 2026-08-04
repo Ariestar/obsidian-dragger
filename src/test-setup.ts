@@ -22,6 +22,27 @@ if (typeof window !== 'undefined') {
         get: () => window.document,
     });
 
+    // jsdom has no Obsidian's window-level element factories (createDiv and
+    // friends); adapter code uses them since the eslint-plugin-obsidianmd
+    // 0.4.1 prefer-create-el rules.
+    if (typeof window.createDiv !== 'function') {
+        window.createDiv = (o?: Record<string, unknown> | string, callback?: (el: HTMLDivElement) => void) => {
+            const el = window.document.createElement('div');
+            callback?.(el);
+            return el;
+        };
+        window.createSpan = (o?: Record<string, unknown> | string, callback?: (el: HTMLSpanElement) => void) => {
+            const el = window.document.createElement('span');
+            callback?.(el);
+            return el;
+        };
+        window.createFragment = (callback?: (el: DocumentFragment) => void) => {
+            const el = window.document.createDocumentFragment();
+            callback?.(el);
+            return el;
+        };
+    }
+
     type InstanceOfConstructor = {
         prototype: object;
     };
