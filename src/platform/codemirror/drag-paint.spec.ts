@@ -97,6 +97,9 @@ describe('platform/codemirror drag paint', () => {
         const row = view.dom.querySelector<HTMLElement>('.cm-line.d-drop-seam');
         expect(row).not.toBeNull();
         expect(row?.classList.contains('is-invalid')).toBe(true);
+        // The x-offset CSS variables are refilled on every drag_over, not
+        // only on geometry changes.
+        expect(view.dom.style.getPropertyValue('--d-seam-left')).not.toBe('');
         view.destroy();
     });
 

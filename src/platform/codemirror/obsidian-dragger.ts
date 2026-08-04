@@ -210,14 +210,19 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
                 constructor(private readonly view: EditorView) {}
 
                 update(update: ViewUpdate) {
+                    let seamMoved = false;
                     for (const tr of update.transactions) {
                         for (const effect of tr.effects) {
                             if (effect.is(dragTransitionEffect)) {
                                 this.position = dropSeamState(effect.value.outputs, update.state.doc).position;
+                                seamMoved = true;
                             }
                         }
                     }
-                    if (update.geometryChanged) this.sync();
+                    // Refill the geometry CSS variables on every drag_over —
+                    // scrolling alone never changes geometry, so waiting for
+                    // geometryChanged would leave the seam at a stale offset.
+                    if (seamMoved || update.geometryChanged) this.sync();
                 }
 
                 private sync() {
