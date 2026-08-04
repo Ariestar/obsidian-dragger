@@ -276,15 +276,25 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
 
                 private sync() {
                     if (this.position === null) {
-                        this.view.dom.style.removeProperty('--d-seam-left');
-                        this.view.dom.style.removeProperty('--d-seam-width');
+                        this.removeSeamVars();
                         return;
                     }
                     const seam = dropSeam(this.view, this.position, options);
-                    if (!seam) return;
+                    if (!seam) {
+                        // No measurable seam (unrenderable target line): hide
+                        // the indicator rather than leave the old position
+                        // painted.
+                        this.removeSeamVars();
+                        return;
+                    }
                     const contentLeft = this.view.contentDOM.getBoundingClientRect().left;
                     this.view.dom.style.setProperty('--d-seam-left', `${Math.max(0, seam.left - contentLeft)}px`);
                     this.view.dom.style.setProperty('--d-seam-width', `${Math.max(0, seam.right - seam.left)}px`);
+                }
+
+                private removeSeamVars() {
+                    this.view.dom.style.removeProperty('--d-seam-left');
+                    this.view.dom.style.removeProperty('--d-seam-width');
                 }
             },
         ),
@@ -417,6 +427,9 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
  */
 function sourceRowLeftPx(view: EditorView, line: number, options: CodeMirrorGeometryOptions): string {
     const band = lineBand(view, line, options);
+    // lineBand is null only for non-list rows (their coordsAtPos is not
+    // measurable): those have no nesting level, so the offset is 0 — this is
+    // the correct value, not a fallback.
     if (!band) return '0px';
     const contentLeft = view.contentDOM.getBoundingClientRect().left;
     return `${Math.max(0, Math.round(band.left - contentLeft))}px`;
