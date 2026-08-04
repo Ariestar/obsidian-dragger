@@ -1,4 +1,6 @@
 allowBuilds:
   esbuild: true
+minimumReleaseAgeExclude:
+  - md-dragger@2.0.0
 onlyBuiltDependencies:
   - esbuild
