@@ -54,6 +54,20 @@
     pointer-events: auto;
 }
 
+/* Obsidian opens a nested CM6 editor inside a focused table cell (Live
+   Preview); it inherits this plugin's editor extensions, so the gutter rail
+   is re-created there. The cell editor has no line numbers or folds of its
+   own — drop the whole rail (and any handle painted before the editor is
+   attached; it is constructed detached) so the cell text starts at
+   Obsidian's native cell padding. */
+.cm-table-widget .cm-gutters {
+    display: none;
+}
+
+.cm-table-widget .md-dragger-handle {
+    display: none;
+}
+
 .md-dragger-handle:hover {
     opacity: 1;
     color: var(--d-handle-color-hover, var(--d-handle-color, var(--text-accent)));

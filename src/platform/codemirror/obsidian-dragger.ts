@@ -58,6 +58,14 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
             render: () => createObsidianHandle(),
             side: plugin.settings.handleGutterPosition === 'right' ? 'after' : 'before',
         },
+        // Obsidian's Live Preview renders tables as HTML widgets; clicking a
+        // cell opens a transient nested CM6 editor for that cell's text. The
+        // dragger must stay dormant there (no handles, no drags, no gesture
+        // interception): its document is just the cell text. The predicate is
+        // evaluated per render/press because the nested editor is mounted
+        // detached and only becomes identifiable once attached into the
+        // table widget.
+        enabled: isDraggerView,
         locate: (view) => ({
             sourceLineFromInput: (input) => {
                 // Adapter already resolves handle → data-block-start.
@@ -125,6 +133,13 @@ function createObsidianHandle(): HTMLElement {
     core.setAttribute('aria-hidden', 'true');
     handle.appendChild(core);
     return handle;
+}
+
+// True for real markdown editors only. Obsidian's nested table-cell editor
+// lives inside the rendered `.cm-table-widget`; its whole DOM is transient,
+// so the check is cheap and is re-evaluated on every render/press.
+function isDraggerView(view: EditorView): boolean {
+    return view.dom.closest('.cm-table-widget') === null;
 }
 
 function gestureConfig(plugin: ObsidianDraggerHost) {
@@ -298,6 +313,10 @@ function handleHover(): Extension {
         class {
             private visible: HTMLElement | null = null;
             private readonly onMove = (e: PointerEvent) => {
+                if (!isDraggerView(this.view)) {
+                    this.setVisible(null);
+                    return;
+                }
                 if (activeDocument.body.classList.contains(DRAGGING_BODY_CLASS)) {
                     this.setVisible(null);
                     return;
@@ -348,6 +367,9 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
             private lastPress: { event: PointerEvent; onHandle: boolean } | null = null;
             private locked = false;
             private readonly onPointerDown = (e: PointerEvent) => {
+                // Nested table-cell editors are not dragger views: never
+                // record a press or (mobile) block their pointer handling.
+                if (!isDraggerView(this.view)) return;
                 // Only a short press that started on a handle may open the
                 // block menu — cancels from Escape or presses on non-handle
                 // space must not.
@@ -363,6 +385,7 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
                 e.preventDefault();
             };
             private readonly onContextMenu = (e: Event) => {
+                if (!isDraggerView(this.view)) return;
                 if (!plugin.isMobilePlatform() || !plugin.isMobileDragModeEnabled()) return;
                 e.preventDefault();
             };

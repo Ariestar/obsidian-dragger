@@ -37,6 +37,73 @@ function pointer(type: string, x: number, y: number): PointerEvent {
 
 const nextFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
 
+/** Mirrors Obsidian's Live Preview table DOM: the rendered table is a block
+ * widget (`cm-table-widget`); a focused cell hosts the nested cell editor
+ * in a `table-cell-wrapper` inside it. */
+function tableCellEditorParent(): HTMLElement {
+    const widget = document.createElement('div');
+    widget.className = 'cm-embed-block cm-table-widget markdown-rendered';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'table-cell-wrapper';
+    widget.appendChild(wrapper);
+    document.body.appendChild(widget);
+    return wrapper;
+}
+
+describe('platform/codemirror nested table-cell editor', () => {
+    it('renders no handle and never starts a drag when constructed inside the table widget', async () => {
+        const view = new EditorView({
+            state: EditorState.create({ doc: 'cell text', extensions: dragHandleExtension(mockPlugin()) }),
+            parent: tableCellEditorParent(),
+        });
+        await nextFrame();
+
+        // The cell editor's document is just the cell text (a paragraph
+        // block) — without the enabled guard it would paint a handle.
+        expect(view.dom.querySelector('.md-dragger-handle')).toBeNull();
+        // The gutter rail itself is suppressed by the host stylesheet via the
+        // .d-root-editor scope — the extension must be fully applied here.
+        expect(view.dom.classList.contains('d-root-editor')).toBe(true);
+
+        const content = view.dom.querySelector<HTMLElement>('.cm-content');
+        expect(content).not.toBeNull();
+        content?.dispatchEvent(pointer('pointerdown', 0, 0));
+        window.dispatchEvent(pointer('pointermove', 0, 0));
+        window.dispatchEvent(pointer('pointermove', 12, 12));
+        await nextFrame();
+        expect(view.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBe(0);
+        view.destroy();
+    });
+
+    it('ignores presses after a detached mount is attached into the table widget', async () => {
+        // Obsidian constructs the cell editor detached and only then appends
+        // it into the table widget, so the enabled predicate is false only
+        // from the first attach onward; the per-press re-check must stop a
+        // drag that would otherwise start from the painted handle.
+        const wrapper = document.createElement('div');
+        wrapper.className = 'table-cell-wrapper';
+        const view = new EditorView({
+            state: EditorState.create({ doc: 'cell text', extensions: dragHandleExtension(mockPlugin()) }),
+            parent: wrapper,
+        });
+        const widget = document.createElement('div');
+        widget.className = 'cm-embed-block cm-table-widget markdown-rendered';
+        widget.appendChild(wrapper);
+        document.body.appendChild(widget);
+        await nextFrame();
+
+        const handle = view.dom.querySelector<HTMLElement>('.md-dragger-handle');
+        if (handle) {
+            handle.dispatchEvent(pointer('pointerdown', 0, 0));
+            window.dispatchEvent(pointer('pointermove', 12, 12));
+            await nextFrame();
+        }
+        expect(view.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBe(0);
+        view.destroy();
+        widget.remove();
+    });
+});
+
 describe('platform/codemirror drag paint', () => {
     it('highlights the source rows while dragging a plain document', async () => {
         const view = makeView('plain paragraph\nanother line');
