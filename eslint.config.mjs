@@ -36,9 +36,6 @@ export default tseslint.config(
             '@typescript-eslint/unbound-method': 'error',
             '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
             'no-console': ['error', { allow: ['warn', 'error', 'debug'] }],
-            // The settings tab is built imperatively; migrating it to the
-            // declarative getSettingDefinitions API is a separate work item.
-            'obsidianmd/settings-tab/prefer-setting-definitions': 'off',
         },
     },
     {

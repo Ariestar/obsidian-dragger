@@ -1,381 +1,164 @@
-import { App, Platform, PluginSettingTab, Setting } from 'obsidian';
+import { App, Platform, PluginSettingTab } from 'obsidian';
+import type { SettingDefinition, SettingDefinitionItem } from 'obsidian';
 import DragNDropPlugin from './main';
 import { t } from './i18n';
-import { DEFAULT_SETTINGS, NUMERIC_SETTING_RANGES } from './settings-types';
-import type {
-    BlockSelectionVisualStyle,
-    HandleGutterPosition,
-    HandleIconStyle,
-    HandleVisibilityMode,
-} from './settings-types';
+import { NUMERIC_SETTING_RANGES } from './settings-types';
 
+// Declarative settings (Obsidian 1.13+): getSettingDefinitions() takes
+// precedence over display() and renders the tab, so the plugin exposes all
+// options through the declarative API and no imperative renderer remains.
 export class DragNDropSettingTab extends PluginSettingTab {
     plugin: DragNDropPlugin;
-    private activeTab: 'appearance' | 'behavior' = 'appearance';
 
     constructor(app: App, plugin: DragNDropPlugin) {
         super(app, plugin);
         this.plugin = plugin;
     }
 
-    display(): void {
-        const { containerEl } = this;
-        containerEl.empty();
+    getSettingDefinitions(): SettingDefinitionItem[] {
         const i = t();
-
-        // ── Tab Nav ──
-        const nav = containerEl.createDiv('d-settings-nav');
-        const tabAppearance = nav.createEl('button', {
-            text: i.headingAppearance,
-            cls: `d-settings-tab ${this.activeTab === 'appearance' ? 'is-active' : ''}`,
+        const numeric = (
+            key: string,
+            range: { min: number; max: number; step: number },
+            name: string,
+            desc: string,
+        ): SettingDefinition => ({
+            name,
+            desc,
+            control: {
+                type: 'slider',
+                key,
+                min: range.min,
+                max: range.max,
+                step: range.step,
+            },
         });
-        const tabBehavior = nav.createEl('button', {
-            text: i.headingBehavior,
-            cls: `d-settings-tab ${this.activeTab === 'behavior' ? 'is-active' : ''}`,
-        });
-        tabAppearance.addEventListener('click', () => {
-            this.activeTab = 'appearance';
-            this.display();
-        });
-        tabBehavior.addEventListener('click', () => {
-            this.activeTab = 'behavior';
-            this.display();
-        });
-
-        if (this.activeTab === 'appearance') {
-            this.displayAppearance(containerEl, i);
-        } else {
-            this.displayBehavior(containerEl, i);
-        }
+        const mobileOnly = () => Platform.isMobile && this.plugin.settings.enableMobileTextLongPressDrag;
+        return [
+            {
+                type: 'group',
+                heading: i.headingAppearance,
+                items: [
+                    {
+                        name: i.handleIcon,
+                        desc: i.handleIconDesc,
+                        control: {
+                            type: 'dropdown',
+                            key: 'handleIcon',
+                            options: {
+                                dot: i.iconDot,
+                                'grip-dots': i.iconGripDots,
+                                'grip-lines': i.iconGripLines,
+                                square: i.iconSquare,
+                            },
+                        },
+                    },
+                    {
+                        name: i.handleColor,
+                        desc: i.handleColorDesc,
+                        control: { type: 'dropdown', key: 'handleColorMode', options: { theme: i.optionTheme, custom: i.optionCustom } },
+                    },
+                    {
+                        name: i.handleColor,
+                        desc: i.handleColorDesc,
+                        visible: () => this.plugin.settings.handleColorMode === 'custom',
+                        control: { type: 'color', key: 'handleColor' },
+                    },
+                    numeric('handleSize', NUMERIC_SETTING_RANGES.handleSize, i.handleSize, i.handleSizeDesc),
+                    {
+                        name: i.handleVisibility,
+                        desc: i.handleVisibilityDesc,
+                        control: {
+                            type: 'dropdown',
+                            key: 'handleVisibility',
+                            options: { hover: i.optionHover, always: i.optionAlways, hidden: i.optionHidden },
+                        },
+                    },
+                    {
+                        name: i.handleGutterPosition,
+                        desc: i.handleGutterPositionDesc,
+                        control: {
+                            type: 'dropdown',
+                            key: 'handleGutterPosition',
+                            options: { left: i.optionLeft, right: i.optionRight },
+                        },
+                    },
+                    numeric('handleHorizontalOffsetPx', NUMERIC_SETTING_RANGES.handleHorizontalOffsetPx, i.handleOffset, i.handleOffsetDesc),
+                    {
+                        name: i.selectionVisualStyle,
+                        desc: i.selectionVisualStyleDesc,
+                        control: {
+                            type: 'dropdown',
+                            key: 'selectionVisualStyle',
+                            options: {
+                                outline: i.optionBlockSelectionVisualOutline,
+                                subtle: i.optionBlockSelectionVisualSubtle,
+                                filled: i.optionBlockSelectionVisualFilled,
+                            },
+                        },
+                    },
+                    {
+                        name: i.enableBlockSelectionHighlight,
+                        desc: i.enableBlockSelectionHighlightDesc,
+                        control: { type: 'toggle', key: 'enableBlockSelectionHighlight' },
+                    },
+                    {
+                        name: i.indicatorColor,
+                        desc: i.indicatorColorDesc,
+                        control: { type: 'dropdown', key: 'indicatorColorMode', options: { theme: i.optionTheme, custom: i.optionCustom } },
+                    },
+                    {
+                        name: i.indicatorColor,
+                        desc: i.indicatorColorDesc,
+                        visible: () => this.plugin.settings.indicatorColorMode === 'custom',
+                        control: { type: 'color', key: 'indicatorColor' },
+                    },
+                ],
+            },
+            {
+                type: 'group',
+                heading: i.headingBehavior,
+                items: [
+                    {
+                        name: i.multiLineSelection,
+                        desc: i.multiLineSelectionDesc,
+                        control: { type: 'toggle', key: 'enableMultiLineSelection' },
+                    },
+                    numeric('mobileDragLongPressMs', NUMERIC_SETTING_RANGES.mobileDragLongPressMs, i.mobileDragLongPressMs, i.mobileDragLongPressMsDesc),
+                    numeric('mouseRangeSelectLongPressMs', NUMERIC_SETTING_RANGES.mouseRangeSelectLongPressMs, i.mouseRangeSelectLongPressMs, i.mouseRangeSelectLongPressMsDesc),
+                    numeric('autoScrollEdgeZonePx', NUMERIC_SETTING_RANGES.autoScrollEdgeZonePx, i.autoScrollEdgeZonePx, i.autoScrollEdgeZonePxDesc),
+                    numeric('autoScrollMaxSpeedPx', NUMERIC_SETTING_RANGES.autoScrollMaxSpeedPx, i.autoScrollMaxSpeedPx, i.autoScrollMaxSpeedPxDesc),
+                    {
+                        name: i.mobileTextLongPressDrag,
+                        desc: i.mobileTextLongPressDragDesc,
+                        control: {
+                            type: 'toggle',
+                            key: 'enableMobileTextLongPressDrag',
+                            disabled: () => !Platform.isMobile,
+                        },
+                    },
+                    {
+                        name: i.disableMobileDragModeAfterDrop,
+                        desc: i.disableMobileDragModeAfterDropDesc,
+                        visible: mobileOnly,
+                        control: { type: 'toggle', key: 'disableMobileDragModeAfterDrop' },
+                    },
+                    {
+                        name: i.optionMobileDragModeToggleViewAction,
+                        visible: mobileOnly,
+                        control: { type: 'toggle', key: 'mobileDragModeToggleEnabled' },
+                    },
+                ],
+            },
+        ];
     }
 
-    private displayAppearance(containerEl: HTMLElement, i: ReturnType<typeof t>): void {
-        new Setting(containerEl).setName(i.headingHandle).setHeading();
-
-        new Setting(containerEl)
-            .setName(i.handleIcon)
-            .setDesc(i.handleIconDesc)
-            .addDropdown((dropdown) =>
-                dropdown
-                    .addOption('dot', i.iconDot)
-                    .addOption('grip-dots', i.iconGripDots)
-                    .addOption('grip-lines', i.iconGripLines)
-                    .addOption('square', i.iconSquare)
-                    .setValue(this.plugin.settings.handleIcon)
-                    .onChange(async (value: HandleIconStyle) => {
-                        this.plugin.settings.handleIcon = value;
-                        await this.plugin.saveSettings();
-                    }),
-            );
-
-        const colorSetting = new Setting(containerEl).setName(i.handleColor).setDesc(i.handleColorDesc);
-
-        const themeAccent = this.resolveThemeAccent();
-
-        colorSetting.addDropdown((dropdown) =>
-            dropdown
-                .addOption('theme', i.optionTheme)
-                .addOption('custom', i.optionCustom)
-                .setValue(this.plugin.settings.handleColorMode)
-                .onChange(async (value: 'theme' | 'custom') => {
-                    this.plugin.settings.handleColorMode = value;
-                    await this.plugin.saveSettings();
-                    this.display();
-                }),
-        );
-
-        colorSetting.addColorPicker((picker) => {
-            const isTheme = this.plugin.settings.handleColorMode === 'theme';
-            picker
-                .setValue(isTheme ? themeAccent : this.plugin.settings.handleColor)
-                .setDisabled(isTheme)
-                .onChange(async (value) => {
-                    this.plugin.settings.handleColor = value;
-                    await this.plugin.saveSettings();
-                });
-        });
-
-        this.addNumericSetting(containerEl, {
-            name: i.handleSize,
-            desc: i.handleSizeDesc,
-            ...NUMERIC_SETTING_RANGES.handleSize,
-            value: this.plugin.settings.handleSize,
-            defaultValue: DEFAULT_SETTINGS.handleSize,
-            onChange: async (v) => {
-                this.plugin.settings.handleSize = v;
-                await this.plugin.saveSettings();
-            },
-        });
-
-        new Setting(containerEl)
-            .setName(i.handleVisibility)
-            .setDesc(i.handleVisibilityDesc)
-            .addDropdown((dropdown) =>
-                dropdown
-                    .addOption('hover', i.optionHover)
-                    .addOption('always', i.optionAlways)
-                    .addOption('hidden', i.optionHidden)
-                    .setValue(this.plugin.settings.handleVisibility)
-                    .onChange(async (value: HandleVisibilityMode) => {
-                        this.plugin.settings.handleVisibility = value;
-                        await this.plugin.saveSettings();
-                    }),
-            );
-
-        new Setting(containerEl)
-            .setName(i.handleGutterPosition)
-            .setDesc(i.handleGutterPositionDesc)
-            .addDropdown((dropdown) =>
-                dropdown
-                    .addOption('left', i.optionLeft)
-                    .addOption('right', i.optionRight)
-                    .setValue(this.plugin.settings.handleGutterPosition)
-                    .onChange(async (value: HandleGutterPosition) => {
-                        this.plugin.settings.handleGutterPosition = value;
-                        await this.plugin.saveSettings();
-                    }),
-            );
-
-        this.addNumericSetting(containerEl, {
-            name: i.handleOffset,
-            desc: i.handleOffsetDesc,
-            ...NUMERIC_SETTING_RANGES.handleHorizontalOffsetPx,
-            value: this.plugin.settings.handleHorizontalOffsetPx,
-            defaultValue: DEFAULT_SETTINGS.handleHorizontalOffsetPx,
-            onChange: async (v) => {
-                this.plugin.settings.handleHorizontalOffsetPx = v;
-                await this.plugin.saveSettings();
-            },
-        });
-
-        new Setting(containerEl).setName(i.headingHighlight).setHeading();
-
-        new Setting(containerEl)
-            .setName(i.selectionVisualStyle)
-            .setDesc(i.selectionVisualStyleDesc)
-            .addDropdown((dropdown) =>
-                dropdown
-                    .addOption('outline', i.optionBlockSelectionVisualOutline)
-                    .addOption('subtle', i.optionBlockSelectionVisualSubtle)
-                    .addOption('filled', i.optionBlockSelectionVisualFilled)
-                    .setValue(this.plugin.settings.selectionVisualStyle)
-                    .onChange(async (value: BlockSelectionVisualStyle) => {
-                        this.plugin.settings.selectionVisualStyle = value;
-                        await this.plugin.saveSettings();
-                    }),
-            );
-
-        new Setting(containerEl)
-            .setName(i.enableBlockSelectionHighlight)
-            .setDesc(i.enableBlockSelectionHighlightDesc)
-            .addToggle((toggle) =>
-                toggle.setValue(this.plugin.settings.enableBlockSelectionHighlight).onChange(async (value) => {
-                    this.plugin.settings.enableBlockSelectionHighlight = value;
-                    await this.plugin.saveSettings();
-                }),
-            );
-
-        const indicatorSetting = new Setting(containerEl).setName(i.indicatorColor).setDesc(i.indicatorColorDesc);
-
-        indicatorSetting.addDropdown((dropdown) =>
-            dropdown
-                .addOption('theme', i.optionTheme)
-                .addOption('custom', i.optionCustom)
-                .setValue(this.plugin.settings.indicatorColorMode)
-                .onChange(async (value: 'theme' | 'custom') => {
-                    this.plugin.settings.indicatorColorMode = value;
-                    await this.plugin.saveSettings();
-                    this.display();
-                }),
-        );
-
-        indicatorSetting.addColorPicker((picker) => {
-            const isTheme = this.plugin.settings.indicatorColorMode === 'theme';
-            picker
-                .setValue(isTheme ? themeAccent : this.plugin.settings.indicatorColor)
-                .setDisabled(isTheme)
-                .onChange(async (value) => {
-                    this.plugin.settings.indicatorColor = value;
-                    await this.plugin.saveSettings();
-                });
-        });
+    getControlValue(key: string): unknown {
+        return (this.plugin.settings as unknown as Record<string, unknown>)[key];
     }
 
-    private displayBehavior(containerEl: HTMLElement, i: ReturnType<typeof t>): void {
-        new Setting(containerEl)
-            .setName(i.multiLineSelection)
-            .setDesc(i.multiLineSelectionDesc)
-            .addToggle((toggle) =>
-                toggle.setValue(this.plugin.settings.enableMultiLineSelection).onChange(async (value) => {
-                    this.plugin.settings.enableMultiLineSelection = value;
-                    await this.plugin.saveSettings();
-                }),
-            );
-
-        this.addNumericSetting(containerEl, {
-            name: i.mobileDragLongPressMs,
-            desc: i.mobileDragLongPressMsDesc,
-            ...NUMERIC_SETTING_RANGES.mobileDragLongPressMs,
-            value: this.plugin.settings.mobileDragLongPressMs,
-            defaultValue: DEFAULT_SETTINGS.mobileDragLongPressMs,
-            onChange: async (v) => {
-                this.plugin.settings.mobileDragLongPressMs = v;
-                await this.plugin.saveSettings();
-            },
-        });
-
-        this.addNumericSetting(containerEl, {
-            name: i.mouseRangeSelectLongPressMs,
-            desc: i.mouseRangeSelectLongPressMsDesc,
-            ...NUMERIC_SETTING_RANGES.mouseRangeSelectLongPressMs,
-            value: this.plugin.settings.mouseRangeSelectLongPressMs,
-            defaultValue: DEFAULT_SETTINGS.mouseRangeSelectLongPressMs,
-            onChange: async (v) => {
-                this.plugin.settings.mouseRangeSelectLongPressMs = v;
-                await this.plugin.saveSettings();
-            },
-        });
-
-        this.addNumericSetting(containerEl, {
-            name: i.autoScrollEdgeZonePx,
-            desc: i.autoScrollEdgeZonePxDesc,
-            ...NUMERIC_SETTING_RANGES.autoScrollEdgeZonePx,
-            value: this.plugin.settings.autoScrollEdgeZonePx,
-            defaultValue: DEFAULT_SETTINGS.autoScrollEdgeZonePx,
-            onChange: async (v) => {
-                this.plugin.settings.autoScrollEdgeZonePx = v;
-                await this.plugin.saveSettings();
-            },
-        });
-
-        this.addNumericSetting(containerEl, {
-            name: i.autoScrollMaxSpeedPx,
-            desc: i.autoScrollMaxSpeedPxDesc,
-            ...NUMERIC_SETTING_RANGES.autoScrollMaxSpeedPx,
-            value: this.plugin.settings.autoScrollMaxSpeedPx,
-            defaultValue: DEFAULT_SETTINGS.autoScrollMaxSpeedPx,
-            onChange: async (v) => {
-                this.plugin.settings.autoScrollMaxSpeedPx = v;
-                await this.plugin.saveSettings();
-            },
-        });
-
-        const isMobile = Platform.isMobile;
-
-        new Setting(containerEl).setName(i.headingMobile).setHeading();
-
-        if (!isMobile) {
-            new Setting(containerEl).setDesc(i.mobileOnlyNotice);
-        }
-
-        new Setting(containerEl)
-            .setName(i.mobileTextLongPressDrag)
-            .setDesc(i.mobileTextLongPressDragDesc)
-            .addToggle((toggle) =>
-                toggle
-                    .setValue(this.plugin.settings.enableMobileTextLongPressDrag)
-                    .setDisabled(!isMobile)
-                    .onChange(async (value) => {
-                        this.plugin.settings.enableMobileTextLongPressDrag = value;
-                        await this.plugin.saveSettings();
-                        this.display();
-                    }),
-            );
-
-        if (this.plugin.settings.enableMobileTextLongPressDrag && isMobile) {
-            new Setting(containerEl)
-                .setName(i.disableMobileDragModeAfterDrop)
-                .setDesc(i.disableMobileDragModeAfterDropDesc)
-                .addToggle((toggle) =>
-                    toggle.setValue(this.plugin.settings.disableMobileDragModeAfterDrop).onChange(async (value) => {
-                        this.plugin.settings.disableMobileDragModeAfterDrop = value;
-                        await this.plugin.saveSettings();
-                    }),
-                );
-
-            new Setting(containerEl).setName(i.mobileDragModeToggleLocations).setHeading();
-
-            new Setting(containerEl).setName(i.optionMobileDragModeToggleViewAction).addToggle((toggle) =>
-                toggle.setValue(this.plugin.settings.mobileDragModeToggleEnabled).onChange(async (value) => {
-                    this.plugin.settings.mobileDragModeToggleEnabled = value;
-                    await this.plugin.saveSettings();
-                }),
-            );
-        }
-    }
-
-    private addNumericSetting(
-        containerEl: HTMLElement,
-        opts: {
-            name: string;
-            desc: string;
-            min: number;
-            max: number;
-            step: number;
-            value: number;
-            defaultValue: number;
-            onChange: (value: number) => Promise<void>;
-        },
-    ): void {
-        let textInput!: import('obsidian').TextComponent;
-        let resetBtn!: import('obsidian').ExtraButtonComponent;
-        let currentValue = opts.value;
-
-        const updateResetVisibility = () => {
-            resetBtn.extraSettingsEl.toggle(currentValue !== opts.defaultValue);
-        };
-
-        new Setting(containerEl)
-            .setName(opts.name)
-            .setDesc(opts.desc)
-            .addSlider((slider) =>
-                slider
-                    .setLimits(opts.min, opts.max, opts.step)
-                    .setValue(opts.value)
-                    .onChange(async (value) => {
-                        currentValue = value;
-                        textInput.setValue(String(value));
-                        updateResetVisibility();
-                        await opts.onChange(value);
-                    }),
-            )
-            .addText((text) => {
-                textInput = text;
-                text.inputEl.type = 'number';
-                text.inputEl.addClass('d-setting-number-input');
-                text.setValue(String(opts.value));
-                text.inputEl.addEventListener('blur', () => {
-                    const v = Math.round(
-                        Math.max(opts.min, Math.min(opts.max, Number(text.inputEl.value) || opts.defaultValue)),
-                    );
-                    currentValue = v;
-                    text.setValue(String(v));
-                    updateResetVisibility();
-                    void opts.onChange(v);
-                });
-                text.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        text.inputEl.blur();
-                    }
-                });
-            })
-            .addExtraButton((btn) => {
-                resetBtn = btn;
-                btn.setIcon('reset').onClick(() => {
-                    void opts.onChange(opts.defaultValue).then(() => this.display());
-                });
-                btn.extraSettingsEl.toggle(opts.value !== opts.defaultValue);
-            });
-    }
-
-    private resolveThemeAccent(): string {
-        const el = activeDocument.body.createDiv({ cls: 'd-theme-accent-probe' });
-        const rgb = getComputedStyle(el).backgroundColor;
-        el.remove();
-        const match = rgb.match(/(\d+),\s*(\d+),\s*(\d+)/);
-        if (!match) return '#7b6cd9';
-        const [, r, g, b] = match;
-        return `#${[r, g, b].map((c) => Number(c).toString(16).padStart(2, '0')).join('')}`;
+    async setControlValue(key: string, value: unknown): Promise<void> {
+        (this.plugin.settings as unknown as Record<string, unknown>)[key] = value;
+        await this.plugin.saveSettings();
     }
 }

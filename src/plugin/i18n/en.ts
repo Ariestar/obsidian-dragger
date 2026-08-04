@@ -2,10 +2,7 @@ import type { ZhCnStrings } from './zh-cn';
 
 export const en: ZhCnStrings = {
     headingAppearance: 'Appearance',
-    headingHandle: 'Drag handle',
-    headingHighlight: 'Highlights',
     headingBehavior: 'Behavior',
-    headingMobile: 'Mobile',
 
     handleColor: 'Handle color',
     handleColorDesc: 'Follow theme accent or pick a custom color',
@@ -61,7 +58,5 @@ export const en: ZhCnStrings = {
     mobileTextLongPressDrag: 'Mobile text long-press drag',
     mobileTextLongPressDragDesc:
         'On mobile, long-press a text line or rendered block content to drag the current block directly without using the left handle',
-    mobileDragModeToggleLocations: 'Toggle button placement',
     optionMobileDragModeToggleViewAction: 'View actions',
-    mobileOnlyNotice: '⚠️ These settings can only be modified on mobile',
 };

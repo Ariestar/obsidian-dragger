@@ -2,10 +2,7 @@ import type { ZhCnStrings } from './zh-cn';
 
 export const ru: ZhCnStrings = {
     headingAppearance: 'Внешний вид',
-    headingHandle: 'Маркер перетаскивания',
-    headingHighlight: 'Подсветка',
     headingBehavior: 'Поведение',
-    headingMobile: 'Мобильное устройство',
 
     handleColor: 'Цвет маркера',
     handleColorDesc: 'Использовать цвет акцента темы или выбрать свой',
@@ -63,7 +60,5 @@ export const ru: ZhCnStrings = {
     mobileTextLongPressDrag: 'Перетаскивание долгим нажатием на мобильном',
     mobileTextLongPressDragDesc:
         'На мобильном удерживайте строку текста или блок, чтобы перетащить его напрямую без использования маркера',
-    mobileDragModeToggleLocations: 'Расположение кнопки',
     optionMobileDragModeToggleViewAction: 'Панель действий',
-    mobileOnlyNotice: '⚠️ Эти настройки доступны только на мобильном устройстве',
 };

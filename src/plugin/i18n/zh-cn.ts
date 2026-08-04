@@ -1,10 +1,7 @@
 export const zhCn = {
     // Headings
     headingAppearance: '外观',
-    headingHandle: '拖拽手柄',
-    headingHighlight: '高亮效果',
     headingBehavior: '行为',
-    headingMobile: '移动端',
 
     // Handle color
     handleColor: '手柄颜色',
@@ -65,9 +62,7 @@ export const zhCn = {
     disableMobileDragModeAfterDropDesc: '开启后，移动端每次成功移动文本块后会自动退出拖拽模式',
     mobileTextLongPressDrag: '移动端文本长按拖拽',
     mobileTextLongPressDragDesc: '移动端在文本整行或块内容区域长按可直接拖拽当前块，无需左侧手柄',
-    mobileDragModeToggleLocations: 'Toggle 按钮位置',
     optionMobileDragModeToggleViewAction: '视图操作栏',
-    mobileOnlyNotice: '⚠️ 以下设置仅在移动端可修改',
 };
 
 export type ZhCnStrings = typeof zhCn;
