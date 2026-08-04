@@ -42,7 +42,6 @@ function extractSpecifiers(text: string): string[] {
 const ALLOWED_MD_DRAGGER_ENTRIES = new Set([
     'md-dragger',
     'md-dragger/domain',
-    'md-dragger/domain/perf',
     'md-dragger/runtime',
     'md-dragger/runtime/modules',
     'md-dragger/adapter/codemirror',
