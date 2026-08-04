@@ -6,6 +6,7 @@ import {
     dragTransitionEffect,
     dropSeamDecoration,
     lineAtPoint,
+    scrollPort,
     seamOffset,
     sourceHighlightDecoration,
     sourceLineFromInput as handleSourceLineFromInput,
@@ -76,24 +77,9 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
             gesture: () => gestureConfig(plugin),
             modules: [
                 autoScroll(
-                    {
-                        nudge: (point, cfg) => {
-                            const scroller = activeDocument
-                                .elementFromPoint(point.x, point.y)
-                                ?.closest('.cm-scroller') as HTMLElement | null;
-                            if (!scroller) return;
-                            const rect = scroller.getBoundingClientRect();
-                            let dy = 0;
-                            const top = point.y - rect.top;
-                            const bottom = rect.bottom - point.y;
-                            if (top >= 0 && top < cfg.edgeZonePx) {
-                                dy = -cfg.maxSpeedPx * (1 - top / cfg.edgeZonePx);
-                            } else if (bottom >= 0 && bottom < cfg.edgeZonePx) {
-                                dy = cfg.maxSpeedPx * (1 - bottom / cfg.edgeZonePx);
-                            }
-                            if (dy !== 0) scroller.scrollTop += dy;
-                        },
-                    },
+                    // Adapter port scrolls the .cm-scroller under the pointer;
+                    // activeDocument keeps pop-out windows working.
+                    scrollPort(() => activeDocument),
                     () => ({
                         edgeZonePx: plugin.settings.autoScrollEdgeZonePx,
                         maxSpeedPx: plugin.settings.autoScrollMaxSpeedPx,
