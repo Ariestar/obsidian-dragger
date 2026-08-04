@@ -179,11 +179,11 @@ body[data-d-drag-source-style="filled"],
 
 /* 选区高亮：CM6 行装饰，与手柄同一渲染管线，随文本流滚动零延迟。
    背景与左右边缘线直接画在行上，无绝对定位 overlay。每行通过行内
-   --d-source-level（引擎 parseLine 的嵌套层级）与 view 级
+   --d-source-level（adapter sourceListLevel，源自引擎 parseLine 的嵌套层级）与 view 级
    --d-list-indent-step（Obsidian 渲染缩进步长）相乘得到左缘位置：
    嵌套越深，蒙版左缘越靠右。左缘竖线是定位在 --d-source-left 的 2px
    渐变（box-shadow inset 的可见区域是 [0, offset) 整块，不能用）。 */
-.cm-line.d-drag-source-line {
+.cm-line.md-dragger-drag-source {
     --d-source-left: calc(var(--d-source-level, 0) * var(--d-list-indent-step, 0px));
     background:
         linear-gradient(var(--d-drag-source-border), var(--d-drag-source-border)) no-repeat,
@@ -193,7 +193,7 @@ body[data-d-drag-source-style="filled"],
     box-shadow: inset -1px 0 0 0 var(--d-drag-source-border);
 }
 
-body[data-d-drag-source-highlight="off"] .cm-line.d-drag-source-line {
+body[data-d-drag-source-highlight="off"] .cm-line.md-dragger-drag-source {
     background: transparent;
     box-shadow: none;
 }
@@ -262,13 +262,14 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
     -webkit-touch-callout: none;
 }
 
-/* Drop seam: a CM6 line decoration on the seam row (above the first line,
-   or below the previous line). The row itself is untouched — zero layout
-   impact — and it scrolls with the text flow. The visible line is an
-   overflowing pseudo-element; its x offset and width come from the engine's
-   dropSeam geometry, exposed as CSS variables by the paint view plugin. */
-.cm-line.d-drop-seam-top::before,
-.cm-line.d-drop-seam-below::after {
+/* Drop seam: a CM6 line decoration built by the adapter on the seam row
+   (above the first line, or below the previous line). The row itself is
+   untouched — zero layout impact — and it scrolls with the text flow. The
+   visible line is an overflowing pseudo-element; its x offset and width come
+   from the adapter's seamOffset geometry, exposed as CSS variables by the
+   paint view plugin. */
+.cm-line.md-dragger-drop-seam-top::before,
+.cm-line.md-dragger-drop-seam-below::after {
     content: '';
     position: absolute;
     left: var(--d-seam-left, 0px);
@@ -279,19 +280,19 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
     pointer-events: none;
 }
 
-.cm-line.d-drop-seam-top::before {
+.cm-line.md-dragger-drop-seam-top::before {
     top: -2px;
 }
 
-.cm-line.d-drop-seam-below::after {
+.cm-line.md-dragger-drop-seam-below::after {
     bottom: -2px;
 }
 
 /* Rejected drop (e.g. re-inserting in place): the seam stays visible as a
    light grey line (--text-faint) instead of disappearing — the muted tone
    signals the drop is forbidden/invalid. */
-.cm-line.d-drop-seam-top.is-invalid::before,
-.cm-line.d-drop-seam-below.is-invalid::after {
+.cm-line.md-dragger-drop-seam-top.is-invalid::before,
+.cm-line.md-dragger-drop-seam-below.is-invalid::after {
     background: var(--text-faint);
 }
 

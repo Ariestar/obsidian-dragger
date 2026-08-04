@@ -54,7 +54,7 @@ describe('platform/codemirror drag paint', () => {
         await nextFrame();
 
         // The source rows carry the highlight as CM6 line decorations.
-        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
+        expect(view.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBeGreaterThan(0);
         view.destroy();
     });
 
@@ -71,7 +71,7 @@ describe('platform/codemirror drag paint', () => {
         window.dispatchEvent(pointer('pointermove', 12, 12));
         await nextFrame();
 
-        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
+        expect(view.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBeGreaterThan(0);
         view.destroy();
     });
 
@@ -94,7 +94,7 @@ describe('platform/codemirror drag paint', () => {
         await nextFrame();
 
         // The seam row carries the line decoration, marked grey (invalid).
-        const row = view.dom.querySelector<HTMLElement>('.cm-line.d-drop-seam');
+        const row = view.dom.querySelector<HTMLElement>('.cm-line.md-dragger-drop-seam');
         expect(row).not.toBeNull();
         expect(row?.classList.contains('is-invalid')).toBe(true);
         // The x-offset CSS variables are refilled on every drag_over, not
@@ -117,18 +117,18 @@ describe('platform/codemirror drag paint', () => {
         handle.dispatchEvent(pointer('pointerdown', 0, 0));
         await new Promise((resolve) => window.setTimeout(resolve, 40));
         await nextFrame();
-        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
+        expect(view.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBeGreaterThan(0);
 
         // Release without dragging: the multi-select (and its highlight) stays.
         window.dispatchEvent(pointer('pointerup', 0, 0));
         await nextFrame();
-        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
+        expect(view.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBeGreaterThan(0);
 
         // Press on non-block space (editor background, not a handle) must
         // clear the pending selection and its highlight.
         view.dom.dispatchEvent(pointer('pointerdown', 400, 400));
         await nextFrame();
-        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBe(0);
+        expect(view.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBe(0);
         view.destroy();
     });
 
@@ -150,8 +150,8 @@ describe('platform/codemirror drag paint', () => {
         window.dispatchEvent(pointer('pointermove', 12, 12));
         await nextFrame();
 
-        expect(viewA.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
-        expect(viewB.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBe(0);
+        expect(viewA.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBeGreaterThan(0);
+        expect(viewB.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBe(0);
         viewA.destroy();
         viewB.destroy();
     });
@@ -169,12 +169,12 @@ describe('platform/codemirror drag paint', () => {
         handle.dispatchEvent(pointer('pointerdown', 0, 0));
         window.dispatchEvent(pointer('pointermove', 12, 12));
         await nextFrame();
-        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
+        expect(view.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBeGreaterThan(0);
 
         window.dispatchEvent(pointer('pointermove', 40, 40));
         window.dispatchEvent(pointer('pointermove', 80, 80));
         await nextFrame();
-        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
+        expect(view.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBeGreaterThan(0);
         view.destroy();
     });
 });

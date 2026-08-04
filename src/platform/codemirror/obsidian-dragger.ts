@@ -1,11 +1,13 @@
-import { EditorState, StateField, type Extension, type Range } from '@codemirror/state';
+import { EditorState, StateField, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import {
     HANDLE_CLASS,
     mdDragger,
     dragTransitionEffect,
-    dropSeam,
+    dropSeamDecoration,
     lineAtPoint,
+    seamOffset,
+    sourceHighlightDecoration,
     sourceLineFromInput as handleSourceLineFromInput,
     type CodeMirrorGeometryOptions,
     type MdDraggerCodeMirrorOptions,
@@ -13,7 +15,6 @@ import {
 import {
     detectBlock,
     isLineNumberInRanges,
-    parseLine,
     selectionLineRanges,
     type DropPosition,
     type LineRange,
@@ -21,13 +22,7 @@ import {
 import { dropSeamState, selectionFromOutputs, type PipelineResult } from 'md-dragger/runtime';
 import { autoScroll } from 'md-dragger/runtime/modules';
 import { openBlockTypeMenu } from '../../plugin/block-type-menu';
-import {
-    DROP_SEAM_CLASS,
-    DRAG_SOURCE_LINE_CLASS,
-    DRAGGING_BODY_CLASS,
-    MOBILE_GESTURE_LOCK_CLASS,
-    ROOT_EDITOR_CLASS,
-} from '../../shared/dom-selectors';
+import { DRAGGING_BODY_CLASS, MOBILE_GESTURE_LOCK_CLASS, ROOT_EDITOR_CLASS } from '../../shared/dom-selectors';
 
 /** Minimal plugin surface used by the editor extension. */
 export type ObsidianDraggerHost = {
@@ -165,27 +160,14 @@ function gestureConfig(plugin: ObsidianDraggerHost) {
     };
 }
 
-// The drop seam is a plain CM6 line decoration on the seam row (above the
-// first line, or below the previous line). The row itself is untouched — zero
-// layout impact — and it rides the editor's render pipeline like the source
-// highlight, so scrolling repaints it with the text flow. The visible line
-// is drawn by an overflowing ::before/::after pseudo-element. The decoration
-// is derived from the engine's per-view output stream (dragTransitionEffect);
-// its x offset comes from CSS variables that the view plugin below fills
-// from the engine's dropSeam geometry — the single geometry source, never
-// re-derived here.
-function buildDropIndicatorDecoration(outputs: PipelineResult['outputs'], state: EditorState): DecorationSet {
-    const { position, invalid } = dropSeamState(outputs, state.doc);
-    if (position === null) return Decoration.none;
-    const top = position.line <= 1;
-    const seamRow = top ? 1 : Math.min(position.line - 1, state.doc.lines);
-    return Decoration.set([
-        Decoration.line({
-            class: `${DROP_SEAM_CLASS} ${top ? 'd-drop-seam-top' : 'd-drop-seam-below'}${invalid ? ' is-invalid' : ''}`,
-        }).range(state.doc.line(seamRow).from),
-    ]);
-}
-
+// The drop seam is a plain CM6 line decoration built by the adapter
+// (dropSeamDecoration) on the seam row — above the first line, or below the
+// previous line. The row itself is untouched — zero layout impact — and it
+// rides the editor's render pipeline like the source highlight, so scrolling
+// repaints it with the text flow. The visible line is drawn by an
+// overflowing ::before/::after pseudo-element (styled by the protocol class
+// names in styles.css); its x offset comes from CSS variables that the view
+// plugin below fills from the adapter's seamOffset geometry.
 function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
     const dropIndicatorField = StateField.define<DecorationSet>({
         create: () => Decoration.none,
@@ -193,7 +175,7 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
             deco = deco.map(tr.changes);
             for (const effect of tr.effects) {
                 if (effect.is(dragTransitionEffect)) {
-                    deco = buildDropIndicatorDecoration(effect.value.outputs, tr.state);
+                    deco = dropSeamDecoration(effect.value.outputs, tr.state);
                 }
             }
             return deco;
@@ -230,17 +212,16 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
                         this.removeSeamVars();
                         return;
                     }
-                    const seam = dropSeam(this.view, this.position, options);
-                    if (!seam) {
+                    const offset = seamOffset(this.view, this.position, options);
+                    if (!offset) {
                         // No measurable seam (unrenderable target line): hide
                         // the indicator rather than leave the old position
                         // painted.
                         this.removeSeamVars();
                         return;
                     }
-                    const contentLeft = this.view.contentDOM.getBoundingClientRect().left;
-                    this.view.dom.style.setProperty('--d-seam-left', `${Math.max(0, seam.left - contentLeft)}px`);
-                    this.view.dom.style.setProperty('--d-seam-width', `${Math.max(0, seam.right - seam.left)}px`);
+                    this.view.dom.style.setProperty('--d-seam-left', `${offset.left}px`);
+                    this.view.dom.style.setProperty('--d-seam-width', `${offset.width}px`);
                 }
 
                 private removeSeamVars() {
@@ -252,51 +233,26 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
     ];
 }
 
-// Selected source rows as CM6 line decorations, derived from the engine's
-// per-view output stream (dragTransitionEffect) like the drop seam — no
-// dispatch, no global bus, no cross-view leakage. Each row carries its
-// nesting level as an inline --d-source-level; the rendered indent step is
-// a view-level CSS variable set by the plugin below, and the stylesheet
-// multiplies the two so the highlight leaves the nesting gap on the left.
+// Selected source rows as CM6 line decorations built by the adapter
+// (sourceHighlightDecoration) from the engine's per-view output stream
+// (dragTransitionEffect) — no dispatch, no global bus, no cross-view leakage.
+// Each row carries its nesting level as the protocol's --d-source-level; the
+// rendered indent step is a view-level CSS variable set by the plugin below,
+// and the stylesheet multiplies the two so the highlight leaves the nesting
+// gap on the left.
 const dragSourceLinesField = StateField.define<DecorationSet>({
     create: () => Decoration.none,
     update(deco, tr) {
         deco = deco.map(tr.changes);
         for (const effect of tr.effects) {
             if (effect.is(dragTransitionEffect)) {
-                deco = buildDragSourceDecoration(effect.value.outputs, tr.state);
+                deco = sourceHighlightDecoration(effect.value.outputs, tr.state);
             }
         }
         return deco;
     },
     provide: (field) => EditorView.decorations.from(field),
 });
-
-function buildDragSourceDecoration(outputs: PipelineResult['outputs'], state: EditorState): DecorationSet {
-    const selection = selectionFromOutputs(outputs);
-    if (selection === null) return Decoration.none;
-    const tabSize = state.facet(EditorState.tabSize);
-    const decorations: Range<Decoration>[] = [];
-    for (const range of selectionLineRanges(state.doc.lines, selection)) {
-        for (let line = range.startLine; line <= range.endLine; line++) {
-            if (line < 1 || line > state.doc.lines) continue;
-            decorations.push(
-                Decoration.line({
-                    class: DRAG_SOURCE_LINE_CLASS,
-                    attributes: { style: `--d-source-level: ${sourceListLevel(state.doc.line(line).text, tabSize)}` },
-                }).range(state.doc.line(line).from),
-            );
-        }
-    }
-    return Decoration.set(decorations);
-}
-
-/** Nesting level of a list line (engine parseLine); non-list rows have none. */
-function sourceListLevel(lineText: string, tabSize: number): number {
-    const parsed = parseLine(lineText, tabSize);
-    if (parsed.marker?.kind !== 'list' || parsed.quote.prefix.length > 0) return 0;
-    return Math.round(parsed.indent.width / LIST_INDENT_UNIT);
-}
 
 function selectionPaint(): Extension {
     return [
