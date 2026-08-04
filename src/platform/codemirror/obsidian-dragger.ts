@@ -15,12 +15,10 @@ import {
     isLineNumberInRanges,
     parseLine,
     selectionLineRanges,
-    type BlockSelection,
-    type Doc,
     type DropPosition,
     type LineRange,
 } from 'md-dragger/domain';
-import type { PipelineResult } from 'md-dragger/runtime';
+import { dropSeamState, selectionFromOutputs, type PipelineResult } from 'md-dragger/runtime';
 import { autoScroll } from 'md-dragger/runtime/modules';
 import { openBlockTypeMenu } from '../../plugin/block-type-menu';
 import {
@@ -188,27 +186,6 @@ function buildDropIndicatorDecoration(outputs: PipelineResult['outputs'], state:
     ]);
 }
 
-/** The active drop seam for this view from one engine output batch: only the
- * view that owns the drop doc paints it; a rejected drop (re-inserting a
- * block in place) still shows a grey seam instead of hiding it entirely. */
-function dropSeamState(
-    outputs: PipelineResult['outputs'],
-    doc: Doc,
-): { position: DropPosition | null; invalid: boolean } {
-    let position: DropPosition | null = null;
-    let invalid = false;
-    for (const output of outputs) {
-        if (output.type === 'drag_over') {
-            const onView = output.drop.position && output.drop.position.doc === doc ? output.drop.position : null;
-            position = onView;
-            invalid = onView !== null && output.drop.rejectReason != null;
-        } else if (output.type === 'dropped' || output.type === 'cancelled' || output.type === 'terminal') {
-            position = null;
-        }
-    }
-    return { position, invalid };
-}
-
 function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
     const dropIndicatorField = StateField.define<DecorationSet>({
         create: () => Decoration.none,
@@ -314,19 +291,6 @@ function sourceListLevel(lineText: string, tabSize: number): number {
     const parsed = parseLine(lineText, tabSize);
     if (parsed.marker?.kind !== 'list' || parsed.quote.prefix.length > 0) return 0;
     return Math.round(parsed.indent.width / LIST_INDENT_UNIT);
-}
-
-/** The selected blocks from one engine output batch (null = none). */
-function selectionFromOutputs(outputs: PipelineResult['outputs']): BlockSelection | null {
-    let selection: BlockSelection | null = null;
-    for (const output of outputs) {
-        if (output.type === 'selection_changed' || output.type === 'drag_source_changed') {
-            selection = output.selection;
-        } else if (output.type === 'cancelled' || output.type === 'terminal' || output.type === 'dropped') {
-            selection = null;
-        }
-    }
-    return selection;
 }
 
 function selectionPaint(): Extension {
