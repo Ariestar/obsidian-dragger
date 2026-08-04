@@ -22,5 +22,15 @@ export default defineConfig({
         globals: false,
         environment: 'node',
         setupFiles: ['src/test-setup.ts'],
+        server: {
+            deps: {
+                // Force vitest to transform md-dragger instead of externalizing
+                // it. When installed from the registry it lives inside the pnpm
+                // virtual store, so its realpath is under node_modules and vite
+                // would otherwise load it natively — bypassing the CodeMirror
+                // aliases above and splitting the @codemirror/state instances.
+                inline: ['md-dragger'],
+            },
+        },
     },
 });
