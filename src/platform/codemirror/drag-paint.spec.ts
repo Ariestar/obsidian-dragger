@@ -19,11 +19,13 @@ function mockPlugin(): ObsidianDraggerHost {
     };
 }
 
-function makeView(doc: string): EditorView {
+function makeView(doc: string, settingsOverrides?: Partial<ObsidianDraggerHost['settings']>): EditorView {
+    const plugin = mockPlugin();
+    if (settingsOverrides) plugin.settings = { ...plugin.settings, ...settingsOverrides };
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     return new EditorView({
-        state: EditorState.create({ doc, extensions: dragHandleExtension(mockPlugin()) }),
+        state: EditorState.create({ doc, extensions: dragHandleExtension(plugin) }),
         parent,
     });
 }
@@ -95,6 +97,35 @@ describe('platform/codemirror drag paint', () => {
         const row = view.dom.querySelector<HTMLElement>('.cm-line.d-drop-seam');
         expect(row).not.toBeNull();
         expect(row?.classList.contains('is-invalid')).toBe(true);
+        view.destroy();
+    });
+
+    it('clears the source highlight when pressing non-block space after a long-press multi-select', async () => {
+        // Short long-press so the range sweep (selecting) arms quickly.
+        const view = makeView('- item one\n- item two\n- item three', { mouseRangeSelectLongPressMs: 10 });
+        await nextFrame();
+
+        const handle = view.dom.querySelector<HTMLElement>('.md-dragger-handle');
+        expect(handle).not.toBeNull();
+        if (!handle) return;
+
+        // Long-press the handle → range sweep enters 'selecting' → the
+        // selection highlight is painted.
+        handle.dispatchEvent(pointer('pointerdown', 0, 0));
+        await new Promise((resolve) => window.setTimeout(resolve, 40));
+        await nextFrame();
+        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
+
+        // Release without dragging: the multi-select (and its highlight) stays.
+        window.dispatchEvent(pointer('pointerup', 0, 0));
+        await nextFrame();
+        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
+
+        // Press on non-block space (editor background, not a handle) must
+        // clear the pending selection and its highlight.
+        view.dom.dispatchEvent(pointer('pointerdown', 400, 400));
+        await nextFrame();
+        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBe(0);
         view.destroy();
     });
 });
