@@ -10,7 +10,10 @@ export function loadLocalEnv() {
         const separatorIndex = trimmed.indexOf('=');
         if (separatorIndex === -1) continue;
         const key = trimmed.slice(0, separatorIndex).trim();
-        const value = trimmed.slice(separatorIndex + 1).trim().replace(/^['"]|['"]$/g, '');
+        const value = trimmed
+            .slice(separatorIndex + 1)
+            .trim()
+            .replace(/^['"]|['"]$/g, '');
         if (!key || process.env[key] !== undefined) continue;
         process.env[key] = value;
     }

@@ -53,7 +53,7 @@ describe('plugin architecture boundaries', () => {
             extractSpecifiers(file.text)
                 .filter((spec) => spec === 'md-dragger' || spec.startsWith('md-dragger/'))
                 .filter((spec) => !ALLOWED_MD_DRAGGER_ENTRIES.has(spec))
-                .map((spec) => `${file.rel} -> ${spec}`)
+                .map((spec) => `${file.rel} -> ${spec}`),
         );
         expect(offenders.sort()).toEqual([]);
     });
@@ -70,8 +70,6 @@ describe('plugin architecture boundaries', () => {
             .filter((file) => file.rel.startsWith('src/platform/codemirror/'))
             .map((file) => file.rel)
             .sort();
-        expect(files).toEqual([
-            'src/platform/codemirror/obsidian-dragger.ts',
-        ]);
+        expect(files).toEqual(['src/platform/codemirror/obsidian-dragger.ts']);
     });
 });

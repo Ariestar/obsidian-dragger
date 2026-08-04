@@ -24,7 +24,7 @@
     },
     "lint-staged": {
         "*.ts": [
-            "eslint --fix --config eslint.config.mjs",
+            "eslint --fix --config eslint.config.mjs --ignore-pattern \"**/*.spec.ts\"",
             "biome format --write"
         ],
         "*.{mjs,json}": "biome format --write"

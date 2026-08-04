@@ -37,39 +37,39 @@ export default tseslint.config(
             '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
             'no-console': ['error', { allow: ['warn', 'error', 'debug'] }],
         },
-    }
-    ,
+    },
     {
         files: ['src/core/**/*.ts'],
         rules: {
-            'no-restricted-imports': ['error', {
-                patterns: [
-                    '**/features/**',
-                    '**/platform/**',
-                ],
-            }],
+            'no-restricted-imports': [
+                'error',
+                {
+                    patterns: ['**/features/**', '**/platform/**'],
+                },
+            ],
         },
     },
     {
         files: ['src/platform/**/*.ts'],
         rules: {
-            'no-restricted-imports': ['error', {
-                patterns: [
-                    '**/features/**',
-                    '**/core/**',
-                ],
-            }],
+            'no-restricted-imports': [
+                'error',
+                {
+                    patterns: ['**/features/**', '**/core/**'],
+                },
+            ],
         },
     },
     {
         files: ['src/plugin/**/*.ts'],
         rules: {
-            'no-restricted-imports': ['error', {
-                patterns: [
-                    '**/core/**',
-                ],
-            }],
+            'no-restricted-imports': [
+                'error',
+                {
+                    patterns: ['**/core/**'],
+                },
+            ],
             '@typescript-eslint/no-deprecated': 'off',
         },
-    }
+    },
 );

@@ -2,12 +2,7 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockType } from 'md-dragger/domain';
-import {
-    convertCurrentBlockType,
-    copyCurrentBlock,
-    cutCurrentBlock,
-    deleteCurrentBlock,
-} from './block-type-commands';
+import { convertCurrentBlockType, copyCurrentBlock, cutCurrentBlock, deleteCurrentBlock } from './block-type-commands';
 
 describe('block type conversion', () => {
     it('converts the current block to a heading', () => {

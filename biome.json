@@ -24,7 +24,8 @@
             "!**/dist/**",
             "!**/node_modules/**",
             "!**/ob_vault/**",
-            "!**/.github/**"
+            "!**/.github/**",
+            "!skills-lock.json"
         ]
     }
 }
