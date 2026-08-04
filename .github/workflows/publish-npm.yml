@@ -64,4 +64,8 @@ jobs:
       - name: Publish to npm
         # --no-git-checks: the tag-push checkout is detached HEAD, which fails
         # pnpm's default publish-branch (master|main) git check.
+        # NODE_AUTH_TOKEN is injected explicitly because setup-node's automatic
+        # injection is unreliable here.
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm publish --registry=https://registry.npmjs.org --access public --provenance --no-git-checks
