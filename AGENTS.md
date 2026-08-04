@@ -70,6 +70,12 @@ Notes:
 - Do not add dependencies unless the user approves them.
 - Create commits only when the user asks.
 
+## Engineering Principles
+
+- No fallbacks or downgrades: a value comes from its single source of truth, or the code fails explicitly with a clear error. Never silently substitute a default, a previous value, or a guessed value when the real one is unavailable, and never keep stale state because a fresh value could not be produced.
+- No wrappers: a function that only forwards to another function (same signature, one caller) is deleted; call sites call the target directly.
+- No over-engineering: no speculative abstractions, no single-implementation interfaces, no config nobody sets, no layers with one caller. Delete dead code; make the smallest precise change.
+
 ## Verification
 
 - Run the relevant checks after changes (`build` is mandatory per above; add `typecheck` / `test` when the change warrants it).
