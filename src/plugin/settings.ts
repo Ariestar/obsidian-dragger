@@ -36,8 +36,8 @@ export class DragNDropSettingTab extends PluginSettingTab {
         const mobileOnly = () => Platform.isMobile && this.plugin.settings.enableMobileTextLongPressDrag;
         return [
             {
-                type: 'group',
-                heading: i.headingAppearance,
+                type: 'page',
+                name: i.headingAppearance,
                 items: [
                     {
                         name: i.handleIcon,
@@ -129,8 +129,8 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 ],
             },
             {
-                type: 'group',
-                heading: i.headingBehavior,
+                type: 'page',
+                name: i.headingBehavior,
                 items: [
                     {
                         name: i.multiLineSelection,
