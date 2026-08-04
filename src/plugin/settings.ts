@@ -56,7 +56,11 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     {
                         name: i.handleColor,
                         desc: i.handleColorDesc,
-                        control: { type: 'dropdown', key: 'handleColorMode', options: { theme: i.optionTheme, custom: i.optionCustom } },
+                        control: {
+                            type: 'dropdown',
+                            key: 'handleColorMode',
+                            options: { theme: i.optionTheme, custom: i.optionCustom },
+                        },
                     },
                     {
                         name: i.handleColor,
@@ -83,7 +87,12 @@ export class DragNDropSettingTab extends PluginSettingTab {
                             options: { left: i.optionLeft, right: i.optionRight },
                         },
                     },
-                    numeric('handleHorizontalOffsetPx', NUMERIC_SETTING_RANGES.handleHorizontalOffsetPx, i.handleOffset, i.handleOffsetDesc),
+                    numeric(
+                        'handleHorizontalOffsetPx',
+                        NUMERIC_SETTING_RANGES.handleHorizontalOffsetPx,
+                        i.handleOffset,
+                        i.handleOffsetDesc,
+                    ),
                     {
                         name: i.selectionVisualStyle,
                         desc: i.selectionVisualStyleDesc,
@@ -105,7 +114,11 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     {
                         name: i.indicatorColor,
                         desc: i.indicatorColorDesc,
-                        control: { type: 'dropdown', key: 'indicatorColorMode', options: { theme: i.optionTheme, custom: i.optionCustom } },
+                        control: {
+                            type: 'dropdown',
+                            key: 'indicatorColorMode',
+                            options: { theme: i.optionTheme, custom: i.optionCustom },
+                        },
                     },
                     {
                         name: i.indicatorColor,
@@ -124,10 +137,30 @@ export class DragNDropSettingTab extends PluginSettingTab {
                         desc: i.multiLineSelectionDesc,
                         control: { type: 'toggle', key: 'enableMultiLineSelection' },
                     },
-                    numeric('mobileDragLongPressMs', NUMERIC_SETTING_RANGES.mobileDragLongPressMs, i.mobileDragLongPressMs, i.mobileDragLongPressMsDesc),
-                    numeric('mouseRangeSelectLongPressMs', NUMERIC_SETTING_RANGES.mouseRangeSelectLongPressMs, i.mouseRangeSelectLongPressMs, i.mouseRangeSelectLongPressMsDesc),
-                    numeric('autoScrollEdgeZonePx', NUMERIC_SETTING_RANGES.autoScrollEdgeZonePx, i.autoScrollEdgeZonePx, i.autoScrollEdgeZonePxDesc),
-                    numeric('autoScrollMaxSpeedPx', NUMERIC_SETTING_RANGES.autoScrollMaxSpeedPx, i.autoScrollMaxSpeedPx, i.autoScrollMaxSpeedPxDesc),
+                    numeric(
+                        'mobileDragLongPressMs',
+                        NUMERIC_SETTING_RANGES.mobileDragLongPressMs,
+                        i.mobileDragLongPressMs,
+                        i.mobileDragLongPressMsDesc,
+                    ),
+                    numeric(
+                        'mouseRangeSelectLongPressMs',
+                        NUMERIC_SETTING_RANGES.mouseRangeSelectLongPressMs,
+                        i.mouseRangeSelectLongPressMs,
+                        i.mouseRangeSelectLongPressMsDesc,
+                    ),
+                    numeric(
+                        'autoScrollEdgeZonePx',
+                        NUMERIC_SETTING_RANGES.autoScrollEdgeZonePx,
+                        i.autoScrollEdgeZonePx,
+                        i.autoScrollEdgeZonePxDesc,
+                    ),
+                    numeric(
+                        'autoScrollMaxSpeedPx',
+                        NUMERIC_SETTING_RANGES.autoScrollMaxSpeedPx,
+                        i.autoScrollMaxSpeedPx,
+                        i.autoScrollMaxSpeedPxDesc,
+                    ),
                     {
                         name: i.mobileTextLongPressDrag,
                         desc: i.mobileTextLongPressDragDesc,
