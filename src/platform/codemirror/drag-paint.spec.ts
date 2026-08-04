@@ -152,4 +152,26 @@ describe('platform/codemirror drag paint', () => {
         viewA.destroy();
         viewB.destroy();
     });
+
+    it('keeps the source highlight across further drag-over moves', async () => {
+        // After the drag starts, every subsequent move is a drag_over-only
+        // output batch (no drag_source_changed); the highlight must persist.
+        const view = makeView('- item one\n- item two');
+        await nextFrame();
+
+        const handle = view.dom.querySelector<HTMLElement>('.md-dragger-handle');
+        expect(handle).not.toBeNull();
+        if (!handle) return;
+
+        handle.dispatchEvent(pointer('pointerdown', 0, 0));
+        window.dispatchEvent(pointer('pointermove', 12, 12));
+        await nextFrame();
+        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
+
+        window.dispatchEvent(pointer('pointermove', 40, 40));
+        window.dispatchEvent(pointer('pointermove', 80, 80));
+        await nextFrame();
+        expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
+        view.destroy();
+    });
 });
