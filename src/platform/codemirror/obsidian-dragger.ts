@@ -1,11 +1,11 @@
-import { EditorState, StateEffect, StateField, type Extension, type Range } from '@codemirror/state';
+import { EditorState, StateField, type Extension, type Range } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import {
     HANDLE_CLASS,
     mdDragger,
+    dragTransitionEffect,
     dropSeam,
     lineAtPoint,
-    lineBand,
     sourceLineFromInput as handleSourceLineFromInput,
     type CodeMirrorGeometryOptions,
     type MdDraggerCodeMirrorOptions,
@@ -13,8 +13,10 @@ import {
 import {
     detectBlock,
     isLineNumberInRanges,
+    parseLine,
     selectionLineRanges,
     type BlockSelection,
+    type Doc,
     type DropPosition,
     type LineRange,
 } from 'md-dragger/domain';
@@ -105,7 +107,6 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
             ],
         },
         onChange: (result) => {
-            paintBus.emit(result);
             for (const item of result.outputs) {
                 if (item.type === 'dropped') plugin.notifyDragDrop();
             }
@@ -116,7 +117,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
         EditorView.editorAttributes.of({ class: ROOT_EDITOR_CLASS }),
         ...mdDragger(options),
         dropIndicatorPaint(options),
-        selectionPaint(options),
+        selectionPaint(),
         handleHover(),
         gestureShell(plugin),
     ];
@@ -166,43 +167,46 @@ function gestureConfig(plugin: ObsidianDraggerHost) {
     };
 }
 
-type PaintHost = { consume(outputs: PipelineResult['outputs']): void };
-
-const paintBus = {
-    hosts: new Set<PaintHost>(),
-    emit(result: PipelineResult) {
-        for (const host of paintBus.hosts) host.consume(result.outputs);
-    },
-    add(host: PaintHost) {
-        paintBus.hosts.add(host);
-        return () => paintBus.hosts.delete(host);
-    },
-};
-
 // The drop seam is a plain CM6 line decoration on the seam row (above the
 // first line, or below the previous line). The row itself is untouched — zero
 // layout impact — and it rides the editor's render pipeline like the source
 // highlight, so scrolling repaints it with the text flow. The visible line
 // is drawn by an overflowing ::before/::after pseudo-element. The decoration
-// is built without a view, so its x offset comes from CSS variables that a
-// view plugin (dropSeamPaint below) fills from the engine's dropSeam geometry
-// — the single geometry source, never re-derived here.
-const setDropIndicator = StateEffect.define<{ position: DropPosition; invalid: boolean } | null>();
-
-function buildDropIndicatorDecoration(
-    value: { position: DropPosition; invalid: boolean } | null,
-    state: EditorState,
-): DecorationSet {
-    if (value === null) return Decoration.none;
-    const position = value.position;
-    const doc = state.doc;
+// is derived from the engine's per-view output stream (dragTransitionEffect);
+// its x offset comes from CSS variables that the view plugin below fills
+// from the engine's dropSeam geometry — the single geometry source, never
+// re-derived here.
+function buildDropIndicatorDecoration(outputs: PipelineResult['outputs'], state: EditorState): DecorationSet {
+    const { position, invalid } = dropSeamState(outputs, state.doc);
+    if (position === null) return Decoration.none;
     const top = position.line <= 1;
-    const seamRow = top ? 1 : Math.min(position.line - 1, doc.lines);
+    const seamRow = top ? 1 : Math.min(position.line - 1, state.doc.lines);
     return Decoration.set([
         Decoration.line({
-            class: `${DROP_SEAM_CLASS} ${top ? 'd-drop-seam-top' : 'd-drop-seam-below'}${value.invalid ? ' is-invalid' : ''}`,
-        }).range(doc.line(seamRow).from),
+            class: `${DROP_SEAM_CLASS} ${top ? 'd-drop-seam-top' : 'd-drop-seam-below'}${invalid ? ' is-invalid' : ''}`,
+        }).range(state.doc.line(seamRow).from),
     ]);
+}
+
+/** The active drop seam for this view from one engine output batch: only the
+ * view that owns the drop doc paints it; a rejected drop (re-inserting a
+ * block in place) still shows a grey seam instead of hiding it entirely. */
+function dropSeamState(
+    outputs: PipelineResult['outputs'],
+    doc: Doc,
+): { position: DropPosition | null; invalid: boolean } {
+    let position: DropPosition | null = null;
+    let invalid = false;
+    for (const output of outputs) {
+        if (output.type === 'drag_over') {
+            const onView = output.drop.position && output.drop.position.doc === doc ? output.drop.position : null;
+            position = onView;
+            invalid = onView !== null && output.drop.rejectReason != null;
+        } else if (output.type === 'dropped' || output.type === 'cancelled' || output.type === 'terminal') {
+            position = null;
+        }
+    }
+    return { position, invalid };
 }
 
 function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
@@ -211,8 +215,8 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
         update(deco, tr) {
             deco = deco.map(tr.changes);
             for (const effect of tr.effects) {
-                if (effect.is(setDropIndicator)) {
-                    deco = buildDropIndicatorDecoration(effect.value, tr.state);
+                if (effect.is(dragTransitionEffect)) {
+                    deco = buildDropIndicatorDecoration(effect.value.outputs, tr.state);
                 }
             }
             return deco;
@@ -225,53 +229,18 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
         ViewPlugin.fromClass(
             class {
                 private position: DropPosition | null = null;
-                private invalid = false;
-                private readonly unsub: () => void;
 
-                constructor(private readonly view: EditorView) {
-                    this.unsub = paintBus.add(this);
-                }
-
-                destroy() {
-                    this.unsub();
-                }
+                constructor(private readonly view: EditorView) {}
 
                 update(update: ViewUpdate) {
-                    if (update.geometryChanged) this.sync();
-                }
-
-                consume(outputs: PipelineResult['outputs']) {
-                    let next: DropPosition | null = null;
-                    let invalid = false;
-                    for (const output of outputs) {
-                        if (output.type === 'drag_over') {
-                            // Only paint on the view that owns the drop doc. A
-                            // rejected drop (e.g. re-inserting a block in place)
-                            // still shows a grey seam instead of hiding the
-                            // indicator entirely.
-                            const drop = output.drop;
-                            const onView =
-                                drop.position && drop.position.doc === this.view.state.doc ? drop.position : null;
-                            next = onView;
-                            invalid = onView !== null && drop.rejectReason != null;
-                        } else if (
-                            output.type === 'dropped' ||
-                            output.type === 'cancelled' ||
-                            output.type === 'terminal'
-                        ) {
-                            next = null;
+                    for (const tr of update.transactions) {
+                        for (const effect of tr.effects) {
+                            if (effect.is(dragTransitionEffect)) {
+                                this.position = dropSeamState(effect.value.outputs, update.state.doc).position;
+                            }
                         }
                     }
-                    if (next === this.position && invalid === this.invalid) return;
-                    this.position = next;
-                    this.invalid = invalid;
-                    // Fill the seam geometry (engine's dropSeam, the single
-                    // geometry source) into CSS variables before dispatching,
-                    // so the line decoration renders at the fresh position.
-                    this.sync();
-                    this.view.dispatch({
-                        effects: setDropIndicator.of(next === null ? null : { position: next, invalid }),
-                    });
+                    if (update.geometryChanged) this.sync();
                 }
 
                 private sync() {
@@ -301,24 +270,19 @@ function dropIndicatorPaint(options: CodeMirrorGeometryOptions): Extension {
     ];
 }
 
-// Selected source rows as CM6 line decorations: they ride the editor's own
-// render pipeline (same as the gutter handle), so scrolling repaints them
-// with the text flow — no absolute-position overlay, no scroll listener,
-// no rAF chase, no lag. Each row carries its own left edge (engine lineBand
-// geometry: content edge + nesting level × indent step) as an inline
-// --d-source-left variable, so the highlight band leaves the nesting gap
-// on the left instead of hugging the content edge.
-type DragSourceRows = { ranges: LineRange[]; offsets: ReadonlyMap<number, string> };
-
-const setDragSourceRanges = StateEffect.define<DragSourceRows>();
-
+// Selected source rows as CM6 line decorations, derived from the engine's
+// per-view output stream (dragTransitionEffect) like the drop seam — no
+// dispatch, no global bus, no cross-view leakage. Each row carries its
+// nesting level as an inline --d-source-level; the rendered indent step is
+// a view-level CSS variable set by the plugin below, and the stylesheet
+// multiplies the two so the highlight leaves the nesting gap on the left.
 const dragSourceLinesField = StateField.define<DecorationSet>({
     create: () => Decoration.none,
     update(deco, tr) {
         deco = deco.map(tr.changes);
         for (const effect of tr.effects) {
-            if (effect.is(setDragSourceRanges)) {
-                deco = buildDragSourceDecoration(effect.value, tr.state);
+            if (effect.is(dragTransitionEffect)) {
+                deco = buildDragSourceDecoration(effect.value.outputs, tr.state);
             }
         }
         return deco;
@@ -326,15 +290,18 @@ const dragSourceLinesField = StateField.define<DecorationSet>({
     provide: (field) => EditorView.decorations.from(field),
 });
 
-function buildDragSourceDecoration(value: DragSourceRows, state: EditorState): DecorationSet {
+function buildDragSourceDecoration(outputs: PipelineResult['outputs'], state: EditorState): DecorationSet {
+    const selection = selectionFromOutputs(outputs);
+    if (selection === null) return Decoration.none;
+    const tabSize = state.facet(EditorState.tabSize);
     const decorations: Range<Decoration>[] = [];
-    for (const range of value.ranges) {
+    for (const range of selectionLineRanges(state.doc.lines, selection)) {
         for (let line = range.startLine; line <= range.endLine; line++) {
             if (line < 1 || line > state.doc.lines) continue;
             decorations.push(
                 Decoration.line({
                     class: DRAG_SOURCE_LINE_CLASS,
-                    attributes: { style: `--d-source-left: ${value.offsets.get(line) ?? '0px'}` },
+                    attributes: { style: `--d-source-level: ${sourceListLevel(state.doc.line(line).text, tabSize)}` },
                 }).range(state.doc.line(line).from),
             );
         }
@@ -342,65 +309,60 @@ function buildDragSourceDecoration(value: DragSourceRows, state: EditorState): D
     return Decoration.set(decorations);
 }
 
-function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
+/** Nesting level of a list line (engine parseLine); non-list rows have none. */
+function sourceListLevel(lineText: string, tabSize: number): number {
+    const parsed = parseLine(lineText, tabSize);
+    if (parsed.marker?.kind !== 'list' || parsed.quote.prefix.length > 0) return 0;
+    return Math.round(parsed.indent.width / LIST_INDENT_UNIT);
+}
+
+/** The selected blocks from one engine output batch (null = none). */
+function selectionFromOutputs(outputs: PipelineResult['outputs']): BlockSelection | null {
+    let selection: BlockSelection | null = null;
+    for (const output of outputs) {
+        if (output.type === 'selection_changed' || output.type === 'drag_source_changed') {
+            selection = output.selection;
+        } else if (output.type === 'cancelled' || output.type === 'terminal' || output.type === 'dropped') {
+            selection = null;
+        }
+    }
+    return selection;
+}
+
+function selectionPaint(): Extension {
     return [
         dragSourceLinesField,
         ViewPlugin.fromClass(
             class {
                 private selectedRanges: LineRange[] = [];
-                private readonly unsub: () => void;
+                private indentStepSet = false;
 
-                constructor(private readonly view: EditorView) {
-                    this.unsub = paintBus.add(this);
-                }
+                constructor(private readonly view: EditorView) {}
 
-                // The line decoration follows the text flow natively; only the
-                // gutter handle is a separate marker whose DOM re-materializes
-                // per viewport, so re-apply its selected state on every update.
                 update(update: ViewUpdate) {
-                    this.syncSelectedHandles();
-                    // The nesting offset depends on rendered geometry (indent
-                    // step), so re-measure when it changes; scrolling alone
-                    // never triggers this (offset is scroll-independent).
-                    if (update.geometryChanged && this.selectedRanges.length > 0) {
-                        this.dispatchSourceRows(this.selectedRanges);
+                    for (const tr of update.transactions) {
+                        for (const effect of tr.effects) {
+                            if (effect.is(dragTransitionEffect)) {
+                                const selection = selectionFromOutputs(effect.value.outputs);
+                                this.selectedRanges = selectionLineRanges(
+                                    update.state.doc.lines,
+                                    selection ?? { blocks: [] },
+                                );
+                            }
+                        }
                     }
+                    // The rendered indent step is a view-level CSS variable;
+                    // the decoration only carries the nesting level.
+                    if (!this.indentStepSet || update.geometryChanged) {
+                        this.indentStepSet = true;
+                        this.view.dom.style.setProperty('--d-list-indent-step', `${listIndentStepPx(this.view)}px`);
+                    }
+                    this.syncSelectedHandles();
                 }
 
                 destroy() {
-                    this.unsub();
                     this.selectedRanges = [];
                     this.syncSelectedHandles();
-                }
-
-                consume(outputs: PipelineResult['outputs']) {
-                    let next: BlockSelection | null | undefined;
-                    for (const output of outputs) {
-                        if (output.type === 'selection_changed' || output.type === 'drag_source_changed') {
-                            next = output.selection;
-                        } else if (
-                            output.type === 'cancelled' ||
-                            output.type === 'terminal' ||
-                            output.type === 'dropped'
-                        ) {
-                            next = null;
-                        }
-                    }
-                    if (next === undefined) return;
-                    const ranges = selectionLineRanges(this.view.state.doc.lines, next ?? { blocks: [] });
-                    if (sameLineRanges(ranges, this.selectedRanges)) return;
-                    this.selectedRanges = ranges;
-                    this.dispatchSourceRows(ranges);
-                }
-
-                private dispatchSourceRows(ranges: LineRange[]) {
-                    const offsets = new Map<number, string>();
-                    for (const range of ranges) {
-                        for (let line = range.startLine; line <= range.endLine; line++) {
-                            offsets.set(line, sourceRowLeftPx(this.view, line, options));
-                        }
-                    }
-                    this.view.dispatch({ effects: setDragSourceRanges.of({ ranges, offsets }) });
                 }
 
                 private syncSelectedHandles() {
@@ -416,31 +378,6 @@ function selectionPaint(options: CodeMirrorGeometryOptions): Extension {
             },
         ),
     ];
-}
-
-/**
- * Left edge of the source row relative to the content edge, in px — the
- * engine's lineBand left (content edge + level × indent step) minus the
- * content's own left. Scroll-independent: both move together, so the offset
- * can be baked into the decoration's inline style. Unmeasurable rows fall
- * back to 0px (content edge, no nesting gap).
- */
-function sourceRowLeftPx(view: EditorView, line: number, options: CodeMirrorGeometryOptions): string {
-    const band = lineBand(view, line, options);
-    // lineBand is null only for non-list rows (their coordsAtPos is not
-    // measurable): those have no nesting level, so the offset is 0 — this is
-    // the correct value, not a fallback.
-    if (!band) return '0px';
-    const contentLeft = view.contentDOM.getBoundingClientRect().left;
-    return `${Math.max(0, Math.round(band.left - contentLeft))}px`;
-}
-
-function sameLineRanges(a: LineRange[], b: LineRange[]): boolean {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-        if (a[i].startLine !== b[i].startLine || a[i].endLine !== b[i].endLine) return false;
-    }
-    return true;
 }
 
 /**
@@ -501,7 +438,6 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
         class {
             private lastPress: PointerEvent | null = null;
             private locked = false;
-            private readonly unsub: () => void;
             private readonly onPointerDown = (e: PointerEvent) => {
                 this.lastPress = e;
                 if (plugin.isMobilePlatform() && plugin.isMobileDragModeEnabled()) {
@@ -519,11 +455,17 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
             constructor(private readonly view: EditorView) {
                 this.view.dom.addEventListener('pointerdown', this.onPointerDown, true);
                 this.view.dom.addEventListener('contextmenu', this.onContextMenu, true);
-                this.unsub = paintBus.add(this);
+            }
+
+            update(update: ViewUpdate) {
+                for (const tr of update.transactions) {
+                    for (const effect of tr.effects) {
+                        if (effect.is(dragTransitionEffect)) this.consume(effect.value.outputs);
+                    }
+                }
             }
 
             destroy() {
-                this.unsub();
                 this.setLock(false);
                 // The consuming plugin may be destroyed before the runtime flushes its
                 // final state; always clear the global dragging class so the cursor

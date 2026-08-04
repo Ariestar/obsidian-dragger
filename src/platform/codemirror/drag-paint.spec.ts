@@ -128,4 +128,28 @@ describe('platform/codemirror drag paint', () => {
         expect(view.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBe(0);
         view.destroy();
     });
+
+    it('does not paint the source highlight on other views', async () => {
+        // The engine broadcasts each view's output via a per-view transaction
+        // effect (dragTransitionEffect); a second editor must not receive
+        // view A's drag source rows as if they were its own.
+        const viewA = makeView('- a1\n- a2');
+        const viewB = makeView('- b1\n- b2');
+        await nextFrame();
+        await nextFrame();
+
+        const handleA = viewA.dom.querySelector<HTMLElement>('.md-dragger-handle');
+        expect(handleA).not.toBeNull();
+        if (!handleA) return;
+
+        handleA.dispatchEvent(pointer('pointerdown', 0, 0));
+        window.dispatchEvent(pointer('pointermove', 0, 0));
+        window.dispatchEvent(pointer('pointermove', 12, 12));
+        await nextFrame();
+
+        expect(viewA.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBeGreaterThan(0);
+        expect(viewB.dom.querySelectorAll('.cm-line.d-drag-source-line').length).toBe(0);
+        viewA.destroy();
+        viewB.destroy();
+    });
 });
