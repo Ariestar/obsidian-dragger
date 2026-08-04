@@ -267,11 +267,19 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
    untouched — zero layout impact — and it scrolls with the text flow. The
    visible line is an overflowing pseudo-element; its x offset and width come
    from the adapter's seamOffset geometry, exposed as CSS variables by the
-   paint view plugin. */
+   paint view plugin.
+
+   The overflowing 2px sits inside the *neighbor* line's box (below-seam →
+   top of the target line). Lines with a background (code blocks, callouts,
+   …) would paint over it in DOM order, so the pseudo carries a z-index:
+   positive z-index paints above all z-index:auto lines inside the editor's
+   stacking context (.cm-editor has contain: layout style), while never
+   escaping to Obsidian's app chrome. */
 .cm-line.md-dragger-drop-seam-top::before,
 .cm-line.md-dragger-drop-seam-below::after {
     content: '';
     position: absolute;
+    z-index: 2;
     left: var(--d-seam-left, 0px);
     width: var(--d-seam-width, auto);
     height: 2px;
