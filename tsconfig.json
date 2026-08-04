@@ -1,6 +1,5 @@
 {
     "compilerOptions": {
-        "baseUrl": ".",
         "inlineSourceMap": true,
         "inlineSources": true,
         "module": "ESNext",
@@ -13,8 +12,8 @@
         "strictNullChecks": true,
         "lib": ["DOM", "ES5", "ES6", "ES7", "ES2021"],
         "paths": {
-            "@codemirror/state": ["node_modules/@codemirror/state"],
-            "@codemirror/view": ["node_modules/@codemirror/view"]
+            "@codemirror/state": ["./node_modules/@codemirror/state"],
+            "@codemirror/view": ["./node_modules/@codemirror/view"]
         },
         "verbatimModuleSyntax": true
     },
