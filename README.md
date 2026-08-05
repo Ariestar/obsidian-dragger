@@ -4,7 +4,7 @@
 
 **Drag and drop any block to rearrange content in Obsidian — just like Notion.**
 
-![Obsidian](https://img.shields.io/badge/Obsidian-%3E%3D1.0.0-7c3aed?logo=obsidian&logoColor=white) [![npm](https://img.shields.io/npm/v/md-dragger?logo=npm&label=npm)](https://www.npmjs.com/package/md-dragger) ![License](https://img.shields.io/github/license/Ariestar/obsidian-dragger) ![Release](https://img.shields.io/github/v/release/Ariestar/obsidian-dragger) ![Downloads](https://img.shields.io/github/downloads/Ariestar/obsidian-dragger/total?color=blue) ![Stars](https://img.shields.io/github/stars/Ariestar/obsidian-dragger?style=social) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Ariestar/obsidian-dragger)
+[![Obsidian](https://img.shields.io/badge/Obsidian-%3E%3D1.13.0-7c3aed?logo=obsidian&logoColor=white)](https://community.obsidian.md/plugins/dragger) [![Obsidian Community Plugin](https://img.shields.io/badge/Obsidian-Community%20Plugin-7c3aed?logo=obsidian&logoColor=white)](https://community.obsidian.md/plugins/dragger) [![npm](https://img.shields.io/npm/v/md-dragger?logo=npm&label=npm)](https://www.npmjs.com/package/md-dragger) ![License](https://img.shields.io/github/license/Ariestar/obsidian-dragger) ![Release](https://img.shields.io/github/v/release/Ariestar/obsidian-dragger) ![Downloads](https://img.shields.io/github/downloads/Ariestar/obsidian-dragger/total?color=blue) ![Stars](https://img.shields.io/github/stars/Ariestar/obsidian-dragger?style=social) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Ariestar/obsidian-dragger)
 
 ![gif](https://github.com/user-attachments/assets/bfb3ac7d-7dfe-4c24-a428-5d08b49d0654)
 
