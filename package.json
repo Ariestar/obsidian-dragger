@@ -45,7 +45,7 @@
         "md-dragger": "^2.0.1"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.5.6",
+        "@biomejs/biome": "^2.5.7",
         "@codemirror/state": "^6.7.1",
         "@codemirror/view": "^6.43.6",
         "@types/node": "^26.1.2",
