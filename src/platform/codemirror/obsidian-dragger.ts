@@ -22,11 +22,16 @@ import {
 } from 'md-dragger/domain';
 import { dragSelectionDoc, dropSeamState, selectionFromOutputs, type PipelineResult } from 'md-dragger/runtime';
 import { autoScroll } from 'md-dragger/runtime/modules';
+import type { App } from 'obsidian';
 import { openBlockTypeMenu } from '../../plugin/block-type-menu';
 import { DRAGGING_BODY_CLASS, MOBILE_GESTURE_LOCK_CLASS, ROOT_EDITOR_CLASS } from '../../shared/dom-selectors';
+import { createExternalNoteTargets, type ExternalNoteTargetService } from '../obsidian/external-note-targets';
+import { getCodeMirrorViewForFile, getMarkdownFileForCodeMirror } from '../obsidian/views';
+import { nativeBlockSelection } from './native-block-selection';
 
 /** Minimal plugin surface used by the editor extension. */
 export type ObsidianDraggerHost = {
+    app: App;
     settings: {
         enableMultiLineSelection: boolean;
         mouseRangeSelectLongPressMs: number;
@@ -47,6 +52,21 @@ export type ObsidianDraggerHost = {
 const LIST_INDENT_UNIT = 4;
 
 export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
+    const serviceByView = new WeakMap<EditorView, ExternalNoteTargetService>();
+    const services = new Set<ExternalNoteTargetService>();
+    const serviceFor = (view: EditorView): ExternalNoteTargetService => {
+        const existing = serviceByView.get(view);
+        if (existing) return existing;
+        const service = createExternalNoteTargets({
+            app: plugin.app,
+            sourceFile: () => getMarkdownFileForCodeMirror(plugin.app, view),
+            viewForFile: (file) => getCodeMirrorViewForFile(plugin.app, file),
+            elementAtPoint: (point) => view.dom.ownerDocument.elementFromPoint(point.x, point.y),
+        });
+        serviceByView.set(view, service);
+        services.add(service);
+        return service;
+    };
     const options: MdDraggerCodeMirrorOptions = {
         // tabSize is always read live from EditorState.tabSize by the adapter.
         config: {
@@ -81,8 +101,16 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
                 return lineAtPoint(view, input.point);
             },
         }),
-        ux: {
+        externalTarget: (view) => ({
+            resolveDropPosition: (point, context) => serviceFor(view).resolve(point, context),
+        }),
+        commit: (view) => ({
+            apply: (edits) => serviceFor(view).apply(edits),
+        }),
+        ux: (view) => ({
             gesture: () => gestureConfig(plugin),
+            selectionFromInput: (_input, anchorBlock) =>
+                nativeBlockSelection(view.state, anchorBlock, view.state.facet(EditorState.tabSize)),
             modules: [
                 autoScroll(
                     // Adapter port scrolls the .cm-scroller under the pointer;
@@ -94,10 +122,13 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
                     }),
                 ),
             ],
-        },
+        }),
         onChange: (result) => {
             for (const item of result.outputs) {
                 if (item.type === 'dropped') plugin.notifyDragDrop();
+                if (item.type === 'dropped' || item.type === 'cancelled' || item.type === 'terminal') {
+                    for (const service of services) service.clear();
+                }
             }
         },
     };
@@ -109,7 +140,28 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
         selectionPaint(),
         handleHover(),
         gestureShell(plugin),
+        externalTargetCleanup(serviceFor, services),
     ];
+}
+
+function externalTargetCleanup(
+    serviceFor: (view: EditorView) => ExternalNoteTargetService,
+    services: Set<ExternalNoteTargetService>,
+): Extension {
+    return ViewPlugin.fromClass(
+        class {
+            private readonly service: ExternalNoteTargetService;
+
+            constructor(view: EditorView) {
+                this.service = serviceFor(view);
+            }
+
+            destroy() {
+                this.service.destroy();
+                services.delete(this.service);
+            }
+        },
+    );
 }
 
 // Rendered pixel width of one list nesting level. Single source of truth:

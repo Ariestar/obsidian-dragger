@@ -32,8 +32,8 @@ The implementation must follow the 2.0 layering rule: generic selection, target,
 Add narrow, platform-neutral engine hooks:
 
 - A press-selection hook that can return a semantic `BlockSelection` for the pressed source. The default remains `selectOne(detectedBlock)`.
-- A target-location hook that may resolve a pointer to a `DropPosition` backed by a document not owned by a registered CodeMirror view.
-- A commit hook that receives planned `DocEdit[]` and may apply edits to non-CodeMirror documents. The existing CodeMirror commit behavior remains the default.
+- A tri-state external-target hook: `undefined` means "not an external target; continue normal CodeMirror hit-testing", `null` means "handled but invalid", and a `DropPosition` may reference a document not owned by a registered CodeMirror view.
+- An asynchronous commit hook that receives planned `DocEdit[]` and may apply edits to non-CodeMirror documents before the runtime publishes a successful drop. The existing synchronous CodeMirror commit behavior remains the default.
 
 The engine must not import or name Obsidian concepts such as `TFile`, vaults, internal links, or File Explorer nodes.
 
@@ -102,6 +102,9 @@ Open-editor destinations continue through CodeMirror transactions and retain the
 
 - New hooks are optional and preserve current behavior when omitted.
 - Hooks return domain values rather than platform objects.
+- The existing CodeMirror `resolveDropPosition` override remains unchanged; the new external-target hook runs before it and uses `undefined` as its only fall-through value.
+- Commit failure produces a rejected terminal result and never publishes a successful `dropped` output.
+- Once an asynchronous host commit starts on release, the runtime blocks new gesture/cancel transitions until it settles so platform side effects and the published terminal result cannot diverge.
 - No duplicate controller, adapter wrapper, fallback path, or stale cached target is introduced.
 - The CodeMirror adapter remains the owner of default live-view hit testing and commits.
 - External targets are resolved fresh during drag-over and again on release.
@@ -112,8 +115,9 @@ Open-editor destinations continue through CodeMirror transactions and retain the
 
 - Default press still selects one detected block when no hook exists.
 - A supplied press-selection hook starts a drag with its composite selection.
-- A supplied external locate hook can return a non-live document target.
-- A supplied commit hook receives the complete planned source and destination edits.
+- A supplied external target hook distinguishes fall-through, handled-invalid, and non-live document targets.
+- A supplied asynchronous commit hook receives the complete planned source and destination edits, and successful drop output waits for it.
+- A rejected asynchronous commit emits no successful drop and returns a rejected commit result.
 - Rejected external targets produce no commit.
 - Existing CodeMirror adapter behavior remains green.
 

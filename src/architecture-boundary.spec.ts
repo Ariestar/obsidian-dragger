@@ -68,6 +68,7 @@ describe('plugin architecture boundaries', () => {
     it('hosts mdDragger from a single codemirror entry module', () => {
         const files = readProductionFiles()
             .filter((file) => file.rel.startsWith('src/platform/codemirror/'))
+            .filter((file) => /\bmdDragger\b/.test(file.text))
             .map((file) => file.rel)
             .sort();
         expect(files).toEqual(['src/platform/codemirror/obsidian-dragger.ts']);

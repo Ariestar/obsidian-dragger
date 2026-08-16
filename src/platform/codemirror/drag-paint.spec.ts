@@ -2,10 +2,16 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
+import type { App } from 'obsidian';
 import { dragHandleExtension, type ObsidianDraggerHost } from './obsidian-dragger';
 
 function mockPlugin(): ObsidianDraggerHost {
     return {
+        app: {
+            workspace: { getLeavesOfType: () => [] },
+            metadataCache: { getFirstLinkpathDest: () => null },
+            vault: { getAbstractFileByPath: () => null },
+        } as unknown as App,
         settings: {
             enableMultiLineSelection: true,
             mouseRangeSelectLongPressMs: 700,
