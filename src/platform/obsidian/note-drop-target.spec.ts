@@ -2,7 +2,7 @@
 import type { App } from 'obsidian';
 import { TFile } from 'obsidian';
 import { describe, expect, it, vi } from 'vitest';
-import { resolveElementTarget } from './note-drop-target';
+import { internalLinkpathAtOffset, resolveElementTarget } from './note-drop-target';
 
 function markdownFile(path: string): TFile {
     const file = new TFile();
@@ -37,6 +37,12 @@ function navFile(path: string): HTMLElement {
     return item;
 }
 
+function livePreviewLink(): HTMLElement {
+    const link = document.createElement('span');
+    link.className = 'cm-hmd-internal-link';
+    return link;
+}
+
 describe('resolveElementTarget', () => {
     it.each([
         ['Wiki%20Folder/Target.md#Heading', 'Wiki Folder/Target.md'],
@@ -58,6 +64,24 @@ describe('resolveElementTarget', () => {
 
         expect(resolveElementTarget(navFile(target.path), source, app)).toBe(target);
         expect(getAbstractFileByPath).toHaveBeenCalledWith(target.path);
+    });
+
+    it('resolves a Live Preview link using the linkpath read from the editor document', () => {
+        const source = markdownFile('Folder/Source.md');
+        const target = markdownFile('Folder/Target.md');
+        const { app, getFirstLinkpathDest } = appWithTarget(target);
+
+        const resolved = resolveElementTarget(livePreviewLink(), source, app, 'Target#Heading');
+
+        expect(resolved).toBe(target);
+        expect(getFirstLinkpathDest).toHaveBeenCalledWith('Target', source.path);
+    });
+
+    it('extracts the linkpath at a Live Preview document position', () => {
+        expect(internalLinkpathAtOffset('before [[Folder/Target|Alias]] after', 17)).toBe('Folder/Target|Alias');
+        expect(internalLinkpathAtOffset('before [Alias](Folder/Target.md#Heading) after', 17)).toBe(
+            'Folder/Target.md#Heading',
+        );
     });
 
     it('rejects folders, non-markdown files, malformed links, and unrelated elements', () => {

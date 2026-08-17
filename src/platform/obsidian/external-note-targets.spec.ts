@@ -35,14 +35,26 @@ function internalLink(href: string): HTMLElement {
     return link;
 }
 
+function livePreviewLink(): HTMLElement {
+    const wrapper = document.createElement('span');
+    wrapper.className = 'cm-hmd-internal-link';
+    const text = document.createElement('span');
+    text.className = 'cm-underline';
+    wrapper.appendChild(text);
+    document.body.appendChild(wrapper);
+    return text;
+}
+
 function createHarness(options?: {
     cachedRead?: (file: TFile) => Promise<string>;
     process?: (file: TFile, update: (current: string) => string) => Promise<string>;
     viewForFile?: (file: TFile) => EditorView | null;
+    pointedElement?: Element | null;
+    linkpathAtPoint?: () => string | null;
 }) {
     const sourceFile = markdownFile('Source.md');
     const targetFile = markdownFile('Target.md');
-    let pointedElement: Element | null = internalLink('Target');
+    let pointedElement: Element | null = options?.pointedElement ?? internalLink('Target');
     const cachedRead = vi.fn(options?.cachedRead ?? (async () => 'target'));
     const process = vi.fn(options?.process ?? (async (_file, update) => update('target')));
     const getFirstLinkpathDest = vi.fn(() => targetFile);
@@ -51,13 +63,15 @@ function createHarness(options?: {
         vault: { cachedRead, process },
         metadataCache: { getFirstLinkpathDest },
     } as unknown as App;
-    const service = createExternalNoteTargets({
+    const dependencies = {
         app,
         sourceFile: () => sourceFile,
         viewForFile: options?.viewForFile ?? (() => null),
         elementAtPoint: () => pointedElement,
+        linkpathAtPoint: options?.linkpathAtPoint ?? (() => null),
         applyLiveEdits,
-    });
+    };
+    const service = createExternalNoteTargets(dependencies);
     return {
         service,
         sourceFile,
@@ -80,6 +94,15 @@ beforeEach(() => {
 });
 
 describe('external note target lifecycle', () => {
+    it('claims a nested Live Preview link instead of falling through to the regular block target', async () => {
+        const harness = createHarness({ pointedElement: livePreviewLink(), linkpathAtPoint: () => 'Target' });
+
+        expect(harness.service.resolve(point, context)).toBeNull();
+        await flushPromises();
+
+        expect(harness.service.resolve(point, context)).toMatchObject({ line: 2, parent: null });
+    });
+
     it('is handled-invalid while loading and resolves an append position when ready', async () => {
         const read = deferred<string>();
         const harness = createHarness({ cachedRead: () => read.promise });

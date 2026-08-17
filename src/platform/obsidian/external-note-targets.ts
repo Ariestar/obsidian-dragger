@@ -29,6 +29,7 @@ export type ExternalNoteTargetDependencies = {
     sourceFile(): TFile | null;
     viewForFile(file: TFile): EditorView | null;
     elementAtPoint(point: Point): Element | null;
+    linkpathAtPoint(point: Point): string | null;
     applyLiveEdits?: (edits: DocEdit[]) => void;
 };
 
@@ -57,7 +58,9 @@ class ExternalNoteTargets implements ExternalNoteTargetService {
         }
 
         const sourceFile = this.deps.sourceFile();
-        const file = sourceFile ? resolveElementTarget(element, sourceFile, this.deps.app) : null;
+        const file = sourceFile
+            ? resolveElementTarget(element, sourceFile, this.deps.app, this.deps.linkpathAtPoint(point))
+            : null;
         if (!file) {
             this.clear();
             return null;

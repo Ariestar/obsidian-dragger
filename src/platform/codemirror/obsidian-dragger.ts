@@ -27,6 +27,7 @@ import { openBlockTypeMenu } from '../../plugin/block-type-menu';
 import { DRAGGING_BODY_CLASS, MOBILE_GESTURE_LOCK_CLASS, ROOT_EDITOR_CLASS } from '../../shared/dom-selectors';
 import { createExternalNoteTargets, type ExternalNoteTargetService } from '../obsidian/external-note-targets';
 import { getCodeMirrorViewForFile, getMarkdownFileForCodeMirror } from '../obsidian/views';
+import { internalLinkpathAtOffset } from '../obsidian/note-drop-target';
 import { nativeBlockSelection } from './native-block-selection';
 
 /** Minimal plugin surface used by the editor extension. */
@@ -62,6 +63,12 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
             sourceFile: () => getMarkdownFileForCodeMirror(plugin.app, view),
             viewForFile: (file) => getCodeMirrorViewForFile(plugin.app, file),
             elementAtPoint: (point) => view.dom.ownerDocument.elementFromPoint(point.x, point.y),
+            linkpathAtPoint: (point) => {
+                const position = view.posAtCoords(point);
+                if (position === null) return null;
+                const line = view.state.doc.lineAt(position);
+                return internalLinkpathAtOffset(line.text, position - line.from);
+            },
         });
         serviceByView.set(view, service);
         services.add(service);
