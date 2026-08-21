@@ -48,7 +48,7 @@
         "@biomejs/biome": "^2.5.6",
         "@codemirror/state": "^6.7.1",
         "@codemirror/view": "^6.43.6",
-        "@types/node": "^26.1.2",
+        "@types/node": "^26.2.0",
         "esbuild": "^0.28.1",
         "eslint": "^9.38.0",
         "eslint-plugin-obsidianmd": "^0.4.1",
