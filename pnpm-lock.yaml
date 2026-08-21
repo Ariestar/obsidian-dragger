@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       md-dragger:
-        specifier: ^2.0.1
-        version: 2.0.1(@codemirror/state@6.7.1)(@codemirror/view@6.43.7)
+        specifier: ^2.0.2
+        version: 2.0.2(@codemirror/state@6.7.1)(@codemirror/view@6.43.7)
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.5.6
@@ -1566,8 +1566,8 @@ packages:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
 
-  md-dragger@2.0.1:
-    resolution: {integrity: sha512-ex8UsR5nzMSU0uIU8tPsFUBaINFrObBlENb11LRNQhOX3QsUvAMkivaLG8HGx/bqoP3KudeOPPyJHpZOOrmrNA==}
+  md-dragger@2.0.2:
+    resolution: {integrity: sha512-1UXvzikshDJvmH5V4K0y3EEBZqqIpK8tBhRaYG0KvDlEIU02k83FoLqRumz/c8u2UTLcFIiMYnHV7/cZkT2EIQ==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
       '@codemirror/state': ^6.0.0
@@ -3869,7 +3869,7 @@ snapshots:
 
   math-intrinsics@1.1.0: {}
 
-  md-dragger@2.0.1(@codemirror/state@6.7.1)(@codemirror/view@6.43.7):
+  md-dragger@2.0.2(@codemirror/state@6.7.1)(@codemirror/view@6.43.7):
     dependencies:
       '@codemirror/state': 6.7.1
       '@codemirror/view': 6.43.7
