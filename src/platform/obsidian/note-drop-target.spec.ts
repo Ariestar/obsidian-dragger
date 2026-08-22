@@ -46,6 +46,7 @@ function livePreviewLink(): HTMLElement {
 describe('resolveElementTarget', () => {
     it.each([
         ['Wiki%20Folder/Target.md#Heading', 'Wiki Folder/Target.md'],
+        ['Notes%23Archive', 'Notes#Archive'],
         ['Target|Alias', 'Target'],
         ['Target#^block-id', 'Target'],
     ])('normalizes internal link %s before metadata resolution', (raw, normalized) => {

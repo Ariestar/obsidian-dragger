@@ -34,4 +34,15 @@ describe('markdown CodeMirror view lookup', () => {
         expect(getCodeMirrorViewForFile(app, file)).toBe(editorView);
         expect(getCodeMirrorViewForFile(app, markdownFile('Closed.md'))).toBeNull();
     });
+
+    it('continues past a matching leaf without CodeMirror to find a later live view', () => {
+        const editorView = {} as EditorView;
+        const file = markdownFile('Target.md');
+        const app = appWithLeaves([
+            { view: { getViewType: () => 'markdown', file } },
+            { view: { getViewType: () => 'markdown', file, editor: { cm: editorView } } },
+        ]);
+
+        expect(getCodeMirrorViewForFile(app, file)).toBe(editorView);
+    });
 });

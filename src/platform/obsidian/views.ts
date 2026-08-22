@@ -32,7 +32,10 @@ export function getCodeMirrorViewForFile(app: App, file: TFile): EditorView | nu
     for (const leaf of app.workspace.getLeavesOfType('markdown')) {
         if (leaf.view.getViewType?.() !== 'markdown') continue;
         const markdownView = leaf.view as MarkdownView;
-        if (markdownView.file?.path === file.path) return getCodeMirrorView(markdownView);
+        if (markdownView.file?.path !== file.path) continue;
+
+        const editorView = getCodeMirrorView(markdownView);
+        if (editorView) return editorView;
     }
     return null;
 }

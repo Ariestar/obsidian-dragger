@@ -15,6 +15,6 @@ describe('drag target and selected-handle styles', () => {
 
     it('styles valid external note targets with the accent color', () => {
         expect(css).toContain('.obsidian-dragger-external-target');
-        expect(css).toMatch(/\.obsidian-dragger-external-target[\s\S]*var\(--interactive-accent\)/);
+        expect(css).toMatch(/\.obsidian-dragger-external-target\s*\{[^}]*var\(--interactive-accent\)/);
     });
 });

@@ -43,10 +43,10 @@ function destinationAtOffset(line: string, offset: number, pattern: RegExp, dest
 
 function normalizeLinkpath(raw: string): string | null {
     try {
-        const decoded = decodeURIComponent(raw);
-        const withoutAlias = decoded.split('|', 1)[0];
-        const withoutSubpath = withoutAlias.split('#', 1)[0].trim();
-        return withoutSubpath || null;
+        const withoutAlias = raw.split('|', 1)[0];
+        const withoutSubpath = withoutAlias.split('#', 1)[0];
+        const decoded = decodeURIComponent(withoutSubpath).trim();
+        return decoded || null;
     } catch {
         return null;
     }
