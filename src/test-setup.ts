@@ -1,15 +1,28 @@
 import { vi } from 'vitest';
 
-vi.mock('obsidian', () => ({
-    Platform: {
-        isMobile: false,
-        isMobileApp: false,
-        isPhone: false,
-        isTablet: false,
-        isDesktop: true,
-        isDesktopApp: true,
-    },
-}));
+vi.mock('obsidian', () => {
+    class TFile {
+        path = '';
+        name = '';
+        basename = '';
+        extension = '';
+        parent = null;
+        vault = null;
+        stat = { ctime: 0, mtime: 0, size: 0 };
+    }
+
+    return {
+        Platform: {
+            isMobile: false,
+            isMobileApp: false,
+            isPhone: false,
+            isTablet: false,
+            isDesktop: true,
+            isDesktopApp: true,
+        },
+        TFile,
+    };
+});
 
 if (typeof window !== 'undefined') {
     Object.defineProperty(window, 'activeWindow', {
