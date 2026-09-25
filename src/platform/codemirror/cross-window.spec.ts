@@ -7,8 +7,9 @@ import { DEFAULT_SETTINGS } from '../../plugin/settings-types';
 import { dragHandleExtension, type ObsidianDraggerHost } from './obsidian-dragger';
 
 // Obsidian builds a canvas card's editor in the main document, then moves it
-// into the card's iframe after the editor extension already exists. Pointer
-// events then come from the iframe's window, as instances of its classes.
+// into the card's iframe after the editor extension already exists. Dragging
+// such an editor is covered in md-dragger (adapter/codemirror); this spec
+// covers the host's part.
 
 const host: ObsidianDraggerHost = {
     settings: {
@@ -54,21 +55,7 @@ async function editorMovedIntoFrame(doc: string) {
     return { view, win, pointer };
 }
 
-const draggedLines = (view: EditorView) => view.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length;
-
 describe('platform/codemirror editor moved into an iframe', () => {
-    it("starts a drag from pointer events sent through the iframe's window", async () => {
-        const { view, win, pointer } = await editorMovedIntoFrame('- item one\n- item two');
-        const handle = view.dom.querySelector<HTMLElement>('.md-dragger-handle');
-        expect(handle?.ownerDocument).toBe(win.document);
-
-        handle?.dispatchEvent(pointer('pointerdown', 0, 0));
-        win.dispatchEvent(pointer('pointermove', 12, 12));
-        await nextFrame();
-
-        expect(draggedLines(view)).toBeGreaterThan(0);
-    });
-
     it("presents the settings in the iframe's document before a pointer over the editor can show a handle", async () => {
         const presenter = host.settingsPresenter as SettingsPresenter;
         presenter.update(
@@ -84,19 +71,5 @@ describe('platform/codemirror editor moved into an iframe', () => {
         view.contentDOM.dispatchEvent(pointer('pointerover', 0, 0));
 
         expect(win.document.body.getAttribute('data-d-handle-icon')).toBe('square');
-    });
-
-    it("ends the drag on Escape pressed in the iframe's window", async () => {
-        const { view, win, pointer } = await editorMovedIntoFrame('- item one\n- item two');
-        view.dom.querySelector('.md-dragger-handle')?.dispatchEvent(pointer('pointerdown', 0, 0));
-        win.dispatchEvent(pointer('pointermove', 12, 12));
-        await nextFrame();
-        expect(draggedLines(view)).toBeGreaterThan(0);
-
-        win.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-        await nextFrame();
-
-        expect(draggedLines(view)).toBe(0);
-        expect(view.state.doc.toString()).toBe('- item one\n- item two');
     });
 });
