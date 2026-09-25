@@ -1,14 +1,15 @@
 import { MarkdownView, Platform, Plugin, setIcon } from 'obsidian';
 import { dragHandleExtension } from '../platform/codemirror/obsidian-dragger';
-import { HANDLE_CORE_SIZE_RATIO, GRIP_DOTS_CORE_SIZE_RATIO } from '../shared/constants';
-import { DRAG_SOURCE_HIGHLIGHT_ATTR, DRAG_SOURCE_STYLE_ATTR, HANDLE_ICON_ATTR } from '../shared/dom-selectors';
 import { DragNDropSettingTab } from './settings';
-import type { DragNDropSettings, HandleVisibilityMode } from './settings-types';
+import { SettingsPresenter, settingsPresentation } from './settings-presentation';
+import type { DragNDropSettings } from './settings-types';
 import { migrateSettings } from './settings-migrations';
 import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
 
 export default class DragNDropPlugin extends Plugin {
     settings: DragNDropSettings;
+    // The editor extension hands it each document that hosts an editor.
+    readonly settingsPresenter = new SettingsPresenter();
     private mobileDragModeActionByView = new WeakMap<MarkdownView, HTMLElement>();
     private readonly mobileDragModeActionEls = new Set<HTMLElement>();
     private mobileDragModeEnabled = false;
@@ -40,6 +41,7 @@ export default class DragNDropPlugin extends Plugin {
 
     onunload() {
         this.setMobileDragModeEnabled(false);
+        this.settingsPresenter.clear();
         for (const actionEl of this.mobileDragModeActionEls) {
             actionEl.remove();
         }
@@ -58,75 +60,15 @@ export default class DragNDropPlugin extends Plugin {
     }
 
     applySettings() {
-        const body = activeDocument.body;
         if (!this.settings.enableMobileTextLongPressDrag) {
             this.mobileDragModeEnabled = false;
         }
-        const visibility: HandleVisibilityMode = this.settings.handleVisibility;
-        body.classList.toggle('d-handles-always', visibility === 'always');
-        body.classList.toggle('d-handles-hidden', visibility === 'hidden');
-        body.classList.toggle(
-            'd-mobile-handles-hidden',
-            Platform.isMobile && !this.settings.enableMobileTextLongPressDrag,
+        this.settingsPresenter.update(
+            settingsPresentation(this.settings, {
+                isMobile: Platform.isMobile,
+                mobileDragModeEnabled: this.mobileDragModeEnabled,
+            }),
         );
-        body.classList.toggle('d-mobile-drag-mode-enabled', this.mobileDragModeEnabled);
-
-        const selectionVisualStyle = this.settings.selectionVisualStyle;
-        body.setAttribute(DRAG_SOURCE_STYLE_ATTR, selectionVisualStyle);
-        body.setAttribute(DRAG_SOURCE_HIGHLIGHT_ATTR, this.settings.enableBlockSelectionHighlight ? 'on' : 'off');
-
-        const handleOffset = this.settings.handleHorizontalOffsetPx;
-        // A right-side gutter mirrors the offset: the handle sits at the
-        // right edge, so the configured shift flips sign to keep the same
-        // visual margin as on the left.
-        const effectiveOffset = this.settings.handleGutterPosition === 'right' ? -handleOffset : handleOffset;
-        body.setCssProps({
-            '--d-handle-horizontal-offset-px': `${effectiveOffset}px`,
-        });
-
-        let colorValue = '';
-        if (this.settings.handleColorMode === 'theme') {
-            colorValue = 'var(--interactive-accent)';
-        } else if (this.settings.handleColor) {
-            colorValue = this.settings.handleColor;
-        }
-
-        if (colorValue) {
-            body.setCssProps({
-                '--d-handle-color': colorValue,
-                '--d-handle-color-hover': colorValue,
-            });
-        } else {
-            body.setCssProps({
-                '--d-handle-color': '',
-                '--d-handle-color-hover': '',
-            });
-        }
-
-        let indicatorColorValue = '';
-        if (this.settings.indicatorColorMode === 'custom' && this.settings.indicatorColor) {
-            indicatorColorValue = this.settings.indicatorColor;
-        }
-
-        if (indicatorColorValue) {
-            body.setCssProps({
-                '--d-drop-indicator-color': indicatorColorValue,
-            });
-        } else {
-            // Theme mode: leave the variable unset so the drop indicator falls
-            // back to the same accent-derived color as the source highlight
-            // edge (--d-drag-source-border) in the stylesheet.
-            body.style.removeProperty('--d-drop-indicator-color');
-        }
-
-        const handleSize = this.settings.handleSize;
-        body.setCssProps({
-            '--d-handle-size': `${handleSize}px`,
-            '--d-handle-core-size': `${Math.round(handleSize * HANDLE_CORE_SIZE_RATIO)}px`,
-            '--d-grip-dots-core-size': `${Math.round(handleSize * GRIP_DOTS_CORE_SIZE_RATIO)}px`,
-        });
-        body.setAttribute(HANDLE_ICON_ATTR, this.settings.handleIcon);
-
         this.syncMobileDragModeActionVisibility();
     }
 

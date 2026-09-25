@@ -17,6 +17,7 @@ function mockPlugin(): ObsidianDraggerHost {
         isMobilePlatform: () => false,
         isMobileDragModeEnabled: () => false,
         notifyDragDrop: () => {},
+        settingsPresenter: { presentIn: () => {} },
     };
 }
 

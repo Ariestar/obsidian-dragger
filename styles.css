@@ -392,3 +392,12 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
     display: none;
     background-color: var(--interactive-accent);
 }
+
+/* Canvas cards: the editor fills the card's iframe, so a handle left of
+   the text would overhang the card's edge and be clipped. The host marks card
+   editors and sets --d-gutter-left (the gutter's distance from the editor's
+   left edge); the handle's left edge stays inside, shifted only as far as
+   needed. The text doesn't move. */
+.markdown-source-view.mod-cm6 .cm-editor.d-root-editor[data-d-card-editor] .cm-gutter.md-dragger-gutter .cm-gutterElement > .md-dragger-handle {
+    transform: translateX(max(calc(var(--d-handle-horizontal-offset-px, 0px) - 50%), calc(-1 * var(--d-gutter-left))));
+}
