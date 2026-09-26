@@ -21,6 +21,20 @@ function frameDocument(): Document {
     return frame.contentDocument as Document;
 }
 
+/**
+ * A document whose window can close, as a canvas card's iframe document does when editing stops. A stand-in, because
+ * jsdom keeps a removed iframe's window.
+ */
+function closableDocument() {
+    const doc = { defaultView: window as Window | null, body: document.createElement('body') };
+    return {
+        doc: doc as unknown as Document,
+        close: () => {
+            doc.defaultView = null;
+        },
+    };
+}
+
 function bodyState(doc: Document) {
     return {
         classes: [...doc.body.classList].filter((name) => name.startsWith('d-')),
@@ -67,6 +81,34 @@ describe('SettingsPresenter', () => {
         presenter.presentIn(frameDocument());
 
         expect(bodyState(frames[0].contentDocument as Document)).toEqual({ classes: [], icon: null, size: '' });
+    });
+
+    it('stops updating a document once its window has closed', () => {
+        const presenter = new SettingsPresenter();
+        presenter.update(present({ handleIcon: 'square' }));
+        const card = closableDocument();
+        presenter.presentIn(card.doc);
+        card.close();
+
+        presenter.update(present({ handleIcon: 'grip-lines' }));
+
+        expect(bodyState(card.doc).icon).toBe('square');
+        presenter.clear();
+    });
+
+    it('lets go of a closed document once another document is presented', () => {
+        // Every card edit gets a fresh iframe document, discarded when editing stops.
+        const presenter = new SettingsPresenter();
+        presenter.update(present({ handleVisibility: 'always' }));
+        const card = closableDocument();
+        presenter.presentIn(card.doc);
+        card.close();
+
+        presenter.presentIn(frameDocument());
+        presenter.clear();
+
+        // clear() strips every document the presenter still holds.
+        expect(bodyState(card.doc).classes).toEqual(['d-handles-always']);
     });
 
     it('removes every class, attribute, and CSS variable it set when cleared', () => {

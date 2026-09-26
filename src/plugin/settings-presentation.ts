@@ -63,20 +63,17 @@ export class SettingsPresenter {
     /** Presents the settings in a document hosting a Dragger editor. Cheap to repeat. */
     presentIn(doc: Document): void {
         if (this.documents.has(doc)) return;
+        // Every card edit brings a fresh iframe document; drop the closed ones
+        // as new ones arrive, so they can be freed.
+        this.forgetClosedDocuments();
         this.documents.add(doc);
         if (this.presentation !== null) show(doc.body, this.presentation);
     }
 
     update(presentation: SettingsPresentation): void {
         this.presentation = presentation;
-        for (const doc of this.documents) {
-            // A closed pop-out window or a card that stopped editing.
-            if (doc.defaultView === null) {
-                this.documents.delete(doc);
-                continue;
-            }
-            show(doc.body, presentation);
-        }
+        this.forgetClosedDocuments();
+        for (const doc of this.documents) show(doc.body, presentation);
     }
 
     /** Removes the presentation from every document, and presents nothing until the next update. */
@@ -92,6 +89,13 @@ export class SettingsPresenter {
         }
         this.documents.clear();
         this.presentation = null;
+    }
+
+    // A closed pop-out window, or a card that stopped editing.
+    private forgetClosedDocuments(): void {
+        for (const doc of this.documents) {
+            if (doc.defaultView === null) this.documents.delete(doc);
+        }
     }
 }
 
