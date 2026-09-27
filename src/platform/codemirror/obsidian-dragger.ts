@@ -209,9 +209,9 @@ function listIndentStepPx(view: EditorView): number {
 }
 
 function createObsidianHandle(doc: Document): HTMLElement {
-    const handle = doc.createElement('div');
+    const handle = doc.win.createDiv();
     handle.className = HANDLE_CLASS;
-    const core = doc.createElement('span');
+    const core = doc.win.createSpan();
     core.className = 'd-handle-core';
     core.setAttribute('aria-hidden', 'true');
     handle.appendChild(core);
