@@ -22,6 +22,22 @@
     overflow: visible;
 }
 
+/* Obsidian turns a card iframe's scroller into a column and inserts spacers,
+   which stacks the gutter above the lines. Cards use the same row as the
+   main editor. !important wins over app.css copied into the iframe later. */
+.markdown-source-view.mod-inside-iframe > .cm-editor > .cm-scroller {
+    flex-direction: row !important;
+    padding-block: var(--size-4-4);
+}
+
+.markdown-source-view.mod-inside-iframe > .cm-editor > .cm-scroller::before,
+.markdown-source-view.mod-inside-iframe > .cm-editor > .cm-scroller::after {
+    content: none !important;
+    display: none !important;
+    flex: none;
+    min-height: 0;
+}
+
 /* Adapter gutter — zero-width overlay layout for Obsidian. */
 .markdown-source-view.mod-cm6 .cm-editor.d-root-editor .cm-gutter.md-dragger-gutter {
     flex: 0 0 0;
@@ -47,9 +63,15 @@
     text-align: center;
 }
 
+/* Pop-out documents are quirks mode: a line whose only box is an inline-flex
+   drops the line-height strut, so vertical-align: middle has nothing to align
+   to. The handle box is that strut — one line high, at the top of the cell
+   (wrapped lines stay below it). 1lh is the line-height already on the cell. */
 .markdown-source-view.mod-cm6 .cm-editor.d-root-editor .cm-gutter.md-dragger-gutter .cm-gutterElement > .md-dragger-handle {
-    display: inline-flex;
-    vertical-align: middle;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 1lh;
     transform: translateX(calc(var(--d-handle-horizontal-offset-px, 0px) - 50%));
     pointer-events: auto;
 }
