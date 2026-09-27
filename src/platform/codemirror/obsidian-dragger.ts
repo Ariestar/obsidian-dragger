@@ -54,11 +54,6 @@ export type ObsidianDraggerHost = {
 const LIST_INDENT_UNIT = 4;
 
 export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
-    // The document of the editor pressed last. Auto-scroll only runs during
-    // that editor's drag, and its pointer coordinates are only meaningful in
-    // that document (a canvas card's iframe, a pop-out window), which
-    // Obsidian's activeDocument need not be.
-    let pressedDocument: Document | null = null;
     const options: MdDraggerCodeMirrorOptions = {
         // tabSize is always read live from EditorState.tabSize by the adapter.
         config: {
@@ -67,7 +62,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
         },
         listIndentWidthPx: (view) => listIndentStepPx(view),
         handle: {
-            render: () => createObsidianHandle(),
+            render: (doc) => createObsidianHandle(doc),
             side: plugin.settings.handleGutterPosition === 'right' ? 'after' : 'before',
         },
         // Obsidian's Live Preview renders tables as HTML widgets; clicking a
@@ -92,22 +87,20 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
                 return lineAtPoint(view, input.point);
             },
         }),
-        ux: {
+        // Per view: the port reads this editor's document at scroll time, including
+        // after Obsidian moves the editor into a card iframe or a pop-out window.
+        ux: (view) => ({
             gesture: () => gestureConfig(plugin),
             modules: [
                 autoScroll(
-                    // Adapter port scrolls the .cm-scroller under the pointer.
-                    scrollPort(() => {
-                        if (pressedDocument === null) throw new Error('Dragger: auto-scroll without a pressed editor');
-                        return pressedDocument;
-                    }),
+                    scrollPort(() => view.dom.ownerDocument),
                     () => ({
                         edgeZonePx: plugin.settings.autoScrollEdgeZonePx,
                         maxSpeedPx: plugin.settings.autoScrollMaxSpeedPx,
                     }),
                 ),
             ],
-        },
+        }),
         onChange: (result) => {
             for (const item of result.outputs) {
                 if (item.type === 'dropped') plugin.notifyDragDrop();
@@ -123,9 +116,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
         dropIndicatorPaint(options),
         selectionPaint(),
         handleHover(),
-        gestureShell(plugin, (doc) => {
-            pressedDocument = doc;
-        }),
+        gestureShell(plugin),
     ];
 }
 
@@ -210,15 +201,17 @@ function keepCardHandlesInside(): Extension {
 // --list-indent itself is a calc() chain (getComputedStyle returns it
 // unparsed), so the two literals are read and multiplied instead.
 function listIndentStepPx(view: EditorView): number {
-    const cs = getComputedStyle(view.contentDOM);
+    const win = view.dom.ownerDocument.defaultView;
+    if (!win) throw new Error('Dragger: editor document has no window');
+    const cs = win.getComputedStyle(view.contentDOM);
     const em = parseFloat(cs.getPropertyValue('--indent-unit')) * parseFloat(cs.getPropertyValue('--indent-size'));
     return em * parseFloat(cs.fontSize);
 }
 
-function createObsidianHandle(): HTMLElement {
-    const handle = activeWindow.createDiv();
+function createObsidianHandle(doc: Document): HTMLElement {
+    const handle = doc.createElement('div');
     handle.className = HANDLE_CLASS;
-    const core = activeWindow.createSpan();
+    const core = doc.createElement('span');
     core.className = 'd-handle-core';
     core.setAttribute('aria-hidden', 'true');
     handle.appendChild(core);
@@ -464,7 +457,7 @@ function handleHover(): Extension {
 
 // Drag-state classes and the touch-move lock go on the document that contains
 // the editor: the main window's, a pop-out window's, or a canvas card's iframe.
-function gestureShell(plugin: ObsidianDraggerHost, onPress: (doc: Document) => void): Extension {
+function gestureShell(plugin: ObsidianDraggerHost): Extension {
     return ViewPlugin.fromClass(
         class {
             private lastPress: { event: PointerEvent; onHandle: boolean } | null = null;
@@ -473,7 +466,6 @@ function gestureShell(plugin: ObsidianDraggerHost, onPress: (doc: Document) => v
                 // Nested table-cell editors are not dragger views: never
                 // record a press or (mobile) block their pointer handling.
                 if (!isDraggerView(this.view)) return;
-                onPress(this.view.dom.ownerDocument);
                 // Only a short press that started on a handle may open the
                 // block menu — cancels from Escape or presses on non-handle
                 // space must not.
