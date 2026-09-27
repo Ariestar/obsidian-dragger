@@ -24,7 +24,19 @@ if (typeof window !== 'undefined') {
 
     // jsdom has no Obsidian's window-level element factories (createDiv and
     // friends); adapter code uses them since the eslint-plugin-obsidianmd
-    // 0.4.1 prefer-create-el rules.
+    // 0.4.1 prefer-create-el rules. `win` is the window that owns the node
+    // (Document.defaultView, otherwise ownerDocument.defaultView). A document
+    // with no window is a detached document, not a stand-in for this one.
+    Object.defineProperty(Node.prototype, 'win', {
+        configurable: true,
+        get(this: Node) {
+            const doc = this.nodeType === Node.DOCUMENT_NODE ? (this as Document) : this.ownerDocument;
+            const view = doc?.defaultView;
+            if (!view) throw new Error('node has no window');
+            return view;
+        },
+    });
+
     if (typeof window.createDiv !== 'function') {
         window.createDiv = (o?: Record<string, unknown> | string, callback?: (el: HTMLDivElement) => void) => {
             const el = window.document.createElement('div');
