@@ -23,7 +23,12 @@ import {
 import { dragSelectionDoc, dropSeamState, selectionFromOutputs, type PipelineResult } from 'md-dragger/runtime';
 import { autoScroll } from 'md-dragger/runtime/modules';
 import { openBlockTypeMenu } from '../../plugin/block-type-menu';
-import { DRAGGING_BODY_CLASS, MOBILE_GESTURE_LOCK_CLASS, ROOT_EDITOR_CLASS } from '../../shared/dom-selectors';
+import {
+    CARD_EDITOR_ATTR,
+    DRAGGING_BODY_CLASS,
+    MOBILE_GESTURE_LOCK_CLASS,
+    ROOT_EDITOR_CLASS,
+} from '../../shared/dom-selectors';
 
 /** Minimal plugin surface used by the editor extension. */
 export type ObsidianDraggerHost = {
@@ -38,6 +43,8 @@ export type ObsidianDraggerHost = {
     isMobilePlatform(): boolean;
     isMobileDragModeEnabled(): boolean;
     notifyDragDrop(): void;
+    /** Puts the settings' body classes, attributes, and CSS variables on documents hosting Dragger editors. */
+    settingsPresenter: { presentIn(doc: Document): void };
 };
 
 /**
@@ -55,7 +62,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
         },
         listIndentWidthPx: (view) => listIndentStepPx(view),
         handle: {
-            render: () => createObsidianHandle(),
+            render: (doc) => createObsidianHandle(doc),
             side: plugin.settings.handleGutterPosition === 'right' ? 'after' : 'before',
         },
         // Obsidian's Live Preview renders tables as HTML widgets; clicking a
@@ -75,26 +82,25 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
                 }
                 const fromHandle = handleSourceLineFromInput(view, input);
                 if (fromHandle !== null) return fromHandle;
-                const event = input.native instanceof PointerEvent ? input.native : null;
-                const target = event?.target instanceof Element ? event.target : null;
+                const target = elementTarget(input.native);
                 if (target && !view.dom.contains(target)) return null;
                 return lineAtPoint(view, input.point);
             },
         }),
-        ux: {
+        // Per view: the port reads this editor's document at scroll time, including
+        // after Obsidian moves the editor into a card iframe or a pop-out window.
+        ux: (view) => ({
             gesture: () => gestureConfig(plugin),
             modules: [
                 autoScroll(
-                    // Adapter port scrolls the .cm-scroller under the pointer;
-                    // activeDocument keeps pop-out windows working.
-                    scrollPort(() => activeDocument),
+                    scrollPort(() => view.dom.ownerDocument),
                     () => ({
                         edgeZonePx: plugin.settings.autoScrollEdgeZonePx,
                         maxSpeedPx: plugin.settings.autoScrollMaxSpeedPx,
                     }),
                 ),
             ],
-        },
+        }),
         onChange: (result) => {
             for (const item of result.outputs) {
                 if (item.type === 'dropped') plugin.notifyDragDrop();
@@ -104,12 +110,87 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
 
     return [
         EditorView.editorAttributes.of({ class: ROOT_EDITOR_CLASS }),
+        presentSettingsInEditorDocument(plugin),
+        keepCardHandlesInside(),
         ...mdDragger(options),
         dropIndicatorPaint(options),
         selectionPaint(),
         handleHover(),
         gestureShell(plugin),
     ];
+}
+
+// Obsidian may move an editor into another document after building it (a
+// canvas card's editor goes into the card's iframe), and no CodeMirror or
+// Obsidian event reliably says so. The two plugins below re-check the editor's
+// document on every update and before any pointer interaction can show a
+// handle.
+
+// The settings are presented in the document hosting the editor.
+function presentSettingsInEditorDocument(host: ObsidianDraggerHost): Extension {
+    return ViewPlugin.fromClass(
+        class {
+            private readonly present = () => host.settingsPresenter.presentIn(this.view.dom.ownerDocument);
+
+            constructor(private readonly view: EditorView) {
+                this.present();
+                view.dom.addEventListener('pointerover', this.present, true);
+                view.dom.addEventListener('pointerdown', this.present, true);
+            }
+
+            update() {
+                this.present();
+            }
+
+            destroy() {
+                this.view.dom.removeEventListener('pointerover', this.present, true);
+                this.view.dom.removeEventListener('pointerdown', this.present, true);
+            }
+        },
+    );
+}
+
+// In a canvas card (an editor inside a frame) the editor fills the card, so a
+// handle left of the text would overhang the card's edge and be clipped. The
+// gutter's distance from the editor's left edge goes into --d-gutter-left, and
+// styles.css keeps the handle inside, shifting it only as far as needed. Note
+// tabs keep upstream placement.
+function keepCardHandlesInside(): Extension {
+    return ViewPlugin.fromClass(
+        class {
+            private readonly measure = () =>
+                this.view.requestMeasure({
+                    key: this,
+                    read: (view) => {
+                        const gutter = view.dom.querySelector('.md-dragger-gutter');
+                        if (!gutter || view.dom.ownerDocument.defaultView?.frameElement == null) return null;
+                        return gutter.getBoundingClientRect().left - view.scrollDOM.getBoundingClientRect().left;
+                    },
+                    write: (gutterLeft, view) => {
+                        if (gutterLeft === null) {
+                            view.dom.removeAttribute(CARD_EDITOR_ATTR);
+                            view.dom.style.removeProperty('--d-gutter-left');
+                        } else {
+                            view.dom.setAttribute(CARD_EDITOR_ATTR, '');
+                            view.dom.style.setProperty('--d-gutter-left', `${gutterLeft}px`);
+                        }
+                    },
+                });
+
+            constructor(private readonly view: EditorView) {
+                this.measure();
+                view.dom.addEventListener('pointerover', this.measure, true);
+            }
+
+            update() {
+                this.measure();
+            }
+
+            destroy() {
+                this.view.dom.removeEventListener('pointerover', this.measure, true);
+            }
+        },
+    );
 }
 
 // Rendered pixel width of one list nesting level. Single source of truth:
@@ -120,15 +201,17 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
 // --list-indent itself is a calc() chain (getComputedStyle returns it
 // unparsed), so the two literals are read and multiplied instead.
 function listIndentStepPx(view: EditorView): number {
-    const cs = getComputedStyle(view.contentDOM);
+    const win = view.dom.ownerDocument.defaultView;
+    if (!win) throw new Error('Dragger: editor document has no window');
+    const cs = win.getComputedStyle(view.contentDOM);
     const em = parseFloat(cs.getPropertyValue('--indent-unit')) * parseFloat(cs.getPropertyValue('--indent-size'));
     return em * parseFloat(cs.fontSize);
 }
 
-function createObsidianHandle(): HTMLElement {
-    const handle = activeWindow.createDiv();
+function createObsidianHandle(doc: Document): HTMLElement {
+    const handle = doc.win.createDiv();
     handle.className = HANDLE_CLASS;
-    const core = activeWindow.createSpan();
+    const core = doc.win.createSpan();
     core.className = 'd-handle-core';
     core.setAttribute('aria-hidden', 'true');
     handle.appendChild(core);
@@ -140,6 +223,17 @@ function createObsidianHandle(): HTMLElement {
 // so the check is cheap and is re-evaluated on every render/press.
 function isDraggerView(view: EditorView): boolean {
     return view.dom.closest('.cm-table-widget') === null;
+}
+
+/**
+ * An event's target, if it is an element. Cross-window safe: events and elements from a canvas card's iframe or a
+ * pop-out window are instances of that window's classes, so `instanceof Element` would reject them.
+ */
+function elementTarget(event: unknown): Element | null {
+    const target: unknown = (event as { target?: unknown } | null | undefined)?.target;
+    return typeof target === 'object' && target !== null && (target as Node).nodeType === Node.ELEMENT_NODE
+        ? (target as Element)
+        : null;
 }
 
 function gestureConfig(plugin: ObsidianDraggerHost) {
@@ -317,7 +411,7 @@ function handleHover(): Extension {
                     this.setVisible(null);
                     return;
                 }
-                if (activeDocument.body.classList.contains(DRAGGING_BODY_CLASS)) {
+                if (this.view.dom.ownerDocument.body.classList.contains(DRAGGING_BODY_CLASS)) {
                     this.setVisible(null);
                     return;
                 }
@@ -361,11 +455,13 @@ function handleHover(): Extension {
     );
 }
 
+// Drag-state classes and the touch-move lock go on the document that contains
+// the editor: the main window's, a pop-out window's, or a canvas card's iframe.
 function gestureShell(plugin: ObsidianDraggerHost): Extension {
     return ViewPlugin.fromClass(
         class {
             private lastPress: { event: PointerEvent; onHandle: boolean } | null = null;
-            private locked = false;
+            private lockedDocument: Document | null = null;
             private readonly onPointerDown = (e: PointerEvent) => {
                 // Nested table-cell editors are not dragger views: never
                 // record a press or (mobile) block their pointer handling.
@@ -375,7 +471,7 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
                 // space must not.
                 this.lastPress = {
                     event: e,
-                    onHandle: e.target instanceof Element && e.target.closest(`.${HANDLE_CLASS}`) !== null,
+                    onHandle: elementTarget(e)?.closest(`.${HANDLE_CLASS}`) != null,
                 };
                 if (plugin.isMobilePlatform() && plugin.isMobileDragModeEnabled()) {
                     e.preventDefault();
@@ -406,9 +502,9 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
             destroy() {
                 this.setLock(false);
                 // The consuming plugin may be destroyed before the runtime flushes its
-                // final state; always clear the global dragging class so the cursor
+                // final state; always clear the dragging class so the cursor
                 // never stays stuck in grab mode.
-                activeDocument.body.classList.remove(DRAGGING_BODY_CLASS);
+                this.view.dom.ownerDocument.body.classList.remove(DRAGGING_BODY_CLASS);
                 this.view.dom.removeEventListener('pointerdown', this.onPointerDown, true);
                 this.view.dom.removeEventListener('contextmenu', this.onContextMenu, true);
             }
@@ -418,7 +514,7 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
                     if (output.type === 'state_changed') {
                         const t = output.state.type;
                         this.setLock(t !== 'idle');
-                        activeDocument.body.classList.toggle(DRAGGING_BODY_CLASS, t === 'dragging');
+                        this.view.dom.ownerDocument.body.classList.toggle(DRAGGING_BODY_CLASS, t === 'dragging');
                     }
                     if (output.type === 'cancelled' && output.reason === 'press_cancelled') {
                         const press = this.lastPress;
@@ -438,13 +534,16 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
             }
 
             private setLock(locked: boolean) {
-                if (this.locked === locked) return;
-                this.locked = locked;
-                activeDocument.body.classList.toggle(MOBILE_GESTURE_LOCK_CLASS, locked);
+                if (locked === (this.lockedDocument !== null)) return;
                 if (locked) {
-                    activeDocument.addEventListener('touchmove', this.onTouchMove, { capture: true, passive: false });
-                } else {
-                    activeDocument.removeEventListener('touchmove', this.onTouchMove, true);
+                    const doc = this.view.dom.ownerDocument;
+                    doc.body.classList.add(MOBILE_GESTURE_LOCK_CLASS);
+                    doc.addEventListener('touchmove', this.onTouchMove, { capture: true, passive: false });
+                    this.lockedDocument = doc;
+                } else if (this.lockedDocument !== null) {
+                    this.lockedDocument.body.classList.remove(MOBILE_GESTURE_LOCK_CLASS);
+                    this.lockedDocument.removeEventListener('touchmove', this.onTouchMove, true);
+                    this.lockedDocument = null;
                 }
             }
         },

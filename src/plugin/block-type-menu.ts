@@ -114,11 +114,11 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null)
         failureNotice: 'Unable to delete block.',
     });
 
-    showMenuAt(menu, view, event);
+    const doc = showMenuAt(menu, view, event);
 
     if (Platform.isDesktop) {
         // Bind hover after the menu is in the DOM.
-        window.queueMicrotask(() => bindDesktopGroupHover(view, line));
+        window.queueMicrotask(() => bindDesktopGroupHover(view, line, doc));
     }
 }
 
@@ -142,8 +142,8 @@ function showMobileGroupPage(view: EditorView, group: NestedConversionGroup, lin
     showMenuAt(menu, view, null);
 }
 
-function bindDesktopGroupHover(view: EditorView, line: number): void {
-    const menuEl = latestMenuElement();
+function bindDesktopGroupHover(view: EditorView, line: number, doc: Document): void {
+    const menuEl = latestMenuElement(doc);
     if (!menuEl) return;
 
     for (const item of Array.from(menuEl.querySelectorAll<HTMLElement>('.menu-item'))) {
@@ -158,7 +158,7 @@ function bindDesktopGroupHover(view: EditorView, line: number): void {
         });
         item.addEventListener('pointerleave', (event) => {
             const related = event.relatedTarget;
-            if (related instanceof Node && flyoutEl?.contains(related)) {
+            if (isNode(related) && flyoutEl?.contains(related)) {
                 cancelFlyoutClose();
                 return;
             }
@@ -173,12 +173,14 @@ function openFlyout(view: EditorView, group: NestedConversionGroup, trigger: HTM
 
     disposeFlyout();
 
-    const panel = activeWindow.createDiv();
+    // The flyout goes into the menu's document: the trigger is a menu item.
+    const doc = trigger.doc;
+    const panel = doc.win.createDiv();
     panel.className = `menu ${FLYOUT_CLASS}`;
     panel.setAttribute('role', 'menu');
 
     for (const option of group.options) {
-        panel.appendChild(createFlyoutItem(view, option, line));
+        panel.appendChild(createFlyoutItem(doc, view, option, line));
     }
 
     panel.addEventListener('pointerenter', () => {
@@ -186,32 +188,37 @@ function openFlyout(view: EditorView, group: NestedConversionGroup, trigger: HTM
     });
     panel.addEventListener('pointerleave', (event) => {
         const related = event.relatedTarget;
-        if (related instanceof Node && flyoutTrigger?.contains(related)) {
+        if (isNode(related) && flyoutTrigger?.contains(related)) {
             cancelFlyoutClose();
             return;
         }
         scheduleFlyoutClose();
     });
 
-    activeDocument.body.appendChild(panel);
+    doc.body.appendChild(panel);
     positionFlyout(panel, trigger);
 
     flyoutEl = panel;
     flyoutTrigger = trigger;
 }
 
-function createFlyoutItem(view: EditorView, option: BlockTypeConversionOption, line: number): HTMLElement {
+function createFlyoutItem(
+    doc: Document,
+    view: EditorView,
+    option: BlockTypeConversionOption,
+    line: number,
+): HTMLElement {
     const target = option.target;
-    const row = activeWindow.createDiv();
+    const row = doc.win.createDiv();
     row.className = `menu-item ${FLYOUT_ITEM_CLASS}`;
     row.setAttribute('role', 'menuitem');
     row.tabIndex = 0;
 
-    const icon = activeWindow.createDiv();
+    const icon = doc.win.createDiv();
     icon.className = 'menu-item-icon';
     setIcon(icon, option.icon);
 
-    const title = activeWindow.createDiv();
+    const title = doc.win.createDiv();
     title.className = 'menu-item-title';
     title.textContent = option.label;
 
@@ -239,17 +246,18 @@ function createFlyoutItem(view: EditorView, option: BlockTypeConversionOption, l
 }
 
 function positionFlyout(panel: HTMLElement, trigger: HTMLElement): void {
+    const win = trigger.win;
     const rect = trigger.getBoundingClientRect();
     // Measure after attach so we can flip if near the right edge.
     const width = panel.offsetWidth || 160;
     const height = panel.offsetHeight || 0;
     let x = rect.right + 4;
     let y = rect.top;
-    if (x + width > activeWindow.innerWidth - 8) {
+    if (x + width > win.innerWidth - 8) {
         x = Math.max(8, rect.left - width - 4);
     }
-    if (y + height > activeWindow.innerHeight - 8) {
-        y = Math.max(8, activeWindow.innerHeight - height - 8);
+    if (y + height > win.innerHeight - 8) {
+        y = Math.max(8, win.innerHeight - height - 8);
     }
     panel.setCssStyles({
         position: 'fixed',
@@ -279,8 +287,8 @@ function disposeFlyout(): void {
     flyoutTrigger = null;
 }
 
-function latestMenuElement(): HTMLElement | null {
-    const menus = Array.from(activeDocument.querySelectorAll<HTMLElement>('.menu'));
+function latestMenuElement(doc: Document): HTMLElement | null {
+    const menus = Array.from(doc.querySelectorAll<HTMLElement>('.menu'));
     return menus[menus.length - 1] ?? null;
 }
 
@@ -343,10 +351,17 @@ function createGroupTitle(labelText: string): DocumentFragment {
     return fragment;
 }
 
-function showMenuAt(menu: Menu, view: EditorView, event: MouseEvent | PointerEvent | null): void {
+/**
+ * Opens the menu at the event's point, or else at the cursor, in the window
+ * the user is looking at: a pop-out window's editor gets the menu in that
+ * window; a canvas card's editor (in an iframe) gets it in the main window at
+ * the point's on-screen position. Returns the document the menu is shown in.
+ */
+function showMenuAt(menu: Menu, view: EditorView, event: MouseEvent | PointerEvent | null): Document {
     // Always position by coordinates. Never showAtMouseEvent for a short-tap
     // re-open: the originating touch is finished, and on mobile that API can
     // bind the leftover click as an outside-dismiss.
+    const editorDoc = view.dom.ownerDocument;
     let x: number | null = null;
     let y: number | null = null;
     if (event && typeof event.clientX === 'number' && typeof event.clientY === 'number') {
@@ -360,8 +375,36 @@ function showMenuAt(menu: Menu, view: EditorView, event: MouseEvent | PointerEve
         }
     }
     if (x === null || y === null) {
-        x = activeWindow.innerWidth / 2;
-        y = activeWindow.innerHeight / 2;
+        // Standard DOM: a card iframe's window need not carry Obsidian's helpers.
+        const win = editorDoc.defaultView;
+        if (!win) throw new Error('Dragger: editor document has no window');
+        x = win.innerWidth / 2;
+        y = win.innerHeight / 2;
     }
-    menu.showAtPosition({ x, y });
+    const at = pointInTopDocument(editorDoc, x, y);
+    menu.showAtPosition({ x: at.x, y: at.y }, at.doc);
+    return at.doc;
+}
+
+/** Cross-window safe `instanceof Node`. */
+function isNode(value: unknown): value is Node {
+    return typeof value === 'object' && value !== null && typeof (value as Node).nodeType === 'number';
+}
+
+/**
+ * A point in a document, translated into the top-level document of its window, where the user sees it: through each
+ * enclosing frame's on-screen rect and scale (a canvas card's iframe is scaled by the canvas zoom). A pop-out window's
+ * document is its own top level.
+ */
+function pointInTopDocument(doc: Document, x: number, y: number): { doc: Document; x: number; y: number } {
+    let frame = doc.defaultView?.frameElement as HTMLElement | null | undefined;
+    while (frame) {
+        const rect = frame.getBoundingClientRect();
+        const scale = rect.width / frame.offsetWidth;
+        x = rect.left + (frame.clientLeft + x) * scale;
+        y = rect.top + (frame.clientTop + y) * scale;
+        doc = frame.ownerDocument;
+        frame = doc.defaultView?.frameElement as HTMLElement | null | undefined;
+    }
+    return { doc, x, y };
 }
