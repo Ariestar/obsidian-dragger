@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: weekly
     versioning-strategy: increase
+    groups:
+      codemirror:
+        patterns:
+          - "@codemirror/*"
   - package-ecosystem: github-actions
     directory: /
     schedule:
