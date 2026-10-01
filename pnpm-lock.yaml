@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       md-dragger:
-        specifier: ^2.0.2
-        version: 2.0.2(@codemirror/state@6.7.1)(@codemirror/view@6.43.11)
+        specifier: ^2.1.0
+        version: 2.1.0(@codemirror/state@6.7.1)(@codemirror/view@6.43.11)
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.5.10
@@ -724,10 +724,6 @@ packages:
   ansi-regex@6.2.2:
     resolution: {integrity: sha512-Bq3SmSpyFHaWjPk8If9yc6svM8c56dB5BAtW4Qbw5jHTwwXXcTLoRMkpDJp6VL0XzlWaCHTXrkFURMYmD0sLqg==}
     engines: {node: '>=12'}
-
-  ansi-styles@4.0.0:
-    resolution: {integrity: sha512-8zjUtFJ3db/QoPXuuEMloS2AUf79/yeyttJ7Abr3hteopJu9HK8vsgGviGUMq+zyA6cZZO6gAyZoMTF6TgaEjA==}
-    engines: {node: '>=8'}
 
   ansi-styles@4.1.0:
     resolution: {integrity: sha512-Qts4KCLKG+waHc9C4m07weIY8qyeixoS0h6RnbsNVD6Fw+pEZGW3vTyObL3WXpE09Mq4Oi7/lBEyLmOiLtlYWQ==}
@@ -1589,8 +1585,8 @@ packages:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
 
-  md-dragger@2.0.2:
-    resolution: {integrity: sha512-1UXvzikshDJvmH5V4K0y3EEBZqqIpK8tBhRaYG0KvDlEIU02k83FoLqRumz/c8u2UTLcFIiMYnHV7/cZkT2EIQ==}
+  md-dragger@2.1.0:
+    resolution: {integrity: sha512-rNjHctJyJiU4nmYLzP1+iJcnH2v32RZHxO4HmhG+iZrZPSRiXEjPeMcOy+KWeosrkn35uBnR2Qv2Cykcx8Ezig==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
       '@codemirror/state': ^6.0.0
@@ -2803,10 +2799,6 @@ snapshots:
 
   ansi-regex@6.2.2: {}
 
-  ansi-styles@4.0.0:
-    dependencies:
-      color-convert: 2.0.1
-
   ansi-styles@4.1.0:
     dependencies:
       color-convert: 2.0.1
@@ -3439,9 +3431,9 @@ snapshots:
 
   fast-uri@3.1.4: {}
 
-  fdir@6.5.0(picomatch@4.0.5):
+  fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
-      picomatch: 4.0.5
+      picomatch: 4.0.7
 
   file-entry-cache@8.0.0:
     dependencies:
@@ -3879,7 +3871,7 @@ snapshots:
 
   math-intrinsics@1.1.0: {}
 
-  md-dragger@2.0.2(@codemirror/state@6.7.1)(@codemirror/view@6.43.11):
+  md-dragger@2.1.0(@codemirror/state@6.7.1)(@codemirror/view@6.43.11):
     dependencies:
       '@codemirror/state': 6.7.1
       '@codemirror/view': 6.43.11
@@ -4315,8 +4307,8 @@ snapshots:
 
   tinyglobby@0.2.17:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.5)
-      picomatch: 4.0.5
+      fdir: 6.5.0(picomatch@4.0.7)
+      picomatch: 4.0.7
 
   tldts-core@7.4.10: {}
 
@@ -4429,7 +4421,7 @@ snapshots:
   vite@8.2.0(@types/node@26.2.0)(esbuild@0.28.2)(yaml@2.9.0):
     dependencies:
       lightningcss: 1.33.0
-      picomatch: 4.0.5
+      picomatch: 4.0.7
       postcss: 8.5.25
       rolldown: 1.2.1
       tinyglobby: 0.2.17
@@ -4541,7 +4533,7 @@ snapshots:
 
   wrap-ansi@7.0.0:
     dependencies:
-      ansi-styles: 4.0.0
+      ansi-styles: 4.1.0
       string-width: 4.2.0
       strip-ansi: 6.0.1
 
