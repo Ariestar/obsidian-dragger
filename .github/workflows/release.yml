@@ -15,9 +15,13 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6.1.0
@@ -33,6 +37,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Use the latest md-dragger
+        run: pnpm update md-dragger
+
       - name: Verify version sync
         run: pnpm run check:versions
 
@@ -42,11 +49,22 @@ jobs:
       - name: Lint
         run: pnpm run lint:review
 
+      - name: Format check
+        run: pnpm run format:check
+
       - name: Run tests
         run: pnpm test
 
       - name: Build
         run: pnpm run build
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/main.js
+            dist/manifest.json
+            dist/styles.css
 
       - name: Create GitHub Release
         run: |

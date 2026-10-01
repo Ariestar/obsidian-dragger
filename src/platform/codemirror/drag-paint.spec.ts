@@ -33,7 +33,15 @@ function makeView(doc: string, settingsOverrides?: Partial<ObsidianDraggerHost['
 }
 
 function pointer(type: string, x: number, y: number): PointerEvent {
-    return new PointerEvent(type, { pointerId: 1, clientX: x, clientY: y, bubbles: true });
+    const event = new PointerEvent(type, {
+        pointerId: 1,
+        clientX: x,
+        clientY: y,
+        buttons: type === 'pointerup' ? 0 : 1,
+        bubbles: true,
+    });
+    Object.defineProperty(event, 'view', { value: window });
+    return event;
 }
 
 const nextFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));

@@ -45,7 +45,7 @@ jobs:
         run: pnpm run lint:review
 
       - name: Format check
-        run: pnpm exec biome format
+        run: pnpm run format:check
 
       - name: Run tests
         run: pnpm test
