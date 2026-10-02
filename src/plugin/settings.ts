@@ -1,9 +1,163 @@
-import { App, Platform, PluginSettingTab } from 'obsidian';
-import type { SettingDefinition, SettingDefinitionItem } from 'obsidian';
+import {
+    type App,
+    FuzzySuggestModal,
+    Modal,
+    Platform,
+    PluginSettingTab,
+    Setting,
+    type SettingDefinition,
+    type SettingDefinitionItem,
+    type TextComponent,
+    getIconIds,
+    setIcon,
+} from 'obsidian';
 import DragNDropPlugin from './main';
+import type { BlockStyleDefinition } from './block-styles';
 import { t } from './i18n';
-import { CustomBlockStyleModal } from './settings-custom-styles-modal';
 import { NUMERIC_SETTING_RANGES } from './settings-types';
+
+type SettingDefinitionWithIcon = SettingDefinition & {
+    icon?: string;
+};
+
+function getAllIconIdentifiers(): string[] {
+    const raw = getIconIds();
+    const set = new Set<string>();
+    for (const id of raw) {
+        set.add(id.startsWith('lucide-') ? id.slice(7) : id);
+    }
+    return Array.from(set).sort();
+}
+
+class IconSuggestModal extends FuzzySuggestModal<string> {
+    private onChoose: (iconId: string) => void;
+
+    constructor(app: App, onChoose: (iconId: string) => void) {
+        super(app);
+        this.onChoose = onChoose;
+        this.setPlaceholder('Type to search icons...');
+    }
+
+    getItems(): string[] {
+        return getAllIconIdentifiers();
+    }
+
+    getItemText(item: string): string {
+        return item;
+    }
+
+    renderSuggestion(match: { item: string }, el: HTMLElement): void {
+        el.empty();
+        const iconSpan = el.createSpan();
+        iconSpan.setCssStyles({ display: 'inline-flex', width: '20px', marginRight: '8px' });
+        setIcon(iconSpan, match.item);
+        el.createSpan({ text: match.item });
+    }
+
+    onChooseItem(item: string): void {
+        this.onChoose(item);
+    }
+}
+
+class CustomBlockStyleModal extends Modal {
+    private style: BlockStyleDefinition;
+    private isNew: boolean;
+    private onSave: (style: BlockStyleDefinition) => void;
+
+    constructor(app: App, style: BlockStyleDefinition, isNew: boolean, onSave: (style: BlockStyleDefinition) => void) {
+        super(app);
+        this.style = { ...style, linePrefix: style.linePrefix ?? '' };
+        this.isNew = isNew;
+        this.onSave = onSave;
+    }
+
+    onOpen(): void {
+        const i = t();
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.createEl('h2', { text: this.isNew ? i.customStyleModalTitleNew : i.customStyleModalTitleEdit });
+
+        new Setting(contentEl)
+            .setName(i.customStyleLabel)
+            .setDesc(i.customStyleLabelDesc)
+            .addText((text) =>
+                text.setValue(this.style.label).onChange((val) => {
+                    this.style.label = val;
+                }),
+            );
+
+        let iconInput: TextComponent | null = null;
+        const iconSetting = new Setting(contentEl).setName(i.customStyleIcon).setDesc(i.customStyleIconDesc);
+
+        iconSetting.addExtraButton((btn) => {
+            btn.setIcon(this.style.icon || 'box')
+                .setTooltip('Choose icon')
+                .onClick(() => {
+                    new IconSuggestModal(this.app, (chosenIcon) => {
+                        this.style.icon = chosenIcon;
+                        btn.setIcon(chosenIcon);
+                        iconInput?.setValue(chosenIcon);
+                    }).open();
+                });
+        });
+
+        iconSetting.addText((text) => {
+            iconInput = text;
+            text.setValue(this.style.icon).onChange((val) => {
+                this.style.icon = val.trim();
+            });
+        });
+
+        new Setting(contentEl)
+            .setName(i.customStyleTemplate)
+            .setDesc(i.customStyleTemplateDesc)
+            .addTextArea((text) =>
+                text.setValue(this.style.template).onChange((val) => {
+                    this.style.template = val;
+                }),
+            );
+
+        new Setting(contentEl)
+            .setName(i.customStyleLinePrefix)
+            .setDesc(i.customStyleLinePrefixDesc)
+            .addText((text) =>
+                text
+                    .setPlaceholder('(Optional, e.g. "> " for callouts)')
+                    .setValue(this.style.linePrefix ?? '')
+                    .onChange((val) => {
+                        this.style.linePrefix = val.length > 0 ? val : undefined;
+                    }),
+            );
+
+        new Setting(contentEl)
+            .addButton((btn) =>
+                btn
+                    .setButtonText(i.customStyleSave)
+                    .setCta()
+                    .onClick(() => {
+                        const label = this.style.label.trim();
+                        if (!label) return;
+                        let template = this.style.template.trim();
+                        if (!template.includes('${content}')) {
+                            template = template ? `${template}\n\${content}` : '${content}';
+                        }
+                        this.style.label = label;
+                        this.style.template = template;
+                        this.onSave(this.style);
+                        this.close();
+                    }),
+            )
+            .addButton((btn) =>
+                btn.setButtonText(i.customStyleCancel).onClick(() => {
+                    this.close();
+                }),
+            );
+    }
+
+    onClose(): void {
+        this.contentEl.empty();
+    }
+}
 
 // Declarative settings (Obsidian 1.13+): getSettingDefinitions() takes
 // precedence over display() and renders the tab, so the plugin exposes all
@@ -115,16 +269,6 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     {
                         name: i.indicatorColor,
                         desc: i.indicatorColorDesc,
-                        control: {
-                            type: 'dropdown',
-                            key: 'indicatorColorMode',
-                            options: { theme: i.optionTheme, custom: i.optionCustom },
-                        },
-                    },
-                    {
-                        name: i.indicatorColor,
-                        desc: i.indicatorColorDesc,
-                        visible: () => this.plugin.settings.indicatorColorMode === 'custom',
                         control: { type: 'color', key: 'indicatorColor' },
                     },
                 ],
@@ -225,9 +369,10 @@ export class DragNDropSettingTab extends PluginSettingTab {
                             },
                         },
                         items: this.plugin.settings.customBlockStyles.map(
-                            (style, index): SettingDefinition => ({
+                            (style, index): SettingDefinitionWithIcon => ({
                                 name: style.label,
                                 desc: style.template.replace(/\n/g, ' ↵ '),
+                                icon: style.icon,
                                 action: () => {
                                     new CustomBlockStyleModal(this.app, style, false, (updated) => {
                                         this.plugin.settings.customBlockStyles[index] = updated;
