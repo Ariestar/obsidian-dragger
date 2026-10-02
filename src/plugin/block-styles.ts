@@ -1,4 +1,8 @@
-import type { BlockTemplate } from 'md-dragger/domain';
+export type BlockTemplate = {
+    template: string;
+    linePrefix?: string;
+    variables?: Record<string, string>;
+};
 
 export type BlockStyleCategory = 'heading' | 'list' | 'basic' | 'callout' | 'custom';
 
