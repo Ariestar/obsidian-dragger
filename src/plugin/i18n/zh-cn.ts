@@ -2,6 +2,7 @@ export const zhCn = {
     // Headings
     headingAppearance: '外观',
     headingBehavior: '行为',
+    headingBlockStyles: '块样式',
 
     // Handle color
     handleColor: '手柄颜色',

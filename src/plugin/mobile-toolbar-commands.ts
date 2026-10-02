@@ -1,9 +1,11 @@
-import { App, Platform, type Command } from 'obsidian';
-import { getActiveMarkdownView, getCodeMirrorView } from '../platform/obsidian/views';
+import { App, MarkdownView, Platform, type Command } from 'obsidian';
+import type { EditorView } from '@codemirror/view';
+import type { BlockStyleDefinition } from './block-styles';
 import { openBlockTypeMenu } from './block-type-menu';
 
 export function registerMobileToolbarCommands(plugin: {
     app: App;
+    settings: { customBlockStyles: BlockStyleDefinition[] };
     addCommand: (command: Command) => Command;
     toggleMobileDragMode: () => boolean;
 }): void {
@@ -14,12 +16,12 @@ export function registerMobileToolbarCommands(plugin: {
         mobileOnly: true,
         checkCallback: (checking) => {
             if (!Platform.isMobile) return false;
-            const markdownView = getActiveMarkdownView(plugin.app);
+            const markdownView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
             if (!markdownView) return false;
-            const view = getCodeMirrorView(markdownView);
+            const view = (markdownView.editor as { cm?: EditorView } | undefined)?.cm;
             if (!view) return false;
             if (!checking) {
-                openBlockTypeMenu(view, null);
+                openBlockTypeMenu(view, null, undefined, plugin.settings.customBlockStyles);
             }
             return true;
         },

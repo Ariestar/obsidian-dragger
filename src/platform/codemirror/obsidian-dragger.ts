@@ -5,6 +5,7 @@ import {
     mdDragger,
     dragTransitionEffect,
     dropSeamDecoration,
+    elementTarget,
     lineAtPoint,
     scrollPort,
     seamOffset,
@@ -22,6 +23,7 @@ import {
 } from 'md-dragger/domain';
 import { dragSelectionDoc, dropSeamState, selectionFromOutputs, type PipelineResult } from 'md-dragger/runtime';
 import { autoScroll } from 'md-dragger/runtime/modules';
+import type { BlockStyleDefinition } from '../../plugin/block-styles';
 import { openBlockTypeMenu } from '../../plugin/block-type-menu';
 import {
     CARD_EDITOR_ATTR,
@@ -39,6 +41,7 @@ export type ObsidianDraggerHost = {
         autoScrollEdgeZonePx: number;
         autoScrollMaxSpeedPx: number;
         handleGutterPosition: 'left' | 'right';
+        customBlockStyles?: BlockStyleDefinition[];
     };
     isMobilePlatform(): boolean;
     isMobileDragModeEnabled(): boolean;
@@ -223,17 +226,6 @@ function createObsidianHandle(doc: Document): HTMLElement {
 // so the check is cheap and is re-evaluated on every render/press.
 function isDraggerView(view: EditorView): boolean {
     return view.dom.closest('.cm-table-widget') === null;
-}
-
-/**
- * An event's target, if it is an element. Cross-window safe: events and elements from a canvas card's iframe or a
- * pop-out window are instances of that window's classes, so `instanceof Element` would reject them.
- */
-function elementTarget(event: unknown): Element | null {
-    const target: unknown = (event as { target?: unknown } | null | undefined)?.target;
-    return typeof target === 'object' && target !== null && (target as Node).nodeType === Node.ELEMENT_NODE
-        ? (target as Element)
-        : null;
 }
 
 function gestureConfig(plugin: ObsidianDraggerHost) {
@@ -523,7 +515,12 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
                         if (press && press.onHandle && typeof startLine === 'number') {
                             const { clientX, clientY } = press.event;
                             window.requestAnimationFrame(() => {
-                                openBlockTypeMenu(this.view, { clientX, clientY } as PointerEvent, startLine);
+                                openBlockTypeMenu(
+                                    this.view,
+                                    { clientX, clientY } as PointerEvent,
+                                    startLine,
+                                    plugin.settings.customBlockStyles,
+                                );
                             });
                         }
                     }

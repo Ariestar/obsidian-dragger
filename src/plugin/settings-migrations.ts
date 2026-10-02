@@ -16,7 +16,7 @@ import type { DragNDropSettings, NumericSettingKey } from './settings-types';
  */
 
 const SCHEMA_VERSION_KEY = 'schemaVersion';
-const CURRENT_SCHEMA_VERSION = 7;
+const CURRENT_SCHEMA_VERSION = 8;
 
 type RawSettings = Record<string, unknown>;
 
@@ -101,6 +101,14 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
             const raw = next.mobileDragModeToggleLocations;
             next.mobileDragModeToggleEnabled = Array.isArray(raw) ? raw.includes('view-action') : Boolean(raw);
             delete next.mobileDragModeToggleLocations;
+        }
+        return next;
+    },
+    // v7 -> v8: add customBlockStyles if missing.
+    (data) => {
+        const next = { ...data };
+        if (!('customBlockStyles' in next) || !Array.isArray(next.customBlockStyles)) {
+            next.customBlockStyles = DEFAULT_SETTINGS.customBlockStyles;
         }
         return next;
     },

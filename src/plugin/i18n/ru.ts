@@ -3,6 +3,7 @@ import type { ZhCnStrings } from './zh-cn';
 export const ru: ZhCnStrings = {
     headingAppearance: 'Внешний вид',
     headingBehavior: 'Поведение',
+    headingBlockStyles: 'Стили блоков',
 
     handleColor: 'Цвет маркера',
     handleColorDesc: 'Использовать цвет акцента темы или выбрать свой',

@@ -4,16 +4,16 @@ import { DEFAULT_SETTINGS } from './settings-types';
 
 describe('migrateSettings', () => {
     it('returns full defaults for empty/absent data', () => {
-        expect(migrateSettings(null)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 7 });
-        expect(migrateSettings(undefined)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 7 });
-        expect(migrateSettings({})).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 7 });
+        expect(migrateSettings(null)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 8 });
+        expect(migrateSettings(undefined)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 8 });
+        expect(migrateSettings({})).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 8 });
     });
 
     it('preserves user values and backfills new fields from defaults', () => {
         const result = migrateSettings({ handleSize: 32, handleVisibility: 'always' });
         expect(result.handleSize).toBe(32);
         expect(result.handleVisibility).toBe('always');
-        expect(result.schemaVersion).toBe(7);
+        expect(result.schemaVersion).toBe(8);
     });
 
     it('migrates legacy alwaysShowHandles -> handleVisibility', () => {
@@ -55,7 +55,7 @@ describe('migrateSettings', () => {
 
         expect(result.autoScrollEdgeZonePx).toBe(DEFAULT_SETTINGS.autoScrollEdgeZonePx);
         expect(result.autoScrollMaxSpeedPx).toBe(DEFAULT_SETTINGS.autoScrollMaxSpeedPx);
-        expect(result.schemaVersion).toBe(7);
+        expect(result.schemaVersion).toBe(8);
     });
 
     it('preserves custom auto-scroll values during default migration', () => {
@@ -99,7 +99,7 @@ describe('migrateSettings', () => {
         });
 
         expect(result.mouseRangeSelectLongPressMs).toBe(DEFAULT_SETTINGS.mouseRangeSelectLongPressMs);
-        expect(result.schemaVersion).toBe(7);
+        expect(result.schemaVersion).toBe(8);
     });
 
     it('preserves custom desktop range-select long-press values during default migration', () => {
@@ -109,7 +109,7 @@ describe('migrateSettings', () => {
         });
 
         expect(result.mouseRangeSelectLongPressMs).toBe(420);
-        expect(result.schemaVersion).toBe(7);
+        expect(result.schemaVersion).toBe(8);
     });
 
     it('migrates previous 500ms multi-select default to the longer current default', () => {
@@ -118,14 +118,27 @@ describe('migrateSettings', () => {
             mouseRangeSelectLongPressMs: 500,
         });
         expect(result.mouseRangeSelectLongPressMs).toBe(DEFAULT_SETTINGS.mouseRangeSelectLongPressMs);
-        expect(result.schemaVersion).toBe(7);
+        expect(result.schemaVersion).toBe(8);
     });
 
     it('does not re-run v0 migrations when already at current version', () => {
         // legacy field present but version already current: left untouched, not migrated
-        const result = migrateSettings({ schemaVersion: 7, alwaysShowHandles: true });
+        const result = migrateSettings({ schemaVersion: 8, alwaysShowHandles: true });
         expect(result.handleVisibility).toBe(DEFAULT_SETTINGS.handleVisibility);
-        expect(result.schemaVersion).toBe(7);
+        expect(result.schemaVersion).toBe(8);
+    });
+
+    it('migrates legacy settings without customBlockStyles to have default styles', () => {
+        const result = migrateSettings({ schemaVersion: 7, handleSize: 20 });
+        expect(result.customBlockStyles).toEqual(DEFAULT_SETTINGS.customBlockStyles);
+        expect(result.schemaVersion).toBe(8);
+    });
+
+    it('preserves existing customBlockStyles when already present', () => {
+        const custom = [{ id: 'my-style', label: 'My Style', icon: 'star', template: '::: ${content}' }];
+        const result = migrateSettings({ schemaVersion: 7, customBlockStyles: custom });
+        expect(result.customBlockStyles).toEqual(custom);
+        expect(result.schemaVersion).toBe(8);
     });
 
     it('collapses legacy mobileDragModeToggleLocations array into a boolean', () => {
@@ -145,6 +158,6 @@ describe('migrateSettings', () => {
     it('drops removed cross-file drag setting', () => {
         const result = migrateSettings({ schemaVersion: 3, enableCrossFileDrag: true });
         expect('enableCrossFileDrag' in result).toBe(false);
-        expect(result.schemaVersion).toBe(7);
+        expect(result.schemaVersion).toBe(8);
     });
 });

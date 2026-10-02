@@ -2,6 +2,7 @@ import { App, Platform, PluginSettingTab } from 'obsidian';
 import type { SettingDefinition, SettingDefinitionItem } from 'obsidian';
 import DragNDropPlugin from './main';
 import { t } from './i18n';
+import { CustomBlockStyleModal } from './settings-custom-styles-modal';
 import { NUMERIC_SETTING_RANGES } from './settings-types';
 
 // Declarative settings (Obsidian 1.13+): getSettingDefinitions() takes
@@ -183,7 +184,62 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     },
                 ],
             },
+            {
+                type: 'page',
+                name: i.headingBlockStyles,
+                items: [
+                    {
+                        name: 'Add custom block style',
+                        desc: 'Create a new block conversion style with a custom template',
+                        action: () => {
+                            new CustomBlockStyleModal(
+                                this.app,
+                                {
+                                    id: `custom-${Date.now()}`,
+                                    label: 'New style',
+                                    icon: 'box',
+                                    category: 'custom',
+                                    template: '> [!custom]\n${content}',
+                                    linePrefix: '> ',
+                                },
+                                true,
+                                (created) => {
+                                    this.plugin.settings.customBlockStyles.push(created);
+                                    this.saveAndRefresh();
+                                },
+                            ).open();
+                        },
+                    },
+                    ...this.plugin.settings.customBlockStyles.map(
+                        (style, index): SettingDefinitionItem => ({
+                            name: style.label,
+                            desc: style.template.replace(/\n/g, ' ↵ '),
+                            action: () => {
+                                new CustomBlockStyleModal(
+                                    this.app,
+                                    style,
+                                    false,
+                                    (updated) => {
+                                        this.plugin.settings.customBlockStyles[index] = updated;
+                                        this.saveAndRefresh();
+                                    },
+                                    () => {
+                                        this.plugin.settings.customBlockStyles.splice(index, 1);
+                                        this.saveAndRefresh();
+                                    },
+                                ).open();
+                            },
+                        }),
+                    ),
+                ],
+            },
         ];
+    }
+
+    private saveAndRefresh(): void {
+        void this.plugin.saveSettings().then(() => {
+            (this as unknown as { update?: () => void }).update?.();
+        });
     }
 
     getControlValue(key: string): unknown {

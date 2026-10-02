@@ -3,6 +3,7 @@ import type { ZhCnStrings } from './zh-cn';
 export const en: ZhCnStrings = {
     headingAppearance: 'Appearance',
     headingBehavior: 'Behavior',
+    headingBlockStyles: 'Block styles',
 
     handleColor: 'Handle color',
     handleColorDesc: 'Follow theme accent or pick a custom color',

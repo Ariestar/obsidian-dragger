@@ -104,6 +104,30 @@ describe('block type conversion', () => {
         expect(view.state.doc.toString()).toBe('x = y');
     });
 
+    it('converts the current block to a callout template', () => {
+        const view = createMutableView('alpha\nbeta', 0);
+
+        const changed = convertCurrentBlockType(view, {
+            template: '> [!note]\n${content}',
+            linePrefix: '> ',
+        });
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('> [!note]\n> alpha\nbeta');
+    });
+
+    it('converts the current block to a custom HTML div with variables', () => {
+        const view = createMutableView('card content\nother block', 0);
+
+        const changed = convertCurrentBlockType(view, {
+            template: '<div class="${class}">\n${content}\n</div>',
+            variables: { class: 'my-card' },
+        });
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('<div class="my-card">\ncard content\n</div>\nother block');
+    });
+
     it('deletes the current block and its trailing newline', () => {
         const view = createMutableView('alpha\nbeta\ngamma', 6);
 

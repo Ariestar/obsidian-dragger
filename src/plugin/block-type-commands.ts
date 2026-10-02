@@ -5,7 +5,6 @@ import {
     planConvert,
     planDelete,
     selectOne,
-    isReject,
     type ConvertTo,
     type Block,
     BlockType,
@@ -66,7 +65,7 @@ export function deleteCurrentBlock(view: EditorView, lineNumber?: number): boole
         doc: view.state.doc,
         selection: selectOne(block),
     });
-    if (isReject(result)) return false;
+    if ('type' in result) return false;
 
     view.dispatch({
         changes: result.changes,

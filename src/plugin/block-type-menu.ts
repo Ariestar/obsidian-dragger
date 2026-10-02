@@ -1,5 +1,7 @@
 import { Menu, Notice, Platform, setIcon } from 'obsidian';
 import { EditorView } from '@codemirror/view';
+import { pointInTopDocument } from 'md-dragger/adapter/codemirror';
+import type { BlockStyleDefinition } from './block-styles';
 import {
     copyCurrentBlock,
     cutCurrentBlock,
@@ -55,13 +57,18 @@ export function openBlockTypeMenu(
     view: EditorView,
     event: MouseEvent | PointerEvent | null,
     lineNumber?: number,
+    customStyles?: BlockStyleDefinition[],
 ): void {
     disposeFlyout();
     menuBlockLine = lineNumber ?? view.state.doc.lineAt(view.state.selection.main.head).number;
-    showRootMenu(view, event);
+    showRootMenu(view, event, customStyles);
 }
 
-function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null): void {
+function showRootMenu(
+    view: EditorView,
+    event: MouseEvent | PointerEvent | null,
+    customStyles?: BlockStyleDefinition[],
+): void {
     const menu = new Menu();
     menu.setUseNativeMenu(false);
     rootMenu = menu;
@@ -78,12 +85,25 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null)
 
     addConversionItem(menu, view, PARAGRAPH_BLOCK_TYPE_OPTION, line, () => menu.hide());
 
-    for (const group of NESTED_GROUPS) {
+    const groups: NestedConversionGroup[] = [...NESTED_GROUPS];
+    if (customStyles && customStyles.length > 0) {
+        groups.push({
+            label: 'Callout & Custom',
+            icon: 'sparkles',
+            options: customStyles.map((style) => ({
+                target: style,
+                label: style.label,
+                icon: style.icon,
+            })),
+        });
+    }
+
+    for (const group of groups) {
         menu.addItem((item) => {
             item.setTitle(createGroupTitle(group.label)).setIcon(group.icon);
             if (Platform.isMobile) {
                 item.onClick(() => {
-                    showMobileGroupPage(view, group, line);
+                    showMobileGroupPage(view, group, line, customStyles);
                 });
             }
         });
@@ -118,11 +138,16 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null)
 
     if (Platform.isDesktop) {
         // Bind hover after the menu is in the DOM.
-        window.queueMicrotask(() => bindDesktopGroupHover(view, line, doc));
+        window.queueMicrotask(() => bindDesktopGroupHover(view, line, doc, groups));
     }
 }
 
-function showMobileGroupPage(view: EditorView, group: NestedConversionGroup, line: number): void {
+function showMobileGroupPage(
+    view: EditorView,
+    group: NestedConversionGroup,
+    line: number,
+    customStyles?: BlockStyleDefinition[],
+): void {
     const menu = new Menu();
     menu.setUseNativeMenu(false);
 
@@ -131,7 +156,7 @@ function showMobileGroupPage(view: EditorView, group: NestedConversionGroup, lin
             .setTitle('Back')
             .setIcon('chevron-left')
             .onClick(() => {
-                showRootMenu(view, null);
+                showRootMenu(view, null, customStyles);
             }),
     );
 
@@ -142,14 +167,14 @@ function showMobileGroupPage(view: EditorView, group: NestedConversionGroup, lin
     showMenuAt(menu, view, null);
 }
 
-function bindDesktopGroupHover(view: EditorView, line: number, doc: Document): void {
+function bindDesktopGroupHover(view: EditorView, line: number, doc: Document, groups: NestedConversionGroup[]): void {
     const menuEl = latestMenuElement(doc);
     if (!menuEl) return;
 
     for (const item of Array.from(menuEl.querySelectorAll<HTMLElement>('.menu-item'))) {
         if (item.dataset.dGroupHoverBound === 'true') continue;
         const title = item.querySelector<HTMLElement>('.d-block-type-submenu-title-label')?.textContent?.trim();
-        const group = NESTED_GROUPS.find((candidate) => candidate.label === title);
+        const group = groups.find((candidate) => candidate.label === title);
         if (!group) continue;
 
         item.dataset.dGroupHoverBound = 'true';
@@ -389,22 +414,4 @@ function showMenuAt(menu: Menu, view: EditorView, event: MouseEvent | PointerEve
 /** Cross-window safe `instanceof Node`. */
 function isNode(value: unknown): value is Node {
     return typeof value === 'object' && value !== null && typeof (value as Node).nodeType === 'number';
-}
-
-/**
- * A point in a document, translated into the top-level document of its window, where the user sees it: through each
- * enclosing frame's on-screen rect and scale (a canvas card's iframe is scaled by the canvas zoom). A pop-out window's
- * document is its own top level.
- */
-function pointInTopDocument(doc: Document, x: number, y: number): { doc: Document; x: number; y: number } {
-    let frame = doc.defaultView?.frameElement as HTMLElement | null | undefined;
-    while (frame) {
-        const rect = frame.getBoundingClientRect();
-        const scale = rect.width / frame.offsetWidth;
-        x = rect.left + (frame.clientLeft + x) * scale;
-        y = rect.top + (frame.clientTop + y) * scale;
-        doc = frame.ownerDocument;
-        frame = doc.defaultView?.frameElement as HTMLElement | null | undefined;
-    }
-    return { doc, x, y };
 }

@@ -1,4 +1,5 @@
 import { DEFAULT_HANDLE_SIZE_PX, MIN_HANDLE_SIZE_PX, MAX_HANDLE_SIZE_PX } from '../shared/constants';
+import { DEFAULT_CUSTOM_BLOCK_STYLES, type BlockStyleDefinition } from './block-styles';
 
 export type HandleVisibilityMode = 'always' | 'hover' | 'hidden';
 export type HandleIconStyle = 'dot' | 'grip-dots' | 'grip-lines' | 'square';
@@ -27,6 +28,7 @@ export interface DragNDropSettings {
     selectionVisualStyle: BlockSelectionVisualStyle;
     handleHorizontalOffsetPx: number;
     handleGutterPosition: HandleGutterPosition;
+    customBlockStyles: BlockStyleDefinition[];
     /** Internal: persisted settings schema version, managed by settings-migrations. */
     schemaVersion?: number;
 }
@@ -69,4 +71,5 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     selectionVisualStyle: 'subtle',
     handleHorizontalOffsetPx: -8,
     handleGutterPosition: 'left',
+    customBlockStyles: DEFAULT_CUSTOM_BLOCK_STYLES,
 };
