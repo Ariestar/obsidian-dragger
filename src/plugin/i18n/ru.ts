@@ -70,6 +70,8 @@ export const ru: ZhCnStrings = {
 
     handleIcon: 'Иконка маркера',
     handleIconDesc: 'Выберите стиль иконки для маркеров перетаскивания',
+    customHandleIcon: 'Своя иконка маркера',
+    customHandleIconSearch: 'Поиск иконок…',
     iconDot: '● точка',
     iconGripDots: '⠿ точки захвата',
     iconGripLines: '☰ линии захвата',

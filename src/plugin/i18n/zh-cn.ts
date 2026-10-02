@@ -71,6 +71,8 @@ export const zhCn = {
     // Handle icon
     handleIcon: '手柄图标',
     handleIconDesc: '选择拖拽手柄的图标样式',
+    customHandleIcon: '自定义手柄图标',
+    customHandleIconSearch: '搜索图标…',
     iconDot: '● 圆点',
     iconGripDots: '⠿ 六点抓手',
     iconGripLines: '☰ 三横线',

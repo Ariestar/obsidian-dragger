@@ -1,5 +1,6 @@
 import {
     type App,
+    type FuzzyMatch,
     FuzzySuggestModal,
     Modal,
     Notice,
@@ -251,6 +252,34 @@ class CustomBlockStyleModal extends Modal {
     }
 }
 
+class HandleIconSuggestModal extends FuzzySuggestModal<string> {
+    constructor(
+        app: App,
+        private readonly onChoose: (iconId: string) => void,
+    ) {
+        super(app);
+        this.setPlaceholder(t().customHandleIconSearch);
+    }
+
+    getItems(): string[] {
+        return getIconIds();
+    }
+
+    getItemText(item: string): string {
+        return item;
+    }
+
+    renderSuggestion(match: FuzzyMatch<string>, el: HTMLElement): void {
+        el.addClass('d-handle-icon-suggestion');
+        setIcon(el.createSpan(), match.item);
+        super.renderSuggestion(match, el.createSpan());
+    }
+
+    onChooseItem(item: string): void {
+        this.onChoose(item);
+    }
+}
+
 // Declarative settings (Obsidian 1.13+): getSettingDefinitions() takes
 // precedence over display() and renders the tab, so the plugin exposes all
 // options through the declarative API and no imperative renderer remains.
@@ -391,11 +420,22 @@ export class DragNDropSettingTab extends PluginSettingTab {
                             type: 'dropdown',
                             key: 'handleIcon',
                             options: {
-                                dot: i.iconDot,
                                 'grip-dots': i.iconGripDots,
+                                dot: i.iconDot,
                                 'grip-lines': i.iconGripLines,
                                 square: i.iconSquare,
+                                custom: i.optionCustom,
                             },
+                        },
+                    },
+                    {
+                        name: i.customHandleIcon,
+                        desc: this.plugin.settings.customHandleIcon,
+                        visible: () => this.plugin.settings.handleIcon === 'custom',
+                        action: () => {
+                            new HandleIconSuggestModal(this.app, (iconId) => {
+                                void this.setControlValue('customHandleIcon', iconId).then(() => this.update());
+                            }).open();
                         },
                     },
                     {
