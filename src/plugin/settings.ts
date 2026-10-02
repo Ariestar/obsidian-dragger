@@ -186,51 +186,57 @@ export class DragNDropSettingTab extends PluginSettingTab {
             },
             {
                 type: 'page',
-                name: i.headingBlockStyles,
+                name: i.headingCustomBlockStyles,
                 items: [
                     {
-                        name: 'Add custom block style',
-                        desc: 'Create a new block conversion style with a custom template',
-                        action: () => {
-                            new CustomBlockStyleModal(
-                                this.app,
-                                {
-                                    id: `custom-${Date.now()}`,
-                                    label: 'New style',
-                                    icon: 'box',
-                                    category: 'custom',
-                                    template: '> [!custom]\n${content}',
-                                    linePrefix: '> ',
-                                },
-                                true,
-                                (created) => {
-                                    this.plugin.settings.customBlockStyles.push(created);
-                                    this.saveAndRefresh();
-                                },
-                            ).open();
+                        type: 'list',
+                        name: i.headingCustomBlockStyles,
+                        desc: i.customBlockStylesDesc,
+                        emptyState: i.customBlockStylesEmpty,
+                        onDelete: (index: number) => {
+                            this.plugin.settings.customBlockStyles.splice(index, 1);
+                            this.saveAndRefresh();
                         },
-                    },
-                    ...this.plugin.settings.customBlockStyles.map(
-                        (style, index): SettingDefinitionItem => ({
-                            name: style.label,
-                            desc: style.template.replace(/\n/g, ' ↵ '),
+                        onReorder: (oldIndex: number, newIndex: number) => {
+                            const [moved] = this.plugin.settings.customBlockStyles.splice(oldIndex, 1);
+                            if (moved) {
+                                this.plugin.settings.customBlockStyles.splice(newIndex, 0, moved);
+                                this.saveAndRefresh();
+                            }
+                        },
+                        addItem: {
+                            name: i.customBlockStylesAdd,
                             action: () => {
                                 new CustomBlockStyleModal(
                                     this.app,
-                                    style,
-                                    false,
-                                    (updated) => {
-                                        this.plugin.settings.customBlockStyles[index] = updated;
-                                        this.saveAndRefresh();
+                                    {
+                                        id: `custom-${Date.now()}`,
+                                        label: '',
+                                        icon: 'box',
+                                        category: 'custom',
+                                        template: '${content}',
                                     },
-                                    () => {
-                                        this.plugin.settings.customBlockStyles.splice(index, 1);
+                                    true,
+                                    (created) => {
+                                        this.plugin.settings.customBlockStyles.push(created);
                                         this.saveAndRefresh();
                                     },
                                 ).open();
                             },
-                        }),
-                    ),
+                        },
+                        items: this.plugin.settings.customBlockStyles.map(
+                            (style, index): SettingDefinition => ({
+                                name: style.label,
+                                desc: style.template.replace(/\n/g, ' ↵ '),
+                                action: () => {
+                                    new CustomBlockStyleModal(this.app, style, false, (updated) => {
+                                        this.plugin.settings.customBlockStyles[index] = updated;
+                                        this.saveAndRefresh();
+                                    }).open();
+                                },
+                            }),
+                        ),
+                    },
                 ],
             },
         ];

@@ -2,6 +2,7 @@ import { Menu, Notice, Platform, setIcon } from 'obsidian';
 import { EditorView } from '@codemirror/view';
 import { pointInTopDocument } from 'md-dragger/adapter/codemirror';
 import type { BlockStyleDefinition } from './block-styles';
+import { t } from './i18n';
 import {
     copyCurrentBlock,
     cutCurrentBlock,
@@ -88,7 +89,7 @@ function showRootMenu(
     const groups: NestedConversionGroup[] = [...NESTED_GROUPS];
     if (customStyles && customStyles.length > 0) {
         groups.push({
-            label: 'Callout & Custom',
+            label: t().headingCustomBlockStyles,
             icon: 'sparkles',
             options: customStyles.map((style) => ({
                 target: style,

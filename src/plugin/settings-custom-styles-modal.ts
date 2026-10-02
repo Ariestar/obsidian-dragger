@@ -1,52 +1,93 @@
-import { type App, Modal, Setting } from 'obsidian';
+import { type App, FuzzySuggestModal, Modal, Setting, type TextComponent, getIconIds, setIcon } from 'obsidian';
 import type { BlockStyleDefinition } from './block-styles';
+import { t } from './i18n';
+
+export class IconSuggestModal extends FuzzySuggestModal<string> {
+    private onChoose: (iconId: string) => void;
+
+    constructor(app: App, onChoose: (iconId: string) => void) {
+        super(app);
+        this.onChoose = onChoose;
+        this.setPlaceholder('Type to search icons...');
+    }
+
+    getItems(): string[] {
+        return getIconIds();
+    }
+
+    getItemText(item: string): string {
+        return item;
+    }
+
+    renderSuggestion(match: { item: string }, el: HTMLElement): void {
+        el.empty();
+        const container = el.createDiv({ cls: 'd-icon-suggestion' });
+        const iconSpan = container.createSpan({ cls: 'd-icon-preview' });
+        setIcon(iconSpan, match.item);
+        container.createSpan({ text: match.item });
+    }
+
+    onChooseItem(item: string): void {
+        this.onChoose(item);
+    }
+}
 
 export class CustomBlockStyleModal extends Modal {
     private style: BlockStyleDefinition;
     private isNew: boolean;
     private onSave: (style: BlockStyleDefinition) => void;
-    private onDelete?: () => void;
 
-    constructor(
-        app: App,
-        style: BlockStyleDefinition,
-        isNew: boolean,
-        onSave: (style: BlockStyleDefinition) => void,
-        onDelete?: () => void,
-    ) {
+    constructor(app: App, style: BlockStyleDefinition, isNew: boolean, onSave: (style: BlockStyleDefinition) => void) {
         super(app);
-        this.style = { ...style, variables: style.variables ? { ...style.variables } : undefined };
+        this.style = {
+            ...style,
+            linePrefix: style.linePrefix ?? '',
+            variables: style.variables ? { ...style.variables } : undefined,
+        };
         this.isNew = isNew;
         this.onSave = onSave;
-        this.onDelete = onDelete;
     }
 
     onOpen(): void {
+        const i = t();
         const { contentEl } = this;
         contentEl.empty();
-        contentEl.createEl('h2', { text: this.isNew ? 'New block style' : 'Edit block style' });
+        contentEl.createEl('h2', { text: this.isNew ? i.customStyleModalTitleNew : i.customStyleModalTitleEdit });
 
         new Setting(contentEl)
-            .setName('Label')
-            .setDesc('Display name in the handle popup menu')
+            .setName(i.customStyleLabel)
+            .setDesc(i.customStyleLabelDesc)
             .addText((text) =>
                 text.setValue(this.style.label).onChange((val) => {
                     this.style.label = val;
                 }),
             );
 
-        new Setting(contentEl)
-            .setName('Icon')
-            .setDesc('Name of the icon')
-            .addText((text) =>
-                text.setValue(this.style.icon).onChange((val) => {
-                    this.style.icon = val;
-                }),
-            );
+        let iconInput: TextComponent | null = null;
+        const iconSetting = new Setting(contentEl).setName(i.customStyleIcon).setDesc(i.customStyleIconDesc);
+
+        iconSetting.addExtraButton((btn) => {
+            btn.setIcon(this.style.icon || 'box')
+                .setTooltip('Choose icon')
+                .onClick(() => {
+                    new IconSuggestModal(this.app, (chosenIcon) => {
+                        this.style.icon = chosenIcon;
+                        btn.setIcon(chosenIcon);
+                        iconInput?.setValue(chosenIcon);
+                    }).open();
+                });
+        });
+
+        iconSetting.addText((text) => {
+            iconInput = text;
+            text.setValue(this.style.icon).onChange((val) => {
+                this.style.icon = val.trim();
+            });
+        });
 
         new Setting(contentEl)
-            .setName('Template')
-            .setDesc('Markdown template containing ${content} and optional ${var} tokens')
+            .setName(i.customStyleTemplate)
+            .setDesc(i.customStyleTemplateDesc)
             .addTextArea((text) =>
                 text.setValue(this.style.template).onChange((val) => {
                     this.style.template = val;
@@ -54,18 +95,21 @@ export class CustomBlockStyleModal extends Modal {
             );
 
         new Setting(contentEl)
-            .setName('Line prefix')
-            .setDesc('Optional prefix applied to each line of content (e.g. "> " for callouts)')
+            .setName(i.customStyleLinePrefix)
+            .setDesc(i.customStyleLinePrefixDesc)
             .addText((text) =>
-                text.setValue(this.style.linePrefix ?? '').onChange((val) => {
-                    this.style.linePrefix = val.length > 0 ? val : undefined;
-                }),
+                text
+                    .setPlaceholder('(Optional, e.g. "> " for callouts)')
+                    .setValue(this.style.linePrefix ?? '')
+                    .onChange((val) => {
+                        this.style.linePrefix = val.length > 0 ? val : undefined;
+                    }),
             );
 
         const actions = new Setting(contentEl);
         actions.addButton((btn) =>
             btn
-                .setButtonText('Save')
+                .setButtonText(i.customStyleSave)
                 .setCta()
                 .onClick(() => {
                     const label = this.style.label.trim();
@@ -81,20 +125,8 @@ export class CustomBlockStyleModal extends Modal {
                 }),
         );
 
-        if (!this.isNew && this.onDelete) {
-            actions.addButton((btn) =>
-                btn
-                    .setButtonText('Delete')
-                    .setWarning()
-                    .onClick(() => {
-                        this.onDelete?.();
-                        this.close();
-                    }),
-            );
-        }
-
         actions.addButton((btn) =>
-            btn.setButtonText('Cancel').onClick(() => {
+            btn.setButtonText(i.customStyleCancel).onClick(() => {
                 this.close();
             }),
         );

@@ -2,7 +2,22 @@ export const zhCn = {
     // Headings
     headingAppearance: '外观',
     headingBehavior: '行为',
-    headingBlockStyles: '块样式',
+    headingCustomBlockStyles: '自定义块样式',
+    customBlockStylesDesc: '配置在手柄点击菜单中出现的自定义块转换样式',
+    customBlockStylesEmpty: '暂无自定义样式，点击上方加号添加',
+    customBlockStylesAdd: '添加自定义样式',
+    customStyleLabel: '样式名称',
+    customStyleLabelDesc: '在手柄弹出菜单中显示的名称',
+    customStyleIcon: '图标',
+    customStyleIconDesc: '点击图标按钮选择或输入图标标识符',
+    customStyleTemplate: '模板',
+    customStyleTemplateDesc: 'Markdown 模板，需包含 ${content}，可选 ${var} 变量',
+    customStyleLinePrefix: '逐行前缀',
+    customStyleLinePrefixDesc: '可选，为每行正文附加的前缀（如引用或 Callout 的 > ）',
+    customStyleModalTitleNew: '新建自定义块样式',
+    customStyleModalTitleEdit: '编辑自定义块样式',
+    customStyleSave: '保存',
+    customStyleCancel: '取消',
 
     // Handle color
     handleColor: '手柄颜色',
