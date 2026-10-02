@@ -9,9 +9,8 @@ import {
     type Block,
     BlockType,
 } from 'md-dragger/domain';
-import type { BlockTemplate } from './block-styles';
 
-export type BlockTypeConversionOption = { target: ConvertTo | BlockTemplate; label: string; icon: string };
+export type BlockTypeConversionOption = { target: ConvertTo; label: string; icon: string };
 
 export const PARAGRAPH_BLOCK_TYPE_OPTION: BlockTypeConversionOption = {
     target: { type: BlockType.Paragraph },
@@ -40,11 +39,7 @@ export const SIMPLE_BLOCK_TYPE_OPTIONS: BlockTypeConversionOption[] = [
     { target: { type: BlockType.MathBlock }, label: 'Math block', icon: 'sigma' },
 ];
 
-export function convertCurrentBlockType(
-    view: EditorView,
-    conversion: ConvertTo | BlockTemplate,
-    lineNumber?: number,
-): boolean {
+export function convertCurrentBlockType(view: EditorView, conversion: ConvertTo, lineNumber?: number): boolean {
     const block = getBlockAt(view, lineNumber);
     if (!block) return false;
 
