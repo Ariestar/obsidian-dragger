@@ -3,10 +3,12 @@ import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 import { dragHandleExtension, type ObsidianDraggerHost } from './obsidian-dragger';
+import { DEFAULT_SETTINGS } from '../../plugin/settings-types';
 
 function mockPlugin(): ObsidianDraggerHost {
     return {
         settings: {
+            ...DEFAULT_SETTINGS,
             enableMultiLineSelection: true,
             mouseRangeSelectLongPressMs: 700,
             mobileDragLongPressMs: 200,
