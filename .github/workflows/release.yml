@@ -37,9 +37,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Use the latest md-dragger
-        run: pnpm update md-dragger
-
       - name: Verify version sync
         run: pnpm run check:versions
 

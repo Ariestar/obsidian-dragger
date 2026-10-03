@@ -7,7 +7,7 @@ Keep this file limited to durable, cross-session guidance. Current progress and 
 ## Project
 
 - Purpose: Obsidian plugin host for markdown block drag-and-drop
-- Core engine: `md-dragger` (npm package, `^1.3.4`; dev-time junction link to `../md-dragger`) — **all engine logic lives there**
+- Core engine: `md-dragger` (npm package; development and CI link to `../md-dragger`) — **all engine logic lives there**
 - Stack: TypeScript, CodeMirror 6, Obsidian plugin API, esbuild
 - Package manager: pnpm
 
@@ -58,7 +58,9 @@ Build order:
 
 Notes:
 
-- This repo depends on the published `md-dragger` npm package (lockfile-pinned). A `postinstall` script (`scripts/link-md.mjs`) re-points `node_modules/md-dragger` at the sibling checkout (`../md-dragger`), so local engine edits are visible once the core package is rebuilt (`cd ../md-dragger && pnpm run build`); `pnpm install` re-creates the link. To consume a newly published engine version, run `pnpm update md-dragger` — the lockfile stays on the registry version, and the dev link is a local-only override that CI does not have.
+- A `postinstall` script (`scripts/link-md.mjs`) links `node_modules/md-dragger` to the sibling checkout (`../md-dragger`) when present. Local development and CI use this same layout; build the core before building the plugin.
+- CI checks out and builds `md-dragger/main`. For cross-repo development, add a single `<!-- md-dragger-ref: branch-or-tag-or-SHA -->` comment to the plugin PR description (for an engine PR, use `refs/pull/<number>/head`). Editing the description reruns CI; pushes to the plugin main branch always use the engine main branch. Invalid declarations or nonexistent refs fail validation/checkout; CI does not substitute a registry version.
+- Release builds use only the npm version pinned in `pnpm-lock.yaml`. Before tagging a plugin release, run `pnpm update md-dragger` against the required published engine version and commit the dependency/lockfile changes. The release workflow installs with `--frozen-lockfile` and validates that published dependency before producing artifacts.
 - Plugin build copies artifacts the vault/plugin loader uses; skipping it leaves Obsidian on a stale build.
 - If only docs/AGENTS were edited and no runtime code changed, build is optional.
 - If a relevant build cannot run, state that explicitly in the completion summary.

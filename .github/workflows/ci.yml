@@ -6,6 +6,7 @@ on:
       - main
       - master
   pull_request:
+    types: [opened, synchronize, reopened, edited]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,9 +18,40 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: obsidian-dragger
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          path: obsidian-dragger
+
+      - name: Resolve md-dragger ref
+        id: engine-ref
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const body = event.pull_request?.body ?? '';
+          const refs = [...body.matchAll(/<!--\s*md-dragger-ref:\s*(.*?)\s*-->/g)];
+          if (refs.length > 1 || (body.includes('md-dragger-ref:') && refs.length === 0)) {
+            throw new Error('Expected one valid md-dragger-ref comment');
+          }
+          const ref = refs.length === 1 ? refs[0][1].trim() : 'main';
+          execFileSync('git', ['check-ref-format', '--branch', ref]);
+          appendFileSync(process.env.GITHUB_OUTPUT, `ref=${ref}\n`);
+          console.log(`md-dragger ref: ${ref}`);
+          NODE
+
+      - name: Checkout md-dragger
+        uses: actions/checkout@v7
+        with:
+          repository: Ariestar/md-dragger
+          ref: ${{ steps.engine-ref.outputs.ref }}
+          path: md-dragger
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6.1.0
@@ -31,12 +63,18 @@ jobs:
         with:
           node-version: 24.13.0
           cache: pnpm
+          cache-dependency-path: |
+            obsidian-dragger/pnpm-lock.yaml
+            md-dragger/pnpm-lock.yaml
+
+      - name: Build md-dragger
+        working-directory: md-dragger
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Use the latest md-dragger
-        run: pnpm update md-dragger
 
       - name: Type check
         run: pnpm run typecheck
