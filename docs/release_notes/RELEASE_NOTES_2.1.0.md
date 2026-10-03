@@ -10,7 +10,7 @@
 
 - 在设置中调整块类型弹出菜单的顺序，包括标题、列表、Callout 和自定义分组的子项。复制、剪切和删除操作保持固定。
 - 添加独立的 Callout 类型，以及支持内容变量、预设变量和逐行前缀的自定义块模板。菜单、设置和子页面共用块类型定义与翻译。[#104](https://github.com/Ariestar/obsidian-dragger/pull/104)
-- 默认手柄采用六点抓手；新增可搜索的自定义图标选择器，与自定义块样式共用原生图标选择界面。[#105](https://github.com/Ariestar/obsidian-dragger/pull/105)
+- 新增可搜索的自定义手柄图标选择器，与自定义块样式共用原生图标选择界面；默认仍为六点抓手。[#105](https://github.com/Ariestar/obsidian-dragger/pull/105)
 
 ### 修复
 
@@ -31,7 +31,7 @@ Requires **Obsidian 1.13.0 or later**, with desktop and mobile support.
 
 - Reorder the block-type popup menu and the entries inside heading, list, Callout, and custom groups. Copy, cut, and delete actions remain fixed.
 - A dedicated Callout type and custom block templates with content variables, preset variables, and per-line prefixes. Menus and settings share block definitions and translations. [#104](https://github.com/Ariestar/obsidian-dragger/pull/104)
-- A six-dot default handle and a searchable custom icon picker shared with custom block styles. [#105](https://github.com/Ariestar/obsidian-dragger/pull/105)
+- A searchable custom handle icon picker shared with custom block styles. The six-dot grip remains the default. [#105](https://github.com/Ariestar/obsidian-dragger/pull/105)
 
 ### Fixed
 
