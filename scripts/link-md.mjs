@@ -1,6 +1,6 @@
-// Dev-only helper: point node_modules/md-dragger at the sibling checkout so
-// local edits to md-dragger are picked up without publishing. Runs on
-// postinstall; no-op in CI where the sibling directory is absent.
+// Point node_modules/md-dragger at the sibling checkout for local development
+// and branch-based CI. Runs on postinstall; release builds have no sibling
+// checkout and use the lockfile-pinned registry dependency.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
