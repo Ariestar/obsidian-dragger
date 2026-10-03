@@ -1,4 +1,5 @@
 import { MarkdownView, Platform, Plugin, setIcon } from 'obsidian';
+import type { Extension } from '@codemirror/state';
 import { dragHandleExtension } from '../platform/codemirror/obsidian-dragger';
 import { DragNDropSettingTab } from './settings';
 import { SettingsPresenter, settingsPresentation } from './settings-presentation';
@@ -10,6 +11,8 @@ export default class DragNDropPlugin extends Plugin {
     settings: DragNDropSettings;
     // The editor extension hands it each document that hosts an editor.
     readonly settingsPresenter = new SettingsPresenter();
+    private readonly editorExtensions: Extension[] = [];
+    private appliedGutterPosition?: DragNDropSettings['handleGutterPosition'];
     private mobileDragModeActionByView = new WeakMap<MarkdownView, HTMLElement>();
     private readonly mobileDragModeActionEls = new Set<HTMLElement>();
     private mobileDragModeEnabled = false;
@@ -29,7 +32,9 @@ export default class DragNDropPlugin extends Plugin {
         await this.loadSettings();
 
         // 注册编辑器扩�?
-        this.registerEditorExtension(dragHandleExtension(this));
+        this.editorExtensions[0] = dragHandleExtension(this);
+        this.registerEditorExtension(this.editorExtensions);
+        this.appliedGutterPosition = this.settings.handleGutterPosition;
         registerMobileToolbarCommands(this);
         this.app.workspace.onLayoutReady(() => this.registerMobileDragModeActions());
         this.registerEvent(this.app.workspace.on('layout-change', () => this.registerMobileDragModeActions()));
@@ -69,6 +74,14 @@ export default class DragNDropPlugin extends Plugin {
                 mobileDragModeEnabled: this.mobileDragModeEnabled,
             }),
         );
+        if (
+            this.appliedGutterPosition !== undefined &&
+            this.appliedGutterPosition !== this.settings.handleGutterPosition
+        ) {
+            this.editorExtensions[0] = dragHandleExtension(this);
+            this.app.workspace.updateOptions();
+            this.appliedGutterPosition = this.settings.handleGutterPosition;
+        }
         this.syncMobileDragModeActionVisibility();
     }
 
