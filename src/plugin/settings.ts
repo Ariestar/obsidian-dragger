@@ -49,26 +49,16 @@ function menuRow(
     option: BlockTypeConversionOption,
     editStyle: (style: BlockStyleDefinition) => void,
 ): SettingDefinition {
-    if (option.style) {
-        return {
-            name: option.label,
-            icon: option.icon,
-            action: () => editStyle(option.style!),
-        } as SettingDefinitionWithIcon;
-    }
+    const { style } = option;
     return {
         name: option.label,
         icon: option.icon,
+        ...(style ? { action: () => editStyle(style) } : {}),
     } as SettingDefinitionWithIcon;
 }
 
 function getAllIconIdentifiers(): string[] {
-    const raw = getIconIds();
-    const set = new Set<string>();
-    for (const id of raw) {
-        set.add(id.startsWith('lucide-') ? id.slice(7) : id);
-    }
-    return Array.from(set).sort();
+    return Array.from(new Set(getIconIds().map((id) => (id.startsWith('lucide-') ? id.slice(7) : id)))).sort();
 }
 
 class IconSuggestModal extends FuzzySuggestModal<string> {
@@ -329,7 +319,6 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 }
             });
         };
-        const menuItems: SettingDefinitionItem[] = [menuList('root', menuRows)];
         return [
             {
                 type: 'page',
@@ -469,7 +458,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     },
                 ],
             },
-            { type: 'page', name: i.headingBlockMenu, items: menuItems },
+            { type: 'page', name: i.headingBlockMenu, items: [menuList('root', menuRows)] },
         ];
     }
 

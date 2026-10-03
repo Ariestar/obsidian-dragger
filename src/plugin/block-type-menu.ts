@@ -131,7 +131,8 @@ function showMobileGroupPage(view: EditorView, group: BlockMenuGroup, line: numb
 }
 
 function bindDesktopGroupHover(view: EditorView, line: number, doc: Document, groups: BlockMenuGroup[]): void {
-    const menuEl = latestMenuElement(doc);
+    const menus = Array.from(doc.querySelectorAll<HTMLElement>('.menu'));
+    const menuEl = menus[menus.length - 1] ?? null;
     if (!menuEl) return;
 
     for (const item of Array.from(menuEl.querySelectorAll<HTMLElement>('.menu-item'))) {
@@ -273,11 +274,6 @@ function disposeFlyout(): void {
     flyoutEl?.remove();
     flyoutEl = null;
     flyoutTrigger = null;
-}
-
-function latestMenuElement(doc: Document): HTMLElement | null {
-    const menus = Array.from(doc.querySelectorAll<HTMLElement>('.menu'));
-    return menus[menus.length - 1] ?? null;
 }
 
 function addConversionItem(
