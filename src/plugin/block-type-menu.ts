@@ -34,9 +34,10 @@ let rootMenu: Menu | null = null;
 /**
  * Block-type menu.
  *
- * Desktop: groups open a side flyout on hover (no Back page).
+ * Desktop: groups open a side flyout on hover.
  * The flyout is plain DOM, not a second Menu, so item clicks always apply.
- * Mobile: group click opens a replacement page with Back (no hover).
+ * Group activation opens a native Menu page with Back on every platform,
+ * so keyboard navigation uses the same Obsidian API as mobile taps.
  */
 export function openBlockTypeMenu(
     view: EditorView,
@@ -70,10 +71,9 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null,
             if (entry.options.length === 0) continue;
             groups.push(entry);
             menu.addItem((item) => {
-                item.setTitle(createGroupTitle(entry.label)).setIcon(entry.icon);
-                if (Platform.isMobile) {
-                    item.onClick(() => showMobileGroupPage(view, entry, line, settings));
-                }
+                item.setTitle(createGroupTitle(entry.label))
+                    .setIcon(entry.icon)
+                    .onClick(() => showGroupPage(view, entry, line, settings));
             });
         } else {
             addConversionItem(menu, view, entry, line, () => menu.hide());
@@ -110,7 +110,8 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null,
     }
 }
 
-function showMobileGroupPage(view: EditorView, group: BlockMenuGroup, line: number, settings: BlockMenuSettings): void {
+function showGroupPage(view: EditorView, group: BlockMenuGroup, line: number, settings: BlockMenuSettings): void {
+    disposeFlyout();
     const menu = new Menu();
     menu.setUseNativeMenu(false);
 

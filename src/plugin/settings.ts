@@ -2,6 +2,7 @@ import {
     type App,
     FuzzySuggestModal,
     Modal,
+    Notice,
     Platform,
     PluginSettingTab,
     Setting,
@@ -122,7 +123,7 @@ class CustomBlockStyleModal extends Modal {
         const iconSetting = new Setting(contentEl).setName(i.customStyleIcon).setDesc(i.customStyleIconDesc);
 
         iconSetting.addExtraButton((btn) => {
-            btn.setIcon(this.style.icon || 'box')
+            btn.setIcon(this.style.icon)
                 .setTooltip('Choose icon')
                 .onClick(() => {
                     new IconSuggestModal(this.app, (chosenIcon) => {
@@ -149,6 +150,51 @@ class CustomBlockStyleModal extends Modal {
                 }),
             );
 
+        const variables = Object.entries(this.style.variables ?? {}).map(([name, value]) => ({ name, value }));
+        const variableHeading = new Setting(contentEl).setName(i.customStyleVariables).setHeading();
+        const variableList = contentEl.createDiv();
+        const renderVariables = () => {
+            variableList.empty();
+            for (const variable of variables) {
+                new Setting(variableList)
+                    .addText((text) =>
+                        text
+                            .setPlaceholder(i.customStyleVariableName)
+                            .setValue(variable.name)
+                            .onChange((value) => {
+                                variable.name = value;
+                            }),
+                    )
+                    .addText((text) =>
+                        text
+                            .setPlaceholder(i.customStyleVariableValue)
+                            .setValue(variable.value)
+                            .onChange((value) => {
+                                variable.value = value;
+                            }),
+                    )
+                    .addExtraButton((button) =>
+                        button
+                            .setIcon('trash-2')
+                            .setTooltip(i.customStyleRemoveVariable)
+                            .onClick(() => {
+                                variables.splice(variables.indexOf(variable), 1);
+                                renderVariables();
+                            }),
+                    );
+            }
+        };
+        variableHeading.addExtraButton((button) =>
+            button
+                .setIcon('plus')
+                .setTooltip(i.customStyleAddVariable)
+                .onClick(() => {
+                    variables.push({ name: '', value: '' });
+                    renderVariables();
+                }),
+        );
+        renderVariables();
+
         new Setting(contentEl)
             .setName(i.customStyleLinePrefix)
             .setDesc(i.customStyleLinePrefixDesc)
@@ -169,12 +215,26 @@ class CustomBlockStyleModal extends Modal {
                     .onClick(() => {
                         const label = this.style.label.trim();
                         if (!label) return;
-                        let template = this.style.template.trim();
-                        if (!template.includes('${content}')) {
-                            template = template ? `${template}\n\${content}` : '${content}';
+                        if (!this.style.template.includes('${content}')) {
+                            new Notice(i.customStyleTemplateRequired);
+                            return;
+                        }
+                        const names = variables.map((variable) => variable.name.trim());
+                        if (
+                            names.some((name) => !/^[a-zA-Z0-9_-]+$/.test(name) || name === 'content') ||
+                            new Set(names).size !== names.length
+                        ) {
+                            new Notice(i.customStyleInvalidVariables);
+                            return;
+                        }
+                        if (variables.length > 0) {
+                            this.style.variables = Object.fromEntries(
+                                variables.map((variable, index) => [names[index], variable.value]),
+                            );
+                        } else {
+                            delete this.style.variables;
                         }
                         this.style.label = label;
-                        this.style.template = template;
                         this.onSave(this.style);
                         this.close();
                     }),
@@ -463,9 +523,12 @@ export class DragNDropSettingTab extends PluginSettingTab {
     }
 
     private saveAndRefresh(): void {
-        void this.plugin.saveSettings().then(() => {
-            this.update();
-        });
+        void this.plugin
+            .saveSettings()
+            .then(() => this.update())
+            .catch((error: unknown) => {
+                console.error('Dragger: failed to save settings', error);
+            });
     }
 
     getControlValue(key: string): unknown {

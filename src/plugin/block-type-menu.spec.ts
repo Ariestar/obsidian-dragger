@@ -6,6 +6,7 @@ import {
     Platform,
     type App,
     type SettingDefinitionPage,
+    type SettingDefinitionAction,
     type SettingDefinitionList,
     type SettingDefinitionRender,
     type Setting,
@@ -120,6 +121,7 @@ afterEach(() => {
     mock.menus.length = 0;
     mock.notices.length = 0;
     mock.convert.mockClear();
+    vi.restoreAllMocks();
 });
 
 describe('block menu translations', () => {
@@ -194,6 +196,29 @@ describe('block menu translations', () => {
         expect(titles(Array.from(document.querySelectorAll<HTMLElement>('.d-block-type-flyout-item')))).toEqual([
             'My style',
         ]);
+    });
+
+    it('opens every desktop group through native menu activation', async () => {
+        Platform.isMobile = false;
+        Platform.isDesktop = true;
+        const settings = migrateSettings({ customBlockStyles: customStyles });
+        const entries = getBlockMenuEntries(settings);
+        for (const entry of entries) {
+            if (!('options' in entry)) continue;
+            openBlockTypeMenu(view, null, settings, 1);
+            await Promise.resolve();
+            const root = mock.menus.at(-1)!;
+            root[entries.indexOf(entry)].dispatchEvent(new MouseEvent('pointerenter'));
+            root[entries.indexOf(entry)].click();
+            const page = mock.menus.at(-1)!;
+            expect(titles(page)).toEqual([
+                selectTranslations(mock.language).blockMenuBack,
+                ...entry.options.map((option) => option.label),
+            ]);
+            expect(document.querySelector('.d-block-type-flyout')).toBeNull();
+            page[0].click();
+            expect(titles(mock.menus.at(-1)!)).toEqual(titles(root));
+        }
     });
 
     it('keeps Callouts available when no custom styles are configured', () => {
@@ -293,12 +318,27 @@ describe('block menu translations', () => {
         const customPage = list.items!.find((item) => item.name === i.blockMenuCustom) as SettingDefinitionPage;
         const customList = customPage.items![0] as SettingDefinitionList;
         expect(customList.addItem).toBeDefined();
+        const staleAction = (customList.items![1] as SettingDefinitionAction).action;
         customList.onReorder!(0, 1);
         expect(plugin.settings.blockMenuOrders.custom).toEqual(['b', 'a']);
-        customList.onDelete!(0);
-        expect(plugin.settings.customBlockStyles.map((style) => style.label)).toEqual(['A']);
+        customList.onDelete!(1);
+        staleAction({} as HTMLElement, 1);
+        mock.modal!.onSave({ ...mock.modal!.style, label: 'Edited B' });
+        expect(plugin.settings.customBlockStyles.map((style) => [style.id, style.label])).toEqual([['b', 'Edited B']]);
         await Promise.resolve();
-        expect(plugin.saveSettings).toHaveBeenCalledTimes(2);
+        expect(plugin.saveSettings).toHaveBeenCalledTimes(3);
+    });
+
+    it('reports a rejected reorder save without refreshing the settings tab', async () => {
+        const failure = new Error('disk full');
+        const report = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const plugin = { settings: migrateSettings(null), saveSettings: vi.fn().mockRejectedValue(failure) };
+        const tab = new DragNDropSettingTab({} as App, plugin as unknown as DragNDropPlugin);
+        const page = tab.getSettingDefinitions()[2] as SettingDefinitionPage;
+        const list = page.items![0] as SettingDefinitionList;
+        list.onReorder!(0, 1);
+        await vi.waitFor(() => expect(report).toHaveBeenCalledWith('Dragger: failed to save settings', failure));
+        expect(tab.update).not.toHaveBeenCalled();
     });
 
     it('supplies native page drag handles without replacing native page navigation', async () => {
