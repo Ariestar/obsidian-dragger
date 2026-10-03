@@ -27,6 +27,7 @@ vi.mock('obsidian', () => ({
         return icon;
     }),
     setIcon: (el: HTMLElement, id: string) => el.setAttribute('data-icon', id),
+    Modal: class {},
     FuzzySuggestModal: class {
         constructor() {
             mock.picker = this as unknown as IconPicker;

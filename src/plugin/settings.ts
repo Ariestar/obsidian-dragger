@@ -59,33 +59,27 @@ function menuRow(
     } as SettingDefinitionWithIcon;
 }
 
-function getAllIconIdentifiers(): string[] {
-    return Array.from(new Set(getIconIds().map((id) => (id.startsWith('lucide-') ? id.slice(7) : id)))).sort();
-}
-
 class IconSuggestModal extends FuzzySuggestModal<string> {
-    private onChoose: (iconId: string) => void;
-
-    constructor(app: App, onChoose: (iconId: string) => void) {
+    constructor(
+        app: App,
+        private readonly onChoose: (iconId: string) => void,
+    ) {
         super(app);
-        this.onChoose = onChoose;
-        this.setPlaceholder('Type to search icons...');
+        this.setPlaceholder(t().customHandleIconSearch);
     }
 
     getItems(): string[] {
-        return getAllIconIdentifiers();
+        return Array.from(new Set(getIconIds().map((id) => (id.startsWith('lucide-') ? id.slice(7) : id)))).sort();
     }
 
     getItemText(item: string): string {
         return item;
     }
 
-    renderSuggestion(match: { item: string }, el: HTMLElement): void {
-        el.empty();
-        const iconSpan = el.createSpan();
-        iconSpan.setCssStyles({ display: 'inline-flex', width: '20px', marginRight: '8px' });
-        setIcon(iconSpan, match.item);
-        el.createSpan({ text: match.item });
+    renderSuggestion(match: FuzzyMatch<string>, el: HTMLElement): void {
+        el.addClass('d-handle-icon-suggestion');
+        setIcon(el.createSpan(), match.item);
+        super.renderSuggestion(match, el.createSpan());
     }
 
     onChooseItem(item: string): void {
@@ -252,34 +246,6 @@ class CustomBlockStyleModal extends Modal {
     }
 }
 
-class HandleIconSuggestModal extends FuzzySuggestModal<string> {
-    constructor(
-        app: App,
-        private readonly onChoose: (iconId: string) => void,
-    ) {
-        super(app);
-        this.setPlaceholder(t().customHandleIconSearch);
-    }
-
-    getItems(): string[] {
-        return getIconIds();
-    }
-
-    getItemText(item: string): string {
-        return item;
-    }
-
-    renderSuggestion(match: FuzzyMatch<string>, el: HTMLElement): void {
-        el.addClass('d-handle-icon-suggestion');
-        setIcon(el.createSpan(), match.item);
-        super.renderSuggestion(match, el.createSpan());
-    }
-
-    onChooseItem(item: string): void {
-        this.onChoose(item);
-    }
-}
-
 // Declarative settings (Obsidian 1.13+): getSettingDefinitions() takes
 // precedence over display() and renders the tab, so the plugin exposes all
 // options through the declarative API and no imperative renderer remains.
@@ -433,7 +399,7 @@ export class DragNDropSettingTab extends PluginSettingTab {
                         desc: this.plugin.settings.customHandleIcon,
                         visible: () => this.plugin.settings.handleIcon === 'custom',
                         action: () => {
-                            new HandleIconSuggestModal(this.app, (iconId) => {
+                            new IconSuggestModal(this.app, (iconId) => {
                                 void this.setControlValue('customHandleIcon', iconId)
                                     .then(() => this.update())
                                     .catch((error: unknown) => {
