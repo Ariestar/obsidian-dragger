@@ -70,6 +70,8 @@ export const en: ZhCnStrings = {
 
     handleIcon: 'Handle icon',
     handleIconDesc: 'Choose the icon style for drag handles',
+    customHandleIcon: 'Custom handle icon',
+    customHandleIconSearch: 'Search icons…',
     iconDot: '● dot',
     iconGripDots: '⠿ grip dots',
     iconGripLines: '☰ grip lines',

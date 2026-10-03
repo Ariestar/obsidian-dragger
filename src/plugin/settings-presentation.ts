@@ -1,3 +1,4 @@
+import { getIcon } from 'obsidian';
 import { GRIP_DOTS_CORE_SIZE_RATIO, HANDLE_CORE_SIZE_RATIO } from '../shared/constants';
 import { DRAG_SOURCE_HIGHLIGHT_ATTR, DRAG_SOURCE_STYLE_ATTR, HANDLE_ICON_ATTR } from '../shared/dom-selectors';
 import type { DragNDropSettings } from './settings-types';
@@ -24,6 +25,13 @@ export function settingsPresentation(
             : settings.handleHorizontalOffsetPx;
     const handleColor = settings.handleColorMode === 'theme' ? 'var(--interactive-accent)' : settings.handleColor;
     const size = settings.handleSize;
+    let customIcon = '';
+    if (settings.handleIcon === 'custom') {
+        const icon = getIcon(settings.customHandleIcon);
+        if (!icon) throw new Error(`Dragger: custom handle icon "${settings.customHandleIcon}" is not registered`);
+        icon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        customIcon = `url("data:image/svg+xml,${encodeURIComponent(icon.outerHTML)}")`;
+    }
     return {
         classes: {
             'd-handles-always': visibility === 'always',
@@ -47,6 +55,7 @@ export function settingsPresentation(
             '--d-handle-size': `${size}px`,
             '--d-handle-core-size': `${Math.round(size * HANDLE_CORE_SIZE_RATIO)}px`,
             '--d-grip-dots-core-size': `${Math.round(size * GRIP_DOTS_CORE_SIZE_RATIO)}px`,
+            '--d-custom-handle-icon': customIcon,
         },
     };
 }

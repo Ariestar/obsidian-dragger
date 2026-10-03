@@ -3,7 +3,7 @@ import type { BlockStyleDefinition } from './block-styles';
 import { DEFAULT_BLOCK_MENU_ORDERS, type BlockMenuOrders } from './block-menu-items';
 
 export type HandleVisibilityMode = 'always' | 'hover' | 'hidden';
-export type HandleIconStyle = 'dot' | 'grip-dots' | 'grip-lines' | 'square';
+export type HandleIconStyle = 'dot' | 'grip-dots' | 'grip-lines' | 'square' | 'custom';
 export type BlockSelectionVisualStyle = 'outline' | 'subtle' | 'filled';
 export type HandleGutterPosition = 'left' | 'right';
 
@@ -12,6 +12,7 @@ export interface DragNDropSettings {
     handleColor: string;
     handleVisibility: HandleVisibilityMode;
     handleIcon: HandleIconStyle;
+    customHandleIcon: string;
     handleSize: number;
     indicatorColorMode: 'theme' | 'custom';
     indicatorColor: string;
@@ -57,6 +58,7 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     handleColor: '#8a8a8a',
     handleVisibility: 'hover',
     handleIcon: 'grip-dots',
+    customHandleIcon: 'grip-vertical',
     handleSize: DEFAULT_HANDLE_SIZE_PX,
     indicatorColorMode: 'theme',
     indicatorColor: '#7a7a7a',

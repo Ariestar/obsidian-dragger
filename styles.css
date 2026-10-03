@@ -109,6 +109,7 @@
 }
 
 .md-dragger-handle.is-selected .d-handle-core {
+    mask: none;
     position: relative;
     width: 14px;
     height: 14px;
@@ -172,6 +173,21 @@
 /* 手柄图标样式：方块 */
 [data-d-handle-icon="square"] .d-handle-core {
     border-radius: 2px;
+}
+
+[data-d-handle-icon="custom"] .d-handle-core {
+    width: var(--d-grip-dots-core-size, 16px);
+    height: var(--d-grip-dots-core-size, 16px);
+    border-radius: 0;
+    background: currentColor;
+    box-shadow: none;
+    mask: var(--d-custom-handle-icon) center / contain no-repeat;
+}
+
+.d-handle-icon-suggestion {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .markdown-source-view.mod-cm6 .cm-editor.d-root-editor {

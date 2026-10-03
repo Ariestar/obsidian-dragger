@@ -1,5 +1,6 @@
 import {
     type App,
+    type FuzzyMatch,
     FuzzySuggestModal,
     Modal,
     Notice,
@@ -58,33 +59,27 @@ function menuRow(
     } as SettingDefinitionWithIcon;
 }
 
-function getAllIconIdentifiers(): string[] {
-    return Array.from(new Set(getIconIds().map((id) => (id.startsWith('lucide-') ? id.slice(7) : id)))).sort();
-}
-
 class IconSuggestModal extends FuzzySuggestModal<string> {
-    private onChoose: (iconId: string) => void;
-
-    constructor(app: App, onChoose: (iconId: string) => void) {
+    constructor(
+        app: App,
+        private readonly onChoose: (iconId: string) => void,
+    ) {
         super(app);
-        this.onChoose = onChoose;
-        this.setPlaceholder('Type to search icons...');
+        this.setPlaceholder(t().customHandleIconSearch);
     }
 
     getItems(): string[] {
-        return getAllIconIdentifiers();
+        return Array.from(new Set(getIconIds().map((id) => (id.startsWith('lucide-') ? id.slice(7) : id)))).sort();
     }
 
     getItemText(item: string): string {
         return item;
     }
 
-    renderSuggestion(match: { item: string }, el: HTMLElement): void {
-        el.empty();
-        const iconSpan = el.createSpan();
-        iconSpan.setCssStyles({ display: 'inline-flex', width: '20px', marginRight: '8px' });
-        setIcon(iconSpan, match.item);
-        el.createSpan({ text: match.item });
+    renderSuggestion(match: FuzzyMatch<string>, el: HTMLElement): void {
+        el.addClass('d-handle-icon-suggestion');
+        setIcon(el.createSpan(), match.item);
+        super.renderSuggestion(match, el.createSpan());
     }
 
     onChooseItem(item: string): void {
@@ -391,11 +386,26 @@ export class DragNDropSettingTab extends PluginSettingTab {
                             type: 'dropdown',
                             key: 'handleIcon',
                             options: {
-                                dot: i.iconDot,
                                 'grip-dots': i.iconGripDots,
+                                dot: i.iconDot,
                                 'grip-lines': i.iconGripLines,
                                 square: i.iconSquare,
+                                custom: i.optionCustom,
                             },
+                        },
+                    },
+                    {
+                        name: i.customHandleIcon,
+                        desc: this.plugin.settings.customHandleIcon,
+                        visible: () => this.plugin.settings.handleIcon === 'custom',
+                        action: () => {
+                            new IconSuggestModal(this.app, (iconId) => {
+                                void this.setControlValue('customHandleIcon', iconId)
+                                    .then(() => this.update())
+                                    .catch((error: unknown) => {
+                                        console.error('Dragger: failed to save custom handle icon', error);
+                                    });
+                            }).open();
                         },
                     },
                     {
