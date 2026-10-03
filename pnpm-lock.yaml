@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       md-dragger:
-        specifier: ^2.1.0
-        version: 2.1.0(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)
+        specifier: ^2.2.0
+        version: 2.2.0(@codemirror/state@6.7.6)(@codemirror/view@6.43.13)
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.5.14
@@ -1548,12 +1548,20 @@ packages:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
 
-  md-dragger@2.1.0:
-    resolution: {integrity: sha512-rNjHctJyJiU4nmYLzP1+iJcnH2v32RZHxO4HmhG+iZrZPSRiXEjPeMcOy+KWeosrkn35uBnR2Qv2Cykcx8Ezig==}
+  md-dragger@2.2.0:
+    resolution: {integrity: sha512-HnLTeWhoLBLDcrf+VL1EoXtK3AeZpakDztyNgrFbp93hxC0u0oJmaKibv2ItT8YMA+eALwzOKx20kU4+qPYJfQ==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
       '@codemirror/state': ^6.0.0
       '@codemirror/view': ^6.0.0
+      monaco-editor: '>=0.45.0'
+    peerDependenciesMeta:
+      '@codemirror/state':
+        optional: true
+      '@codemirror/view':
+        optional: true
+      monaco-editor:
+        optional: true
 
   mdn-data@2.27.1:
     resolution: {integrity: sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ==}
@@ -3804,8 +3812,8 @@ snapshots:
 
   math-intrinsics@1.1.0: {}
 
-  md-dragger@2.1.0(@codemirror/state@6.7.6)(@codemirror/view@6.43.13):
-    dependencies:
+  md-dragger@2.2.0(@codemirror/state@6.7.6)(@codemirror/view@6.43.13):
+    optionalDependencies:
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.13
 

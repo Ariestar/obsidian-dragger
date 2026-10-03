@@ -1,6 +1,6 @@
 {
     "name": "obsidian-dragger",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Drag and drop any block to rearrange content in Obsidian",
     "repository": {
         "type": "git",
@@ -42,7 +42,7 @@
     },
     "packageManager": "pnpm@11.19.0",
     "dependencies": {
-        "md-dragger": "^2.1.0"
+        "md-dragger": "^2.2.0"
     },
     "devDependencies": {
         "@biomejs/biome": "^2.5.14",
