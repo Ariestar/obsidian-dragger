@@ -26,6 +26,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           path: obsidian-dragger
+          persist-credentials: false
 
       - name: Resolve md-dragger ref
         id: engine-ref
