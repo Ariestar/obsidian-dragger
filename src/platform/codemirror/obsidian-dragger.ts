@@ -23,7 +23,7 @@ import {
 } from 'md-dragger/domain';
 import { dragSelectionDoc, dropSeamState, selectionFromOutputs, type PipelineResult } from 'md-dragger/runtime';
 import { autoScroll } from 'md-dragger/runtime/modules';
-import type { BlockStyleDefinition } from '../../plugin/block-styles';
+import type { BlockMenuSettings } from '../../plugin/block-menu-items';
 import { openBlockTypeMenu } from '../../plugin/block-type-menu';
 import {
     CARD_EDITOR_ATTR,
@@ -34,14 +34,13 @@ import {
 
 /** Minimal plugin surface used by the editor extension. */
 export type ObsidianDraggerHost = {
-    settings: {
+    settings: BlockMenuSettings & {
         enableMultiLineSelection: boolean;
         mouseRangeSelectLongPressMs: number;
         mobileDragLongPressMs: number;
         autoScrollEdgeZonePx: number;
         autoScrollMaxSpeedPx: number;
         handleGutterPosition: 'left' | 'right';
-        customBlockStyles?: BlockStyleDefinition[];
     };
     isMobilePlatform(): boolean;
     isMobileDragModeEnabled(): boolean;
@@ -518,8 +517,8 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
                                 openBlockTypeMenu(
                                     this.view,
                                     { clientX, clientY } as PointerEvent,
+                                    plugin.settings,
                                     startLine,
-                                    plugin.settings.customBlockStyles,
                                 );
                             });
                         }

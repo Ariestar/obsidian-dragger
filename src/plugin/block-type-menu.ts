@@ -1,38 +1,22 @@
 import { Menu, Notice, Platform, setIcon } from 'obsidian';
 import { EditorView } from '@codemirror/view';
 import { pointInTopDocument } from 'md-dragger/adapter/codemirror';
-import type { BlockStyleDefinition } from './block-styles';
-import { t } from './i18n';
 import {
-    copyCurrentBlock,
-    cutCurrentBlock,
-    deleteCurrentBlock,
-    HEADING_BLOCK_TYPE_OPTIONS,
-    LIST_BLOCK_TYPE_OPTIONS,
-    PARAGRAPH_BLOCK_TYPE_OPTION,
-    SIMPLE_BLOCK_TYPE_OPTIONS,
+    getBlockMenuEntries,
+    type BlockMenuSettings,
+    type BlockMenuGroup,
     type BlockTypeConversionOption,
-    convertCurrentBlockType,
-} from './block-type-commands';
+} from './block-menu-items';
+import { t } from './i18n';
+import { copyCurrentBlock, cutCurrentBlock, deleteCurrentBlock, convertCurrentBlockType } from './block-type-commands';
 
 type BlockMenuAction = {
     label: string;
     icon: string;
-    warning?: boolean;
     run: () => boolean | Promise<boolean>;
     failureNotice: string;
+    warning?: boolean;
 };
-
-type NestedConversionGroup = {
-    label: string;
-    icon: string;
-    options: BlockTypeConversionOption[];
-};
-
-const NESTED_GROUPS: NestedConversionGroup[] = [
-    { label: 'Heading', icon: 'heading', options: HEADING_BLOCK_TYPE_OPTIONS },
-    { label: 'List', icon: 'list', options: LIST_BLOCK_TYPE_OPTIONS },
-];
 
 const FLYOUT_CLASS = 'd-block-type-flyout';
 const FLYOUT_ITEM_CLASS = 'd-block-type-flyout-item';
@@ -50,26 +34,22 @@ let rootMenu: Menu | null = null;
 /**
  * Block-type menu.
  *
- * Desktop: Heading / List open a side flyout on hover (no Back page).
+ * Desktop: groups open a side flyout on hover (no Back page).
  * The flyout is plain DOM, not a second Menu, so item clicks always apply.
  * Mobile: group click opens a replacement page with Back (no hover).
  */
 export function openBlockTypeMenu(
     view: EditorView,
     event: MouseEvent | PointerEvent | null,
+    settings: BlockMenuSettings,
     lineNumber?: number,
-    customStyles?: BlockStyleDefinition[],
 ): void {
     disposeFlyout();
     menuBlockLine = lineNumber ?? view.state.doc.lineAt(view.state.selection.main.head).number;
-    showRootMenu(view, event, customStyles);
+    showRootMenu(view, event, settings);
 }
 
-function showRootMenu(
-    view: EditorView,
-    event: MouseEvent | PointerEvent | null,
-    customStyles?: BlockStyleDefinition[],
-): void {
+function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null, settings: BlockMenuSettings): void {
     const menu = new Menu();
     menu.setUseNativeMenu(false);
     rootMenu = menu;
@@ -84,55 +64,42 @@ function showRootMenu(
         });
     });
 
-    addConversionItem(menu, view, PARAGRAPH_BLOCK_TYPE_OPTION, line, () => menu.hide());
-
-    const groups: NestedConversionGroup[] = [...NESTED_GROUPS];
-    if (customStyles && customStyles.length > 0) {
-        groups.push({
-            label: t().headingCustomBlockStyles,
-            icon: 'sparkles',
-            options: customStyles.map((style) => ({
-                target: style,
-                label: style.label,
-                icon: style.icon,
-            })),
-        });
+    const groups: BlockMenuGroup[] = [];
+    for (const entry of getBlockMenuEntries(settings)) {
+        if ('options' in entry) {
+            if (entry.options.length === 0) continue;
+            groups.push(entry);
+            menu.addItem((item) => {
+                item.setTitle(createGroupTitle(entry.label)).setIcon(entry.icon);
+                if (Platform.isMobile) {
+                    item.onClick(() => showMobileGroupPage(view, entry, line, settings));
+                }
+            });
+        } else {
+            addConversionItem(menu, view, entry, line, () => menu.hide());
+        }
     }
 
-    for (const group of groups) {
-        menu.addItem((item) => {
-            item.setTitle(createGroupTitle(group.label)).setIcon(group.icon);
-            if (Platform.isMobile) {
-                item.onClick(() => {
-                    showMobileGroupPage(view, group, line, customStyles);
-                });
-            }
-        });
-    }
-
-    for (const option of SIMPLE_BLOCK_TYPE_OPTIONS) {
-        addConversionItem(menu, view, option, line, () => menu.hide());
-    }
-
+    const i = t();
     menu.addSeparator();
     addActionItem(menu, {
-        label: 'Copy block',
+        label: i.blockMenuCopy,
         icon: 'copy',
         run: () => copyCurrentBlock(view, line),
-        failureNotice: 'Unable to copy block.',
+        failureNotice: i.blockMenuCopyFailed,
     });
     addActionItem(menu, {
-        label: 'Cut block',
+        label: i.blockMenuCut,
         icon: 'scissors',
         run: () => cutCurrentBlock(view, line),
-        failureNotice: 'Unable to cut block.',
+        failureNotice: i.blockMenuCutFailed,
     });
     addActionItem(menu, {
-        label: 'Delete block',
+        label: i.blockMenuDelete,
         icon: 'trash-2',
         warning: true,
         run: () => deleteCurrentBlock(view, line),
-        failureNotice: 'Unable to delete block.',
+        failureNotice: i.blockMenuDeleteFailed,
     });
 
     const doc = showMenuAt(menu, view, event);
@@ -143,21 +110,16 @@ function showRootMenu(
     }
 }
 
-function showMobileGroupPage(
-    view: EditorView,
-    group: NestedConversionGroup,
-    line: number,
-    customStyles?: BlockStyleDefinition[],
-): void {
+function showMobileGroupPage(view: EditorView, group: BlockMenuGroup, line: number, settings: BlockMenuSettings): void {
     const menu = new Menu();
     menu.setUseNativeMenu(false);
 
     menu.addItem((item) =>
         item
-            .setTitle('Back')
+            .setTitle(t().blockMenuBack)
             .setIcon('chevron-left')
             .onClick(() => {
-                showRootMenu(view, null, customStyles);
+                showRootMenu(view, null, settings);
             }),
     );
 
@@ -168,7 +130,7 @@ function showMobileGroupPage(
     showMenuAt(menu, view, null);
 }
 
-function bindDesktopGroupHover(view: EditorView, line: number, doc: Document, groups: NestedConversionGroup[]): void {
+function bindDesktopGroupHover(view: EditorView, line: number, doc: Document, groups: BlockMenuGroup[]): void {
     const menuEl = latestMenuElement(doc);
     if (!menuEl) return;
 
@@ -193,7 +155,7 @@ function bindDesktopGroupHover(view: EditorView, line: number, doc: Document, gr
     }
 }
 
-function openFlyout(view: EditorView, group: NestedConversionGroup, trigger: HTMLElement, line: number): void {
+function openFlyout(view: EditorView, group: BlockMenuGroup, trigger: HTMLElement, line: number): void {
     cancelFlyoutClose();
     if (flyoutEl && flyoutTrigger === trigger) return;
 
@@ -256,7 +218,7 @@ function createFlyoutItem(
         event.preventDefault();
         event.stopPropagation();
         if (!convertCurrentBlockType(view, target, line)) {
-            new Notice('Unable to change block type.');
+            new Notice(t().blockMenuConversionFailed);
             return;
         }
         disposeFlyout();
@@ -332,7 +294,7 @@ function addConversionItem(
             .setIcon(option.icon)
             .onClick(() => {
                 if (!convertCurrentBlockType(view, target, line)) {
-                    new Notice('Unable to change block type.');
+                    new Notice(t().blockMenuConversionFailed);
                     return;
                 }
                 afterApply();

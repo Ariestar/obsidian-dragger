@@ -1,11 +1,11 @@
 import { App, MarkdownView, Platform, type Command } from 'obsidian';
 import type { EditorView } from '@codemirror/view';
-import type { BlockStyleDefinition } from './block-styles';
+import type { BlockMenuSettings } from './block-menu-items';
 import { openBlockTypeMenu } from './block-type-menu';
 
 export function registerMobileToolbarCommands(plugin: {
     app: App;
-    settings: { customBlockStyles: BlockStyleDefinition[] };
+    settings: BlockMenuSettings;
     addCommand: (command: Command) => Command;
     toggleMobileDragMode: () => boolean;
 }): void {
@@ -21,7 +21,7 @@ export function registerMobileToolbarCommands(plugin: {
             const view = (markdownView.editor as { cm?: EditorView } | undefined)?.cm;
             if (!view) return false;
             if (!checking) {
-                openBlockTypeMenu(view, null, undefined, plugin.settings.customBlockStyles);
+                openBlockTypeMenu(view, null, plugin.settings);
             }
             return true;
         },

@@ -7,18 +7,60 @@ import {
     Setting,
     type SettingDefinition,
     type SettingDefinitionItem,
+    type SettingDefinitionList,
+    type SettingDefinitionRender,
+    type SettingGroupItem,
     type TextComponent,
     getIconIds,
     setIcon,
 } from 'obsidian';
-import DragNDropPlugin from './main';
+import type DragNDropPlugin from './main';
 import type { BlockStyleDefinition } from './block-styles';
 import { t } from './i18n';
 import { NUMERIC_SETTING_RANGES } from './settings-types';
+import { getBlockMenuEntries, type BlockMenuListId, type BlockTypeConversionOption } from './block-menu-items';
 
 type SettingDefinitionWithIcon = SettingDefinition & {
     icon?: string;
 };
+
+function setMenuItemIcon(row: HTMLElement, icon: string): void {
+    let iconSlot = row.querySelector<HTMLElement>(':scope > .setting-item-icon');
+    if (!iconSlot) {
+        iconSlot = row.ownerDocument.createElement('div');
+        iconSlot.className = 'setting-item-icon';
+        row.insertBefore(iconSlot, row.firstChild);
+    }
+    setIcon(iconSlot, icon);
+}
+
+function renderMenuPageIcons(container: HTMLElement, pages: { name: string; icon: string }[]): void {
+    if (!container.isConnected) return;
+    const rows = Array.from(container.querySelectorAll<HTMLElement>('.setting-item.mod-navigable'));
+    if (rows.length === 0) return;
+    for (const page of pages) {
+        const row = rows.find((item) => item.querySelector('.setting-item-name')?.textContent === page.name);
+        if (!row) throw new Error(`Dragger: settings page "${page.name}" is missing`);
+        setMenuItemIcon(row, page.icon);
+    }
+}
+
+function menuRow(
+    option: BlockTypeConversionOption,
+    editStyle: (style: BlockStyleDefinition) => void,
+): SettingDefinition {
+    if (option.style) {
+        return {
+            name: option.label,
+            icon: option.icon,
+            action: () => editStyle(option.style!),
+        } as SettingDefinitionWithIcon;
+    }
+    return {
+        name: option.label,
+        icon: option.icon,
+    } as SettingDefinitionWithIcon;
+}
 
 function getAllIconIdentifiers(): string[] {
     const raw = getIconIds();
@@ -170,6 +212,11 @@ export class DragNDropSettingTab extends PluginSettingTab {
         this.plugin = plugin;
     }
 
+    override update(): void {
+        super.update();
+        renderMenuPageIcons(this.containerEl, [{ name: t().headingBlockMenu, icon: 'menu' }]);
+    }
+
     getSettingDefinitions(): SettingDefinitionItem[] {
         const i = t();
         const numeric = (
@@ -189,6 +236,100 @@ export class DragNDropSettingTab extends PluginSettingTab {
             },
         });
         const mobileOnly = () => Platform.isMobile && this.plugin.settings.enableMobileTextLongPressDrag;
+        const menuList = (listId: BlockMenuListId, items: SettingGroupItem[]): SettingDefinitionList => ({
+            type: 'list',
+            items,
+            onReorder: (oldIndex, newIndex) => {
+                const order = this.plugin.settings.blockMenuOrders[listId];
+                const moved = order[oldIndex];
+                if (
+                    !moved ||
+                    !Number.isInteger(oldIndex) ||
+                    !Number.isInteger(newIndex) ||
+                    newIndex < 0 ||
+                    newIndex >= order.length
+                ) {
+                    throw new Error('Dragger: invalid menu reorder indices');
+                }
+                order.splice(oldIndex, 1);
+                order.splice(newIndex, 0, moved);
+                this.saveAndRefresh();
+            },
+        });
+        const entries = getBlockMenuEntries(this.plugin.settings);
+        const groupIcons = entries.flatMap((entry) =>
+            'options' in entry ? [{ name: entry.label, icon: entry.icon }] : [],
+        );
+        const groupLists = new Map<BlockMenuListId, SettingDefinitionList>();
+        const editStyle = (style: BlockStyleDefinition) => {
+            new CustomBlockStyleModal(this.app, style, false, (updated) => {
+                const styles = this.plugin.settings.customBlockStyles;
+                const index = styles.findIndex((candidate) => candidate.id === updated.id);
+                if (index < 0) throw new Error('Dragger: custom style is missing');
+                styles[index] = updated;
+                this.saveAndRefresh();
+            }).open();
+        };
+        for (const entry of entries) {
+            if ('options' in entry) {
+                const rows = entry.options.map((option) => menuRow(option, editStyle));
+                groupLists.set(entry.id, menuList(entry.id, rows));
+            }
+        }
+        const customList = groupLists.get('custom')!;
+        customList.onDelete = (index) => {
+            const settings = this.plugin.settings;
+            const id = settings.blockMenuOrders.custom[index];
+            const styleIndex = settings.customBlockStyles.findIndex((style) => style.id === id);
+            if (styleIndex < 0) throw new Error('Dragger: custom style is missing');
+            settings.blockMenuOrders.custom.splice(index, 1);
+            settings.customBlockStyles.splice(styleIndex, 1);
+            this.saveAndRefresh();
+        };
+        customList.addItem = {
+            name: i.customBlockStylesAdd,
+            action: () => {
+                new CustomBlockStyleModal(
+                    this.app,
+                    { id: crypto.randomUUID(), label: '', icon: 'box', category: 'custom', template: '${content}' },
+                    true,
+                    (created) => {
+                        this.plugin.settings.customBlockStyles.push(created);
+                        this.plugin.settings.blockMenuOrders.custom.push(created.id);
+                        this.saveAndRefresh();
+                    },
+                ).open();
+            },
+        };
+        const menuRows: SettingGroupItem[] = entries.map((entry) =>
+            'options' in entry
+                ? { type: 'page', name: entry.label, items: [groupLists.get(entry.id)!] }
+                : menuRow(entry, editStyle),
+        );
+        // Obsidian adds the native list sorter before finishing the render,
+        // but page rows return before its drag-handle decoration. Supply the
+        // same handle for every page; the native list still owns all sorting.
+        const handleHookIndex = entries.findIndex((entry) => 'target' in entry);
+        if (handleHookIndex < 0) throw new Error('Dragger: block menu has no conversion items');
+        const handleHook = menuRows[handleHookIndex] as SettingDefinitionRender;
+        handleHook.render = (setting, group) => {
+            setMenuItemIcon(setting.settingEl, entries[handleHookIndex].icon);
+            group.listEl.win.queueMicrotask(() => {
+                if (!group.listEl.isConnected) return;
+                renderMenuPageIcons(group.listEl, groupIcons);
+                const sourceHandle = group.listEl.querySelector<HTMLElement>('.mod-drag-handle');
+                if (!sourceHandle) throw new Error('Dragger: native menu reorder handle is missing');
+                for (const row of Array.from(group.listEl.querySelectorAll<HTMLElement>(':scope > .setting-item'))) {
+                    if (row.querySelector('.mod-drag-handle')) continue;
+                    const control = row.querySelector('.setting-item-control');
+                    if (!control) throw new Error('Dragger: native menu row control is missing');
+                    const handle = sourceHandle.cloneNode(true);
+                    handle.addEventListener('click', (event) => event.stopPropagation());
+                    control.appendChild(handle);
+                }
+            });
+        };
+        const menuItems: SettingDefinitionItem[] = [menuList('root', menuRows)];
         return [
             {
                 type: 'page',
@@ -328,68 +469,13 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     },
                 ],
             },
-            {
-                type: 'page',
-                name: i.headingCustomBlockStyles,
-                items: [
-                    {
-                        type: 'list',
-                        name: i.headingCustomBlockStyles,
-                        desc: i.customBlockStylesDesc,
-                        emptyState: i.customBlockStylesEmpty,
-                        onDelete: (index: number) => {
-                            this.plugin.settings.customBlockStyles.splice(index, 1);
-                            this.saveAndRefresh();
-                        },
-                        onReorder: (oldIndex: number, newIndex: number) => {
-                            const [moved] = this.plugin.settings.customBlockStyles.splice(oldIndex, 1);
-                            if (moved) {
-                                this.plugin.settings.customBlockStyles.splice(newIndex, 0, moved);
-                                this.saveAndRefresh();
-                            }
-                        },
-                        addItem: {
-                            name: i.customBlockStylesAdd,
-                            action: () => {
-                                new CustomBlockStyleModal(
-                                    this.app,
-                                    {
-                                        id: `custom-${Date.now()}`,
-                                        label: '',
-                                        icon: 'box',
-                                        category: 'custom',
-                                        template: '${content}',
-                                    },
-                                    true,
-                                    (created) => {
-                                        this.plugin.settings.customBlockStyles.push(created);
-                                        this.saveAndRefresh();
-                                    },
-                                ).open();
-                            },
-                        },
-                        items: this.plugin.settings.customBlockStyles.map(
-                            (style, index): SettingDefinitionWithIcon => ({
-                                name: style.label,
-                                desc: style.template.replace(/\n/g, ' ↵ '),
-                                icon: style.icon,
-                                action: () => {
-                                    new CustomBlockStyleModal(this.app, style, false, (updated) => {
-                                        this.plugin.settings.customBlockStyles[index] = updated;
-                                        this.saveAndRefresh();
-                                    }).open();
-                                },
-                            }),
-                        ),
-                    },
-                ],
-            },
+            { type: 'page', name: i.headingBlockMenu, items: menuItems },
         ];
     }
 
     private saveAndRefresh(): void {
         void this.plugin.saveSettings().then(() => {
-            (this as unknown as { update?: () => void }).update?.();
+            this.update();
         });
     }
 

@@ -1,5 +1,6 @@
 import { DEFAULT_HANDLE_SIZE_PX, MIN_HANDLE_SIZE_PX, MAX_HANDLE_SIZE_PX } from '../shared/constants';
-import { DEFAULT_CUSTOM_BLOCK_STYLES, type BlockStyleDefinition } from './block-styles';
+import type { BlockStyleDefinition } from './block-styles';
+import { DEFAULT_BLOCK_MENU_ORDERS, type BlockMenuOrders } from './block-menu-items';
 
 export type HandleVisibilityMode = 'always' | 'hover' | 'hidden';
 export type HandleIconStyle = 'dot' | 'grip-dots' | 'grip-lines' | 'square';
@@ -29,6 +30,7 @@ export interface DragNDropSettings {
     handleHorizontalOffsetPx: number;
     handleGutterPosition: HandleGutterPosition;
     customBlockStyles: BlockStyleDefinition[];
+    blockMenuOrders: BlockMenuOrders;
     /** Internal: persisted settings schema version, managed by settings-migrations. */
     schemaVersion?: number;
 }
@@ -71,5 +73,12 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     selectionVisualStyle: 'subtle',
     handleHorizontalOffsetPx: -8,
     handleGutterPosition: 'left',
-    customBlockStyles: DEFAULT_CUSTOM_BLOCK_STYLES,
+    customBlockStyles: [],
+    blockMenuOrders: {
+        root: [...DEFAULT_BLOCK_MENU_ORDERS.root],
+        heading: [...DEFAULT_BLOCK_MENU_ORDERS.heading],
+        list: [...DEFAULT_BLOCK_MENU_ORDERS.list],
+        callout: [...DEFAULT_BLOCK_MENU_ORDERS.callout],
+        custom: [],
+    },
 };

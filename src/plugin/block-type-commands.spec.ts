@@ -104,16 +104,16 @@ describe('block type conversion', () => {
         expect(view.state.doc.toString()).toBe('x = y');
     });
 
-    it('converts the current block to a callout template', () => {
+    it.each(['note', 'tip', 'warning'])('converts the current block to a %s callout template', (type) => {
         const view = createMutableView('alpha\nbeta', 0);
 
         const changed = convertCurrentBlockType(view, {
-            template: '> [!note]\n${content}',
+            template: `> [!${type}]\n\${content}`,
             linePrefix: '> ',
         });
 
         expect(changed).toBe(true);
-        expect(view.state.doc.toString()).toBe('> [!note]\n> alpha\nbeta');
+        expect(view.state.doc.toString()).toBe(`> [!${type}]\n> alpha\nbeta`);
     });
 
     it('converts the current block to a custom HTML div with variables', () => {

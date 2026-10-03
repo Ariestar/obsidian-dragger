@@ -1,5 +1,6 @@
 import { DEFAULT_SETTINGS, NUMERIC_SETTING_RANGES } from './settings-types';
 import type { DragNDropSettings, NumericSettingKey } from './settings-types';
+import { DEFAULT_BLOCK_MENU_ORDERS } from './block-menu-items';
 
 /**
  * Settings migration system.
@@ -16,7 +17,7 @@ import type { DragNDropSettings, NumericSettingKey } from './settings-types';
  */
 
 const SCHEMA_VERSION_KEY = 'schemaVersion';
-const CURRENT_SCHEMA_VERSION = 8;
+const CURRENT_SCHEMA_VERSION = 12;
 
 type RawSettings = Record<string, unknown>;
 
@@ -108,14 +109,78 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
     (data) => {
         const next = { ...data };
         if (!('customBlockStyles' in next) || !Array.isArray(next.customBlockStyles)) {
-            next.customBlockStyles = DEFAULT_SETTINGS.customBlockStyles;
+            next.customBlockStyles = [...DEFAULT_SETTINGS.customBlockStyles];
         }
+        return next;
+    },
+    // v8 -> v9: Callouts are built-in menu entries. Remove only unchanged
+    // seeded styles; keep user edits and user-created Callout templates.
+    (data) => {
+        const next = { ...data };
+        const legacyCallouts = [
+            { type: 'note', label: 'Note', icon: 'pencil' },
+            { type: 'tip', label: 'Tip', icon: 'lightbulb' },
+            { type: 'warning', label: 'Warning', icon: 'alert-triangle' },
+        ].map(({ type, label, icon }) => ({
+            id: `callout-${type}`,
+            label,
+            icon,
+            category: 'callout',
+            template: `> [!${type}]\n\${content}`,
+            linePrefix: '> ',
+        }));
+        if (Array.isArray(next.customBlockStyles)) {
+            next.customBlockStyles = next.customBlockStyles.filter(
+                (style) =>
+                    !isRecord(style) ||
+                    !legacyCallouts.some(
+                        (legacy) =>
+                            Object.keys(style).length === Object.keys(legacy).length &&
+                            Object.entries(legacy).every(([key, value]) => style[key] === value),
+                    ),
+            );
+        }
+        return next;
+    },
+    // v9 -> v10: persist the root menu order without changing custom styles.
+    (data) => ({ ...data, blockMenuOrder: [...DEFAULT_BLOCK_MENU_ORDERS.root] }),
+    // v10 -> v11: only block types can be reordered. Actions stay fixed.
+    (data) => ({
+        ...data,
+        blockMenuOrder: Array.isArray(data.blockMenuOrder)
+            ? data.blockMenuOrder.filter(
+                  (id: unknown) => id !== 'separator' && id !== 'copy' && id !== 'cut' && id !== 'delete',
+              )
+            : data.blockMenuOrder,
+    }),
+    // v11 -> v12: one order map for root and child lists; custom styles are
+    // identified by their persisted IDs instead of their array positions.
+    (data) => {
+        const next = { ...data };
+        if (!('customBlockStyles' in next)) next.customBlockStyles = [];
+        const orders = structuredClone(DEFAULT_SETTINGS.blockMenuOrders);
+        if ('blockMenuOrder' in next) orders.root = next.blockMenuOrder as typeof orders.root;
+        orders.custom = customStyleIds(next.customBlockStyles);
+        next.blockMenuOrders = orders;
+        delete next.blockMenuOrder;
         return next;
     },
 ];
 
 function isRecord(value: unknown): value is RawSettings {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function customStyleIds(styles: unknown): string[] {
+    if (!Array.isArray(styles)) throw new Error('Dragger: custom block styles must be an array');
+    const ids = styles.map((style: unknown) => {
+        if (!isRecord(style) || typeof style.id !== 'string' || !style.id) {
+            throw new Error('Dragger: custom block styles must have non-empty IDs');
+        }
+        return style.id;
+    });
+    if (new Set(ids).size !== ids.length) throw new Error('Dragger: custom block style IDs must be unique');
+    return ids;
 }
 
 /**
@@ -149,9 +214,28 @@ export function migrateSettings(saved: unknown): DragNDropSettings {
 
     const merged: DragNDropSettings = {
         ...DEFAULT_SETTINGS,
+        customBlockStyles: [...DEFAULT_SETTINGS.customBlockStyles],
+        blockMenuOrders: structuredClone(DEFAULT_SETTINGS.blockMenuOrders),
         ...data,
         [SCHEMA_VERSION_KEY]: CURRENT_SCHEMA_VERSION,
     };
+    const expectedOrders = { ...DEFAULT_BLOCK_MENU_ORDERS, custom: customStyleIds(merged.customBlockStyles) };
+    const orders: unknown = merged.blockMenuOrders;
+    if (!isRecord(orders) || Object.keys(orders).length !== Object.keys(expectedOrders).length) {
+        throw new Error('Dragger: menu orders must contain exactly the configured lists');
+    }
+    for (const [listId, expected] of Object.entries(expectedOrders)) {
+        const order: unknown = orders[listId];
+        const expectedIds = new Set<string>(expected);
+        if (
+            !Array.isArray(order) ||
+            order.length !== expected.length ||
+            new Set(order).size !== expected.length ||
+            order.some((id: unknown) => typeof id !== 'string' || !expectedIds.has(id))
+        ) {
+            throw new Error(`Dragger: ${listId} menu order must contain each item exactly once`);
+        }
+    }
     clampNumericSettings(merged);
     return merged;
 }

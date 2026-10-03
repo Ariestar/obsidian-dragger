@@ -13,6 +13,7 @@ import { dragHandleExtension, type ObsidianDraggerHost } from './obsidian-dragge
 
 const host: ObsidianDraggerHost = {
     settings: {
+        ...DEFAULT_SETTINGS,
         enableMultiLineSelection: true,
         mouseRangeSelectLongPressMs: 700,
         mobileDragLongPressMs: 200,
