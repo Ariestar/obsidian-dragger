@@ -1,4 +1,4 @@
-import { App, MarkdownView, Platform, type Command } from 'obsidian';
+import { type App, type MarkdownView, Platform, type Command } from 'obsidian';
 import type { EditorView } from '@codemirror/view';
 import type { BlockMenuSettings } from './block-menu-items';
 import { openBlockTypeMenu } from './block-type-menu';
@@ -16,9 +16,9 @@ export function registerMobileToolbarCommands(plugin: {
         mobileOnly: true,
         checkCallback: (checking) => {
             if (!Platform.isMobile) return false;
-            const markdownView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-            if (!markdownView) return false;
-            const view = (markdownView.editor as { cm?: EditorView } | undefined)?.cm;
+            const markdownView = plugin.app.workspace.getMostRecentLeaf()?.view;
+            if (markdownView?.getViewType() !== 'markdown') return false;
+            const view = ((markdownView as MarkdownView).editor as { cm?: EditorView } | undefined)?.cm;
             if (!view) return false;
             if (!checking) {
                 openBlockTypeMenu(view, null, plugin.settings);
