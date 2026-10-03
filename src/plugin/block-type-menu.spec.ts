@@ -310,7 +310,10 @@ describe('block menu translations', () => {
         const listEl = document.body.appendChild(document.createElement('div'));
         const rows = list.items!.map((definition) => {
             const row = listEl.appendChild(document.createElement('div'));
-            row.className = 'setting-item';
+            row.className = 'type' in definition ? 'setting-item mod-navigable' : 'setting-item';
+            const name = row.appendChild(document.createElement('div'));
+            name.className = 'setting-item-name';
+            name.textContent = definition.name;
             const control = row.appendChild(document.createElement('div'));
             control.className = 'setting-item-control';
             if (!('type' in definition)) {
@@ -319,9 +322,12 @@ describe('block menu translations', () => {
             }
             return row;
         });
-        const hook = list.items!.find((definition) => 'render' in definition) as SettingDefinitionRender;
-        hook.render({} as Setting, { listEl } as SettingGroup);
+        const hookIndex = list.items!.findIndex((definition) => 'render' in definition);
+        const hook = list.items![hookIndex] as SettingDefinitionRender;
+        const setting = { settingEl: rows[hookIndex] } as Setting;
+        hook.render(setting, { listEl } as SettingGroup);
         await Promise.resolve();
+        expect(rows[hookIndex].querySelector('.setting-item-icon')?.getAttribute('data-icon')).toBe('pilcrow');
         for (const row of rows) expect(row.querySelectorAll('.mod-drag-handle')).toHaveLength(1);
         const navigate = vi.fn();
         rows[1].addEventListener('click', navigate);
@@ -329,9 +335,10 @@ describe('block menu translations', () => {
         expect(navigate).not.toHaveBeenCalled();
         rows[1].click();
         expect(navigate).toHaveBeenCalledOnce();
-        hook.render({} as Setting, { listEl } as SettingGroup);
+        hook.render(setting, { listEl } as SettingGroup);
         await Promise.resolve();
         for (const row of rows) expect(row.querySelectorAll('.mod-drag-handle')).toHaveLength(1);
+        expect(rows[hookIndex].querySelectorAll('.setting-item-icon')).toHaveLength(1);
     });
 
     it.each([

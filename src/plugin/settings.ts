@@ -27,7 +27,7 @@ type SettingDefinitionWithIcon = SettingDefinition & {
 function setMenuItemIcon(row: HTMLElement, icon: string): void {
     let iconSlot = row.querySelector<HTMLElement>(':scope > .setting-item-icon');
     if (!iconSlot) {
-        iconSlot = row.ownerDocument.createElement('div');
+        iconSlot = row.ownerDocument.win.createDiv();
         iconSlot.className = 'setting-item-icon';
         row.insertBefore(iconSlot, row.firstChild);
     }
