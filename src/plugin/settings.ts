@@ -434,7 +434,11 @@ export class DragNDropSettingTab extends PluginSettingTab {
                         visible: () => this.plugin.settings.handleIcon === 'custom',
                         action: () => {
                             new HandleIconSuggestModal(this.app, (iconId) => {
-                                void this.setControlValue('customHandleIcon', iconId).then(() => this.update());
+                                void this.setControlValue('customHandleIcon', iconId)
+                                    .then(() => this.update())
+                                    .catch((error: unknown) => {
+                                        console.error('Dragger: failed to save custom handle icon', error);
+                                    });
                             }).open();
                         },
                     },

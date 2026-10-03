@@ -52,6 +52,7 @@ afterEach(() => {
     document.body.removeAttribute('data-d-handle-icon');
     document.body.style.cssText = '';
     vi.clearAllMocks();
+    vi.restoreAllMocks();
 });
 
 describe('handle icons', () => {
@@ -79,6 +80,23 @@ describe('handle icons', () => {
         expect(plugin.settings.customHandleIcon).toBe('star');
         expect(plugin.saveSettings).toHaveBeenCalledTimes(2);
         expect(tab.update).toHaveBeenCalledOnce();
+    });
+
+    it('reports a rejected icon save without refreshing the settings tab', async () => {
+        const failure = new Error('disk full');
+        const report = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const plugin = { settings: migrateSettings(null), saveSettings: vi.fn().mockRejectedValue(failure) };
+        const tab = new DragNDropSettingTab({} as App, plugin as unknown as DragNDropPlugin);
+        const page = tab.getSettingDefinitions()[0] as SettingDefinitionPage;
+        const row = page.items!.find(
+            (item) => 'name' in item && item.name === 'Custom handle icon',
+        ) as SettingDefinitionAction;
+        row.action();
+        mock.picker!.onChooseItem('star');
+        await vi.waitFor(() =>
+            expect(report).toHaveBeenCalledWith('Dragger: failed to save custom handle icon', failure),
+        );
+        expect(tab.update).not.toHaveBeenCalled();
     });
 
     it('updates and clears the icon mask in every editor document', () => {
