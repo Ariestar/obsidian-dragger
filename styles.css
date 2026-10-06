@@ -22,6 +22,12 @@
     overflow: visible;
 }
 
+/* A lone overlay handle gutter should preserve the original text edge.
+   Keep Obsidian's native spacing when line numbers or other gutters exist. */
+.markdown-source-view.mod-cm6 .cm-editor.d-root-editor .cm-gutters:has(> .md-dragger-gutter:only-child) {
+    margin-inline-end: 0;
+}
+
 /* Obsidian turns a card iframe's scroller into a column and inserts spacers,
    which stacks the gutter above the lines. Cards use the same row as the
    main editor. !important wins over app.css copied into the iframe later. */
