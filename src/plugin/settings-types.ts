@@ -73,7 +73,7 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     mobileDragModeToggleEnabled: true,
     enableBlockSelectionHighlight: true,
     selectionVisualStyle: 'subtle',
-    handleHorizontalOffsetPx: -8,
+    handleHorizontalOffsetPx: 0,
     handleGutterPosition: 'left',
     customBlockStyles: [],
     blockMenuOrders: {

@@ -17,7 +17,7 @@ import { DEFAULT_BLOCK_MENU_ORDERS } from './block-menu-items';
  */
 
 const SCHEMA_VERSION_KEY = 'schemaVersion';
-const CURRENT_SCHEMA_VERSION = 12;
+const CURRENT_SCHEMA_VERSION = 13;
 
 type RawSettings = Record<string, unknown>;
 
@@ -163,6 +163,15 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
         orders.custom = customStyleIds(next.customBlockStyles);
         next.blockMenuOrders = orders;
         delete next.blockMenuOrder;
+        return next;
+    },
+    // v12 -> v13: runtime collapse alignment replaces the old default offset.
+    // Preserve an explicitly customized offset while migrating the old default.
+    (data) => {
+        const next = { ...data };
+        if (next.handleHorizontalOffsetPx === -8) {
+            next.handleHorizontalOffsetPx = DEFAULT_SETTINGS.handleHorizontalOffsetPx;
+        }
         return next;
     },
 ];
