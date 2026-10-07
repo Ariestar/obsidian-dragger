@@ -469,6 +469,16 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     {
                         name: i.indicatorColor,
                         desc: i.indicatorColorDesc,
+                        control: {
+                            type: 'dropdown',
+                            key: 'indicatorColorMode',
+                            options: { theme: i.optionTheme, custom: i.optionCustom },
+                        },
+                    },
+                    {
+                        name: i.indicatorColor,
+                        desc: i.indicatorColorDesc,
+                        visible: () => this.plugin.settings.indicatorColorMode === 'custom',
                         control: { type: 'color', key: 'indicatorColor' },
                     },
                 ],
