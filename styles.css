@@ -78,8 +78,18 @@
     align-items: center;
     justify-content: center;
     height: 1lh;
-    transform: translateX(calc(var(--d-handle-horizontal-offset-px, 0px) - 50%));
+    transform: translateX(
+        calc(var(--d-handle-horizontal-offset-px, 0px) + var(--d-handle-edge-shift, -100%))
+    );
     pointer-events: auto;
+}
+
+.markdown-source-view.mod-cm6 .cm-editor.d-root-editor .cm-gutters-before .md-dragger-gutter {
+    --d-handle-edge-shift: calc(-100% - var(--d-collapse-indicator-offset, 0px));
+}
+
+.markdown-source-view.mod-cm6 .cm-editor.d-root-editor .cm-gutters-after .md-dragger-gutter {
+    --d-handle-edge-shift: 0%;
 }
 
 /* Obsidian opens a nested CM6 editor inside a focused table cell (Live
@@ -443,5 +453,10 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
    left edge); the handle's left edge stays inside, shifted only as far as
    needed. The text doesn't move. */
 .markdown-source-view.mod-cm6 .cm-editor.d-root-editor[data-d-card-editor] .cm-gutter.md-dragger-gutter .cm-gutterElement > .md-dragger-handle {
-    transform: translateX(max(calc(var(--d-handle-horizontal-offset-px, 0px) - 50%), calc(-1 * var(--d-gutter-left))));
+    transform: translateX(
+        max(
+            calc(var(--d-handle-horizontal-offset-px, 0px) + var(--d-handle-edge-shift, -100%)),
+            calc(-1 * var(--d-gutter-left))
+        )
+    );
 }

@@ -7,7 +7,7 @@ export const zhCn = {
     blockMenuNumberedList: '有序列表',
     blockMenuTaskList: '任务列表',
     blockMenuQuote: '引用',
-    blockMenuCallout: 'Callout',
+    blockMenuCallout: '标注',
     blockMenuCalloutNote: '笔记',
     blockMenuCalloutTip: '提示',
     blockMenuCalloutWarning: '警告',

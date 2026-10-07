@@ -113,7 +113,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
     return [
         EditorView.editorAttributes.of({ class: ROOT_EDITOR_CLASS }),
         presentSettingsInEditorDocument(plugin),
-        keepCardHandlesInside(),
+        syncHandleGeometry(),
         ...mdDragger(options),
         dropIndicatorPaint(options),
         selectionPaint(),
@@ -152,23 +152,33 @@ function presentSettingsInEditorDocument(host: ObsidianDraggerHost): Extension {
     );
 }
 
-// In a canvas card (an editor inside a frame) the editor fills the card, so a
-// handle left of the text would overhang the card's edge and be clipped. The
-// gutter's distance from the editor's left edge goes into --d-gutter-left, and
-// styles.css keeps the handle inside, shifting it only as far as needed. Note
-// tabs keep upstream placement.
-function keepCardHandlesInside(): Extension {
+// Measure the host geometry that CSS cannot know: the collapse indicator's
+// distance from the text edge, plus the card iframe's left clipping edge.
+function syncHandleGeometry(): Extension {
     return ViewPlugin.fromClass(
         class {
             private readonly measure = () =>
                 this.view.requestMeasure({
                     key: this,
                     read: (view) => {
+                        const collapseIndicator = view.dom.querySelector<HTMLElement>(
+                            '.cm-fold-indicator .collapse-indicator',
+                        );
+                        const contentLeft = view.contentDOM.getBoundingClientRect().left;
+                        const collapseLeft = collapseIndicator?.getBoundingClientRect().left;
                         const gutter = view.dom.querySelector('.md-dragger-gutter');
-                        if (!gutter || view.dom.ownerDocument.defaultView?.frameElement == null) return null;
-                        return gutter.getBoundingClientRect().left - view.scrollDOM.getBoundingClientRect().left;
+                        const gutterLeft =
+                            gutter && view.dom.ownerDocument.defaultView?.frameElement != null
+                                ? gutter.getBoundingClientRect().left - view.scrollDOM.getBoundingClientRect().left
+                                : null;
+                        return {
+                            collapseIndicatorOffset:
+                                collapseLeft === undefined ? 0 : Math.max(0, contentLeft - collapseLeft),
+                            gutterLeft,
+                        };
                     },
-                    write: (gutterLeft, view) => {
+                    write: ({ collapseIndicatorOffset, gutterLeft }, view) => {
+                        view.dom.style.setProperty('--d-collapse-indicator-offset', `${collapseIndicatorOffset}px`);
                         if (gutterLeft === null) {
                             view.dom.removeAttribute(CARD_EDITOR_ATTR);
                             view.dom.style.removeProperty('--d-gutter-left');
@@ -181,6 +191,7 @@ function keepCardHandlesInside(): Extension {
 
             constructor(private readonly view: EditorView) {
                 this.measure();
+                view.dom.ownerDocument.defaultView?.requestAnimationFrame(() => this.measure());
                 view.dom.addEventListener('pointerover', this.measure, true);
             }
 
