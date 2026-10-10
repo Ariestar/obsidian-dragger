@@ -152,8 +152,8 @@ function presentSettingsInEditorDocument(host: ObsidianDraggerHost): Extension {
     );
 }
 
-// Measure the host geometry that CSS cannot know: the collapse indicator's
-// distance from the text edge, plus the card iframe's left clipping edge.
+// Measure the host geometry that CSS cannot know: the distance from the
+// handle gutter to the text edge, fold indicator spacing, and card clipping.
 function syncHandleGeometry(): Extension {
     return ViewPlugin.fromClass(
         class {
@@ -161,30 +161,40 @@ function syncHandleGeometry(): Extension {
                 this.view.requestMeasure({
                     key: this,
                     read: (view) => {
+                        const line = view.dom.querySelector<HTMLElement>('.cm-line');
+                        const lineLeft =
+                            line?.getBoundingClientRect().left ?? view.contentDOM.getBoundingClientRect().left;
+                        const gutter = view.dom.querySelector<HTMLElement>('.md-dragger-gutter');
+                        const gutterLeft = gutter?.getBoundingClientRect().left ?? lineLeft;
+                        const textOffset = Math.max(0, lineLeft - gutterLeft);
+
                         const collapseIndicator = view.dom.querySelector<HTMLElement>(
                             '.cm-fold-indicator .collapse-indicator',
                         );
-                        const contentLeft = view.contentDOM.getBoundingClientRect().left;
                         const collapseLeft = collapseIndicator?.getBoundingClientRect().left;
-                        const gutter = view.dom.querySelector('.md-dragger-gutter');
-                        const gutterLeft =
+                        const collapseDistance = collapseLeft !== undefined ? lineLeft - collapseLeft : 0;
+                        const collapseIndicatorOffset =
+                            collapseDistance > 0 && collapseDistance <= 36 ? collapseDistance : 0;
+
+                        const cardGutterLeft =
                             gutter && view.dom.ownerDocument.defaultView?.frameElement != null
                                 ? gutter.getBoundingClientRect().left - view.scrollDOM.getBoundingClientRect().left
                                 : null;
                         return {
-                            collapseIndicatorOffset:
-                                collapseLeft === undefined ? 0 : Math.max(0, contentLeft - collapseLeft),
-                            gutterLeft,
+                            textOffset,
+                            collapseIndicatorOffset,
+                            cardGutterLeft,
                         };
                     },
-                    write: ({ collapseIndicatorOffset, gutterLeft }, view) => {
+                    write: ({ textOffset, collapseIndicatorOffset, cardGutterLeft }, view) => {
+                        view.dom.style.setProperty('--d-handle-text-offset', `${textOffset}px`);
                         view.dom.style.setProperty('--d-collapse-indicator-offset', `${collapseIndicatorOffset}px`);
-                        if (gutterLeft === null) {
+                        if (cardGutterLeft === null) {
                             view.dom.removeAttribute(CARD_EDITOR_ATTR);
                             view.dom.style.removeProperty('--d-gutter-left');
                         } else {
                             view.dom.setAttribute(CARD_EDITOR_ATTR, '');
-                            view.dom.style.setProperty('--d-gutter-left', `${gutterLeft}px`);
+                            view.dom.style.setProperty('--d-gutter-left', `${cardGutterLeft}px`);
                         }
                     },
                 });
