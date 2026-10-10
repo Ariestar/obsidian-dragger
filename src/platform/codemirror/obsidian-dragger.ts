@@ -63,6 +63,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
             listIndentUnit: LIST_INDENT_UNIT,
         },
         listIndentWidthPx: (view) => listIndentStepPx(view),
+        contentLeft: (view) => view.dom.querySelector<HTMLElement>('.cm-line')!.getBoundingClientRect().left,
         handle: {
             render: (doc) => createObsidianHandle(doc),
             side: plugin.settings.handleGutterPosition === 'right' ? 'after' : 'before',
@@ -161,11 +162,9 @@ function syncHandleGeometry(): Extension {
                 this.view.requestMeasure({
                     key: this,
                     read: (view) => {
-                        const line = view.dom.querySelector<HTMLElement>('.cm-line');
-                        const lineLeft =
-                            line?.getBoundingClientRect().left ?? view.contentDOM.getBoundingClientRect().left;
+                        const lineLeft = view.dom.querySelector<HTMLElement>('.cm-line')!.getBoundingClientRect().left;
                         const gutter = view.dom.querySelector<HTMLElement>('.md-dragger-gutter');
-                        const gutterLeft = gutter?.getBoundingClientRect().left ?? lineLeft;
+                        const gutterLeft = gutter ? gutter.getBoundingClientRect().left : lineLeft;
                         const textOffset = Math.max(0, lineLeft - gutterLeft);
 
                         const collapseIndicator = view.dom.querySelector<HTMLElement>(
