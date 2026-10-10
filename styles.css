@@ -341,7 +341,7 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
     position: absolute;
     z-index: 2;
     left: var(--d-seam-left, 0px);
-    width: var(--d-seam-width, auto);
+    right: 0;
     height: 2px;
     border-radius: 2px;
     background: var(--d-drop-indicator-color, var(--d-drag-source-border, var(--interactive-accent)));
