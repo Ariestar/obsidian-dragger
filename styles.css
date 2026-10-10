@@ -79,7 +79,7 @@
     justify-content: center;
     height: 1lh;
     transform: translateX(
-        calc(var(--d-handle-horizontal-offset-px, 0px) + var(--d-handle-edge-shift, -100%))
+        calc(var(--d-handle-horizontal-offset-px, 0px) + var(--d-handle-text-offset, 0px) + var(--d-handle-edge-shift, -100%))
     );
     pointer-events: auto;
 }
@@ -90,6 +90,7 @@
 
 .markdown-source-view.mod-cm6 .cm-editor.d-root-editor .cm-gutters-after .md-dragger-gutter {
     --d-handle-edge-shift: 0%;
+    --d-handle-text-offset: 0px;
 }
 
 /* Obsidian opens a nested CM6 editor inside a focused table cell (Live
@@ -455,7 +456,7 @@ body.d-mobile-gesture-lock .markdown-source-view.mod-cm6 .cm-editor.d-root-edito
 .markdown-source-view.mod-cm6 .cm-editor.d-root-editor[data-d-card-editor] .cm-gutter.md-dragger-gutter .cm-gutterElement > .md-dragger-handle {
     transform: translateX(
         max(
-            calc(var(--d-handle-horizontal-offset-px, 0px) + var(--d-handle-edge-shift, -100%)),
+            calc(var(--d-handle-horizontal-offset-px, 0px) + var(--d-handle-text-offset, 0px) + var(--d-handle-edge-shift, -100%)),
             calc(-1 * var(--d-gutter-left))
         )
     );
