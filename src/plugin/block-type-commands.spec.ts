@@ -60,6 +60,15 @@ describe('block type conversion', () => {
         expect(view.state.doc.toString()).toBe('> [!tip]\n> line 1\n> line 2');
     });
 
+    it('converts a callout without title to a blockquote without extra top line', () => {
+        const view = createMutableView('> [!note]\n> line 1\n> line 2', 0);
+
+        const changed = convertCurrentBlockType(view, { type: BlockType.Blockquote });
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('> line 1\n> line 2');
+    });
+
     it('clears the quote marker before converting a quote to a heading', () => {
         const view = createMutableView('> alpha\nbeta', 0);
 
