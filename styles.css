@@ -38,7 +38,7 @@
     border-color: var(--interactive-accent);
 }
 
-.md-dragger-handle.is-selected .d-handle-capsule {
+body:not(.d-dragging) .md-dragger-handle.is-selected .d-handle-capsule {
     border-color: var(--interactive-accent);
     background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-primary));
 }
@@ -172,7 +172,7 @@
     filter: none;
 }
 
-.md-dragger-handle.is-selected .d-handle-core {
+body:not(.d-dragging) .md-dragger-handle.is-selected .d-handle-core {
     mask: none;
     position: relative;
     width: 14px;
@@ -184,7 +184,7 @@
         0 2px 8px color-mix(in srgb, var(--interactive-accent) 28%, transparent);
 }
 
-.md-dragger-handle.is-selected .d-handle-core::before {
+body:not(.d-dragging) .md-dragger-handle.is-selected .d-handle-core::before {
     content: '';
     position: absolute;
     left: 4px;

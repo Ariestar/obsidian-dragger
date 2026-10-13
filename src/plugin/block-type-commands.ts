@@ -1,5 +1,6 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { editorInfoField } from 'obsidian';
 import { detectBlock, planConvert, planDelete, selectOne, type ConvertTo, type Block } from 'md-dragger/domain';
 
 export function convertCurrentBlockType(view: EditorView, conversion: ConvertTo, lineNumber?: number): boolean {
@@ -37,7 +38,7 @@ export function deleteCurrentBlock(view: EditorView, lineNumber?: number): boole
     return true;
 }
 
-export async function copyBlockId(view: EditorView, lineNumber?: number): Promise<string | null> {
+export async function copyBlockLink(view: EditorView, lineNumber?: number): Promise<string | null> {
     const block = getBlockAt(view, lineNumber);
     if (!block) return null;
     const endLine = view.state.doc.line(block.lines.endLine);
@@ -52,11 +53,21 @@ export async function copyBlockId(view: EditorView, lineNumber?: number): Promis
             scrollIntoView: false,
         });
     }
-    const textToCopy = `^${id}`;
+
+    const info = view.state.field(editorInfoField, false);
+    let linkText: string;
+    if (info?.file && info.app?.fileManager) {
+        linkText = info.app.fileManager.generateMarkdownLink(info.file, '', `#^${id}`);
+    } else if (info?.file?.basename) {
+        linkText = `[[${info.file.basename}#^${id}]]`;
+    } else {
+        linkText = `[[#^${id}]]`;
+    }
+
     if (typeof navigator === 'undefined' || !navigator.clipboard) return null;
     try {
-        await navigator.clipboard.writeText(textToCopy);
-        return textToCopy;
+        await navigator.clipboard.writeText(linkText);
+        return linkText;
     } catch {
         return null;
     }

@@ -140,4 +140,15 @@ describe('handle icons', () => {
         core.className = 'd-handle-core';
         expect(window.getComputedStyle(core).getPropertyValue('mask')).toBe('none');
     });
+
+    it('does not render checkbox styles when dragging', () => {
+        const style = document.body.appendChild(document.createElement('style'));
+        style.textContent = fs.readFileSync('styles.css', 'utf8');
+        document.body.classList.add('d-dragging');
+        const handle = document.body.appendChild(document.createElement('div'));
+        handle.className = 'md-dragger-handle is-selected';
+        const core = handle.appendChild(document.createElement('span'));
+        core.className = 'd-handle-core';
+        expect(window.getComputedStyle(core).getPropertyValue('width')).toBe('var(--d-handle-core-size, 10px)');
+    });
 });

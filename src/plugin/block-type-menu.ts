@@ -9,7 +9,7 @@ import {
 } from './block-menu-items';
 import { t } from './i18n';
 import {
-    copyBlockId,
+    copyBlockLink,
     copyCurrentBlock,
     cutCurrentBlock,
     deleteCurrentBlock,
@@ -87,53 +87,66 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null,
     }
 
     const i = t();
-    const hasActions =
-        settings.enableActionCopyId ||
-        settings.enableActionCopy ||
-        settings.enableActionCut ||
-        settings.enableActionDelete;
+    const actionOrder = settings.blockMenuOrders.actions;
+    const actionsToAdd: BlockMenuAction[] = [];
 
-    if (hasActions) {
+    for (const actionId of actionOrder) {
+        switch (actionId) {
+            case 'copy-link':
+                if (settings.enableActionCopyLink) {
+                    actionsToAdd.push({
+                        label: i.blockMenuCopyLink,
+                        icon: 'link',
+                        run: async () => {
+                            const link = await copyBlockLink(view, line);
+                            if (link) {
+                                new Notice(`${i.blockMenuCopyLinkSuccess}: ${link}`);
+                                return true;
+                            }
+                            return false;
+                        },
+                        failureNotice: i.blockMenuCopyLinkFailed,
+                    });
+                }
+                break;
+            case 'copy':
+                if (settings.enableActionCopy) {
+                    actionsToAdd.push({
+                        label: i.blockMenuCopy,
+                        icon: 'copy',
+                        run: () => copyCurrentBlock(view, line),
+                        failureNotice: i.blockMenuCopyFailed,
+                    });
+                }
+                break;
+            case 'cut':
+                if (settings.enableActionCut) {
+                    actionsToAdd.push({
+                        label: i.blockMenuCut,
+                        icon: 'scissors',
+                        run: () => cutCurrentBlock(view, line),
+                        failureNotice: i.blockMenuCutFailed,
+                    });
+                }
+                break;
+            case 'delete':
+                if (settings.enableActionDelete) {
+                    actionsToAdd.push({
+                        label: i.blockMenuDelete,
+                        icon: 'trash-2',
+                        warning: true,
+                        run: () => deleteCurrentBlock(view, line),
+                        failureNotice: i.blockMenuDeleteFailed,
+                    });
+                }
+                break;
+        }
+    }
+
+    if (actionsToAdd.length > 0) {
         menu.addSeparator();
-        if (settings.enableActionCopyId) {
-            addActionItem(menu, {
-                label: i.blockMenuCopyId,
-                icon: 'hash',
-                run: async () => {
-                    const id = await copyBlockId(view, line);
-                    if (id) {
-                        new Notice(`${i.blockMenuCopyIdSuccess}: ${id}`);
-                        return true;
-                    }
-                    return false;
-                },
-                failureNotice: i.blockMenuCopyIdFailed,
-            });
-        }
-        if (settings.enableActionCopy) {
-            addActionItem(menu, {
-                label: i.blockMenuCopy,
-                icon: 'copy',
-                run: () => copyCurrentBlock(view, line),
-                failureNotice: i.blockMenuCopyFailed,
-            });
-        }
-        if (settings.enableActionCut) {
-            addActionItem(menu, {
-                label: i.blockMenuCut,
-                icon: 'scissors',
-                run: () => cutCurrentBlock(view, line),
-                failureNotice: i.blockMenuCutFailed,
-            });
-        }
-        if (settings.enableActionDelete) {
-            addActionItem(menu, {
-                label: i.blockMenuDelete,
-                icon: 'trash-2',
-                warning: true,
-                run: () => deleteCurrentBlock(view, line),
-                failureNotice: i.blockMenuDeleteFailed,
-            });
+        for (const action of actionsToAdd) {
+            addActionItem(menu, action);
         }
     }
 

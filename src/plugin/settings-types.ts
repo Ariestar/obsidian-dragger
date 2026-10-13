@@ -32,7 +32,7 @@ export interface DragNDropSettings {
     handleGutterPosition: HandleGutterPosition;
     customBlockStyles: BlockStyleDefinition[];
     blockMenuOrders: BlockMenuOrders;
-    enableActionCopyId: boolean;
+    enableActionCopyLink: boolean;
     enableActionCopy: boolean;
     enableActionCut: boolean;
     enableActionDelete: boolean;
@@ -80,7 +80,7 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
     handleHorizontalOffsetPx: 0,
     handleGutterPosition: 'left',
     customBlockStyles: [],
-    enableActionCopyId: true,
+    enableActionCopyLink: true,
     enableActionCopy: true,
     enableActionCut: true,
     enableActionDelete: true,
@@ -90,5 +90,6 @@ export const DEFAULT_SETTINGS: DragNDropSettings = {
         list: [...DEFAULT_BLOCK_MENU_ORDERS.list],
         callout: [...DEFAULT_BLOCK_MENU_ORDERS.callout],
         custom: [],
+        actions: [...DEFAULT_BLOCK_MENU_ORDERS.actions],
     },
 };

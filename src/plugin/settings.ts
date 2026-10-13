@@ -19,7 +19,7 @@ import {
 import type DragNDropPlugin from './main';
 import type { BlockStyleDefinition } from './block-styles';
 import { t } from './i18n';
-import { NUMERIC_SETTING_RANGES } from './settings-types';
+import { NUMERIC_SETTING_RANGES, type DragNDropSettings } from './settings-types';
 import { getBlockMenuEntries, type BlockMenuListId, type BlockTypeConversionOption } from './block-menu-items';
 
 type SettingDefinitionWithIcon = SettingDefinition & {
@@ -281,8 +281,13 @@ export class DragNDropSettingTab extends PluginSettingTab {
             },
         });
         const mobileOnly = () => Platform.isMobile && this.plugin.settings.enableMobileTextLongPressDrag;
-        const menuList = (listId: BlockMenuListId, items: SettingGroupItem[]): SettingDefinitionList => ({
+        const menuList = (
+            listId: BlockMenuListId,
+            items: SettingGroupItem[],
+            heading?: string,
+        ): SettingDefinitionList => ({
             type: 'list',
+            heading,
             items,
             onReorder: (oldIndex, newIndex) => {
                 const order = this.plugin.settings.blockMenuOrders[listId];
@@ -374,6 +379,30 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 }
             });
         };
+        const actionDefs: Record<string, { name: string; icon: string; key: keyof DragNDropSettings }> = {
+            'copy-link': { name: i.actionCopyLink, icon: 'link', key: 'enableActionCopyLink' },
+            copy: { name: i.actionCopy, icon: 'copy', key: 'enableActionCopy' },
+            cut: { name: i.actionCut, icon: 'scissors', key: 'enableActionCut' },
+            delete: { name: i.actionDelete, icon: 'trash-2', key: 'enableActionDelete' },
+        };
+        const actionRows: SettingGroupItem[] = this.plugin.settings.blockMenuOrders.actions.map((actionId) => {
+            const def = actionDefs[actionId];
+            if (!def) throw new Error(`Dragger: unknown action item "${actionId}"`);
+            return {
+                name: def.name,
+                icon: def.icon,
+                render: (setting: Setting) => {
+                    setMenuItemIcon(setting.settingEl, def.icon);
+                    setting.addToggle((toggle) => {
+                        toggle.setValue(Boolean(this.plugin.settings[def.key])).onChange((value) => {
+                            (this.plugin.settings as unknown as Record<string, unknown>)[def.key] = value;
+                            void this.plugin.saveSettings();
+                        });
+                    });
+                },
+            };
+        });
+
         return [
             {
                 type: 'page',
@@ -542,33 +571,8 @@ export class DragNDropSettingTab extends PluginSettingTab {
                 type: 'page',
                 name: i.headingBlockMenu,
                 items: [
-                    menuList('root', menuRows),
-                    {
-                        type: 'group',
-                        heading: i.headingBlockActions,
-                        items: [
-                            {
-                                name: i.actionCopyId,
-                                desc: i.actionCopyIdDesc,
-                                control: { type: 'toggle', key: 'enableActionCopyId' },
-                            },
-                            {
-                                name: i.actionCopy,
-                                desc: i.actionCopyDesc,
-                                control: { type: 'toggle', key: 'enableActionCopy' },
-                            },
-                            {
-                                name: i.actionCut,
-                                desc: i.actionCutDesc,
-                                control: { type: 'toggle', key: 'enableActionCut' },
-                            },
-                            {
-                                name: i.actionDelete,
-                                desc: i.actionDeleteDesc,
-                                control: { type: 'toggle', key: 'enableActionDelete' },
-                            },
-                        ],
-                    },
+                    menuList('root', menuRows, i.headingBlockConversions),
+                    menuList('actions', actionRows, i.headingBlockActions),
                 ],
             },
         ];
