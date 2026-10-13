@@ -538,7 +538,39 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     },
                 ],
             },
-            { type: 'page', name: i.headingBlockMenu, items: [menuList('root', menuRows)] },
+            {
+                type: 'page',
+                name: i.headingBlockMenu,
+                items: [
+                    menuList('root', menuRows),
+                    {
+                        type: 'group',
+                        heading: i.headingBlockActions,
+                        items: [
+                            {
+                                name: i.actionCopyId,
+                                desc: i.actionCopyIdDesc,
+                                control: { type: 'toggle', key: 'enableActionCopyId' },
+                            },
+                            {
+                                name: i.actionCopy,
+                                desc: i.actionCopyDesc,
+                                control: { type: 'toggle', key: 'enableActionCopy' },
+                            },
+                            {
+                                name: i.actionCut,
+                                desc: i.actionCutDesc,
+                                control: { type: 'toggle', key: 'enableActionCut' },
+                            },
+                            {
+                                name: i.actionDelete,
+                                desc: i.actionDeleteDesc,
+                                control: { type: 'toggle', key: 'enableActionDelete' },
+                            },
+                        ],
+                    },
+                ],
+            },
         ];
     }
 

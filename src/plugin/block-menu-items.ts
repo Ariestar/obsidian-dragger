@@ -65,7 +65,15 @@ export const DEFAULT_BLOCK_MENU_ORDERS = {
 export type BlockMenuItemId = (typeof DEFAULT_BLOCK_MENU_ORDERS.root)[number];
 export type BlockMenuListId = keyof typeof DEFAULT_BLOCK_MENU_ORDERS;
 export type BlockMenuOrders = { root: BlockMenuItemId[] } & Record<Exclude<BlockMenuListId, 'root'>, string[]>;
-export type BlockMenuSettings = Pick<DragNDropSettings, 'blockMenuOrders' | 'customBlockStyles'>;
+export type BlockMenuSettings = Pick<
+    DragNDropSettings,
+    | 'blockMenuOrders'
+    | 'customBlockStyles'
+    | 'enableActionCopyId'
+    | 'enableActionCopy'
+    | 'enableActionCut'
+    | 'enableActionDelete'
+>;
 export type BlockTypeConversionOption = {
     id: string;
     target: ConvertTo;

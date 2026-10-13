@@ -37,6 +37,31 @@ export function deleteCurrentBlock(view: EditorView, lineNumber?: number): boole
     return true;
 }
 
+export async function copyBlockId(view: EditorView, lineNumber?: number): Promise<string | null> {
+    const block = getBlockAt(view, lineNumber);
+    if (!block) return null;
+    const endLine = view.state.doc.line(block.lines.endLine);
+    const match = endLine.text.match(/(?:^|\s)\^([a-zA-Z0-9-]+)$/);
+    let id: string;
+    if (match) {
+        id = match[1];
+    } else {
+        id = Math.random().toString(36).slice(2, 8);
+        view.dispatch({
+            changes: { from: endLine.to, insert: ` ^${id}` },
+            scrollIntoView: false,
+        });
+    }
+    const textToCopy = `^${id}`;
+    if (typeof navigator === 'undefined' || !navigator.clipboard) return null;
+    try {
+        await navigator.clipboard.writeText(textToCopy);
+        return textToCopy;
+    } catch {
+        return null;
+    }
+}
+
 export async function copyCurrentBlock(view: EditorView, lineNumber?: number): Promise<boolean> {
     const block = getBlockAt(view, lineNumber);
     if (!block) return false;

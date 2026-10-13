@@ -103,6 +103,7 @@ vi.mock('obsidian', () => ({
 
 vi.mock('./block-type-commands', () => ({
     convertCurrentBlockType: mock.convert,
+    copyBlockId: () => false,
     copyCurrentBlock: () => false,
     cutCurrentBlock: () => false,
     deleteCurrentBlock: () => false,
@@ -142,6 +143,7 @@ describe('block menu translations', () => {
             i.blockMenuMathBlock,
             i.blockMenuCustom,
             '',
+            i.blockMenuCopyId,
             i.blockMenuCopy,
             i.blockMenuCut,
             i.blockMenuDelete,
@@ -283,7 +285,13 @@ describe('block menu translations', () => {
             i.blockMenuParagraph,
             i.blockMenuHeading,
         ]);
-        expect(titles(root).slice(-4)).toEqual(['', i.blockMenuCopy, i.blockMenuCut, i.blockMenuDelete]);
+        expect(titles(root).slice(-5)).toEqual([
+            '',
+            i.blockMenuCopyId,
+            i.blockMenuCopy,
+            i.blockMenuCut,
+            i.blockMenuDelete,
+        ]);
         if (mobile) {
             root[0].click();
             expect(titles(mock.menus.at(-1)!)).toEqual([i.blockMenuBack, 'My style']);
@@ -470,5 +478,32 @@ describe('block menu translations', () => {
         expect(migrateSettings(plugin.settings)).toEqual(plugin.settings);
         await Promise.resolve();
         expect(plugin.saveSettings).toHaveBeenCalledOnce();
+    });
+
+    it('filters action items according to enableAction* settings', () => {
+        mock.language = 'en';
+        const i = selectTranslations(mock.language);
+        const settings = migrateSettings({
+            enableActionCopyId: true,
+            enableActionCopy: false,
+            enableActionCut: false,
+            enableActionDelete: true,
+        });
+        openBlockTypeMenu(view, new MouseEvent('click'), settings, 1);
+        const root = mock.menus[0];
+        expect(titles(root).slice(-3)).toEqual(['', i.blockMenuCopyId, i.blockMenuDelete]);
+    });
+
+    it('omits separator when all action items are disabled', () => {
+        mock.language = 'en';
+        const settings = migrateSettings({
+            enableActionCopyId: false,
+            enableActionCopy: false,
+            enableActionCut: false,
+            enableActionDelete: false,
+        });
+        openBlockTypeMenu(view, new MouseEvent('click'), settings, 1);
+        const root = mock.menus[0];
+        expect(titles(root)).not.toContain('');
     });
 });

@@ -2,7 +2,13 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockType } from 'md-dragger/domain';
-import { convertCurrentBlockType, copyCurrentBlock, cutCurrentBlock, deleteCurrentBlock } from './block-type-commands';
+import {
+    convertCurrentBlockType,
+    copyBlockId,
+    copyCurrentBlock,
+    cutCurrentBlock,
+    deleteCurrentBlock,
+} from './block-type-commands';
 
 describe('block type conversion', () => {
     it('converts the current block to a heading', () => {
@@ -155,6 +161,28 @@ describe('block type conversion', () => {
         expect(changed).toBe(true);
         expect(writeText).toHaveBeenCalledWith('alpha');
         expect(view.state.doc.toString()).toBe('alpha\nbeta');
+    });
+
+    it('copies existing block ID without modifying document', async () => {
+        const view = createMutableView('alpha ^my-id\nbeta', 0);
+        const writeText = mockClipboard();
+
+        const id = await copyBlockId(view);
+
+        expect(id).toBe('^my-id');
+        expect(writeText).toHaveBeenCalledWith('^my-id');
+        expect(view.state.doc.toString()).toBe('alpha ^my-id\nbeta');
+    });
+
+    it('generates and appends a block ID if block has none', async () => {
+        const view = createMutableView('alpha\nbeta', 0);
+        const writeText = mockClipboard();
+
+        const id = await copyBlockId(view);
+
+        expect(id).toMatch(/^\^[a-z0-9]{6}$/);
+        expect(writeText).toHaveBeenCalledWith(id);
+        expect(view.state.doc.toString()).toBe(`alpha ${id}\nbeta`);
     });
 
     it('cuts the current block text to the clipboard and deletes it', async () => {

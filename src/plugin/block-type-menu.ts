@@ -8,7 +8,13 @@ import {
     type BlockTypeConversionOption,
 } from './block-menu-items';
 import { t } from './i18n';
-import { copyCurrentBlock, cutCurrentBlock, deleteCurrentBlock, convertCurrentBlockType } from './block-type-commands';
+import {
+    copyBlockId,
+    copyCurrentBlock,
+    cutCurrentBlock,
+    deleteCurrentBlock,
+    convertCurrentBlockType,
+} from './block-type-commands';
 
 type BlockMenuAction = {
     label: string;
@@ -81,26 +87,55 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null,
     }
 
     const i = t();
-    menu.addSeparator();
-    addActionItem(menu, {
-        label: i.blockMenuCopy,
-        icon: 'copy',
-        run: () => copyCurrentBlock(view, line),
-        failureNotice: i.blockMenuCopyFailed,
-    });
-    addActionItem(menu, {
-        label: i.blockMenuCut,
-        icon: 'scissors',
-        run: () => cutCurrentBlock(view, line),
-        failureNotice: i.blockMenuCutFailed,
-    });
-    addActionItem(menu, {
-        label: i.blockMenuDelete,
-        icon: 'trash-2',
-        warning: true,
-        run: () => deleteCurrentBlock(view, line),
-        failureNotice: i.blockMenuDeleteFailed,
-    });
+    const hasActions =
+        settings.enableActionCopyId ||
+        settings.enableActionCopy ||
+        settings.enableActionCut ||
+        settings.enableActionDelete;
+
+    if (hasActions) {
+        menu.addSeparator();
+        if (settings.enableActionCopyId) {
+            addActionItem(menu, {
+                label: i.blockMenuCopyId,
+                icon: 'hash',
+                run: async () => {
+                    const id = await copyBlockId(view, line);
+                    if (id) {
+                        new Notice(`${i.blockMenuCopyIdSuccess}: ${id}`);
+                        return true;
+                    }
+                    return false;
+                },
+                failureNotice: i.blockMenuCopyIdFailed,
+            });
+        }
+        if (settings.enableActionCopy) {
+            addActionItem(menu, {
+                label: i.blockMenuCopy,
+                icon: 'copy',
+                run: () => copyCurrentBlock(view, line),
+                failureNotice: i.blockMenuCopyFailed,
+            });
+        }
+        if (settings.enableActionCut) {
+            addActionItem(menu, {
+                label: i.blockMenuCut,
+                icon: 'scissors',
+                run: () => cutCurrentBlock(view, line),
+                failureNotice: i.blockMenuCutFailed,
+            });
+        }
+        if (settings.enableActionDelete) {
+            addActionItem(menu, {
+                label: i.blockMenuDelete,
+                icon: 'trash-2',
+                warning: true,
+                run: () => deleteCurrentBlock(view, line),
+                failureNotice: i.blockMenuDeleteFailed,
+            });
+        }
+    }
 
     const doc = showMenuAt(menu, view, event);
 
