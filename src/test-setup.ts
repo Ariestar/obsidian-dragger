@@ -1,6 +1,13 @@
 import { vi } from 'vitest';
+import { StateField } from '@codemirror/state';
+
+export const mockEditorInfoField = StateField.define<unknown>({
+    create: () => null,
+    update: (v) => v,
+});
 
 vi.mock('obsidian', () => ({
+    editorInfoField: mockEditorInfoField,
     Platform: {
         isMobile: false,
         isMobileApp: false,
@@ -9,6 +16,7 @@ vi.mock('obsidian', () => ({
         isDesktop: true,
         isDesktopApp: true,
     },
+    setIcon: (el: HTMLElement, iconId: string) => el.setAttribute('data-icon', iconId),
 }));
 
 if (typeof window !== 'undefined') {

@@ -256,4 +256,22 @@ describe('platform/codemirror drag paint', () => {
         expect(view.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBeGreaterThan(0);
         view.destroy();
     });
+
+    it('renders handle capsule with block badge and core', async () => {
+        const view = makeView('## heading two\nparagraph text');
+        await nextFrame();
+
+        const handles = view.dom.querySelectorAll<HTMLElement>('.md-dragger-handle');
+        expect(handles.length).toBe(2);
+
+        const badge0 = handles[0].querySelector('.d-handle-badge');
+        expect(badge0?.getAttribute('data-icon')).toBe('heading-2');
+        expect(handles[0].querySelector('.d-handle-core')).not.toBeNull();
+
+        const badge1 = handles[1].querySelector('.d-handle-badge');
+        expect(badge1?.getAttribute('data-icon')).toBe('pilcrow');
+        expect(handles[1].querySelector('.d-handle-core')).not.toBeNull();
+
+        view.destroy();
+    });
 });

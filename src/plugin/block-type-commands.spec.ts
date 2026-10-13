@@ -1,8 +1,15 @@
-import { EditorState } from '@codemirror/state';
+import { EditorState, type Extension } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { describe, expect, it, vi } from 'vitest';
 import { BlockType } from 'md-dragger/domain';
-import { convertCurrentBlockType, copyCurrentBlock, cutCurrentBlock, deleteCurrentBlock } from './block-type-commands';
+import { mockEditorInfoField } from '../test-setup';
+import {
+    convertCurrentBlockType,
+    copyBlockLink,
+    copyCurrentBlock,
+    cutCurrentBlock,
+    deleteCurrentBlock,
+} from './block-type-commands';
 
 describe('block type conversion', () => {
     it('converts the current block to a heading', () => {
@@ -39,6 +46,27 @@ describe('block type conversion', () => {
 
         expect(changed).toBe(true);
         expect(view.state.doc.toString()).toBe('alpha\nbeta');
+    });
+
+    it('switches callout type in-place without adding extra quote lines', () => {
+        const view = createMutableView('> [!note]\n> line 1\n> line 2', 0);
+
+        const changed = convertCurrentBlockType(view, {
+            template: '> [!tip]\n${content}',
+            linePrefix: '> ',
+        });
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('> [!tip]\n> line 1\n> line 2');
+    });
+
+    it('converts a callout without title to a blockquote without extra top line', () => {
+        const view = createMutableView('> [!note]\n> line 1\n> line 2', 0);
+
+        const changed = convertCurrentBlockType(view, { type: BlockType.Blockquote });
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('> line 1\n> line 2');
     });
 
     it('clears the quote marker before converting a quote to a heading', () => {
@@ -157,6 +185,71 @@ describe('block type conversion', () => {
         expect(view.state.doc.toString()).toBe('alpha\nbeta');
     });
 
+    it('copies existing block ID as link without modifying document', async () => {
+        const view = createMutableView('alpha ^my-id\nbeta', 0);
+        const writeText = mockClipboard();
+
+        const link = await copyBlockLink(view);
+
+        expect(link).toBe('[[#^my-id]]');
+        expect(writeText).toHaveBeenCalledWith('[[#^my-id]]');
+        expect(view.state.doc.toString()).toBe('alpha ^my-id\nbeta');
+    });
+
+    it('generates and appends a block ID if block has none, copying link', async () => {
+        const view = createMutableView('alpha\nbeta', 0);
+        const writeText = mockClipboard();
+
+        const link = await copyBlockLink(view);
+
+        expect(link).toMatch(/^\[\[#\^[a-z0-9]{6}\]\]$/);
+        expect(writeText).toHaveBeenCalledWith(link);
+        const id = link?.slice(4, -2);
+        expect(view.state.doc.toString()).toBe(`alpha ^${id}\nbeta`);
+    });
+
+    it('uses file basename and fileManager when available', async () => {
+        const mockFile = { basename: 'My Note' };
+        const mockFileManager = {
+            generateMarkdownLink: vi.fn(
+                (file: { basename: string }, _src: string, subpath: string) => `[[${file.basename}${subpath}]]`,
+            ),
+        };
+        const view = createMutableView('alpha ^my-id\nbeta', 0, [
+            mockEditorInfoField.init(() => ({ file: mockFile, app: { fileManager: mockFileManager } })),
+        ]);
+        const writeText = mockClipboard();
+
+        const link = await copyBlockLink(view);
+
+        expect(link).toBe('[[My Note#^my-id]]');
+        expect(mockFileManager.generateMarkdownLink).toHaveBeenCalledWith(mockFile, '', '#^my-id');
+        expect(writeText).toHaveBeenCalledWith('[[My Note#^my-id]]');
+    });
+
+    it('leaves document unchanged when clipboard write fails', async () => {
+        const view = createMutableView('alpha\nbeta', 0);
+        const writeText = mockClipboard().mockRejectedValue(new Error('Permission denied'));
+
+        const link = await copyBlockLink(view);
+
+        expect(link).toBeNull();
+        expect(writeText).toHaveBeenCalledOnce();
+        expect(view.state.doc.toString()).toBe('alpha\nbeta');
+    });
+
+    it('places block ID on a new line when copying a fenced code block link', async () => {
+        const view = createMutableView('```ts\nconsole.log(1);\n```', 0);
+        const writeText = mockClipboard();
+
+        const link = await copyBlockLink(view);
+
+        expect(link).toMatch(/^\[\[#\^[a-z0-9]{6}\]\]$/);
+        expect(writeText).toHaveBeenCalledWith(link);
+        const id = link?.slice(4, -2);
+        expect(view.state.doc.toString()).toBe(`\`\`\`ts\nconsole.log(1);\n\`\`\`\n^${id}`);
+    });
+
     it('cuts the current block text to the clipboard and deletes it', async () => {
         const view = createMutableView('alpha\nbeta', 0);
         const writeText = mockClipboard();
@@ -178,10 +271,11 @@ function mockClipboard(): ReturnType<typeof vi.fn> {
     return writeText;
 }
 
-function createMutableView(doc: string, selectionAnchor: number): EditorView {
+function createMutableView(doc: string, selectionAnchor: number, extensions?: Extension): EditorView {
     let state = EditorState.create({
         doc,
         selection: { anchor: selectionAnchor },
+        extensions,
     });
     return {
         get state() {

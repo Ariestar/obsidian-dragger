@@ -8,7 +8,13 @@ import {
     type BlockTypeConversionOption,
 } from './block-menu-items';
 import { t } from './i18n';
-import { copyCurrentBlock, cutCurrentBlock, deleteCurrentBlock, convertCurrentBlockType } from './block-type-commands';
+import {
+    copyBlockLink,
+    copyCurrentBlock,
+    cutCurrentBlock,
+    deleteCurrentBlock,
+    convertCurrentBlockType,
+} from './block-type-commands';
 
 type BlockMenuAction = {
     label: string;
@@ -81,26 +87,68 @@ function showRootMenu(view: EditorView, event: MouseEvent | PointerEvent | null,
     }
 
     const i = t();
-    menu.addSeparator();
-    addActionItem(menu, {
-        label: i.blockMenuCopy,
-        icon: 'copy',
-        run: () => copyCurrentBlock(view, line),
-        failureNotice: i.blockMenuCopyFailed,
-    });
-    addActionItem(menu, {
-        label: i.blockMenuCut,
-        icon: 'scissors',
-        run: () => cutCurrentBlock(view, line),
-        failureNotice: i.blockMenuCutFailed,
-    });
-    addActionItem(menu, {
-        label: i.blockMenuDelete,
-        icon: 'trash-2',
-        warning: true,
-        run: () => deleteCurrentBlock(view, line),
-        failureNotice: i.blockMenuDeleteFailed,
-    });
+    const actionOrder = settings.blockMenuOrders.actions;
+    const actionsToAdd: BlockMenuAction[] = [];
+
+    for (const actionId of actionOrder) {
+        switch (actionId) {
+            case 'copy-link':
+                if (settings.enableActionCopyLink) {
+                    actionsToAdd.push({
+                        label: i.blockMenuCopyLink,
+                        icon: 'link',
+                        run: async () => {
+                            const link = await copyBlockLink(view, line);
+                            if (link) {
+                                new Notice(`${i.blockMenuCopyLinkSuccess}: ${link}`);
+                                return true;
+                            }
+                            return false;
+                        },
+                        failureNotice: i.blockMenuCopyLinkFailed,
+                    });
+                }
+                break;
+            case 'copy':
+                if (settings.enableActionCopy) {
+                    actionsToAdd.push({
+                        label: i.blockMenuCopy,
+                        icon: 'copy',
+                        run: () => copyCurrentBlock(view, line),
+                        failureNotice: i.blockMenuCopyFailed,
+                    });
+                }
+                break;
+            case 'cut':
+                if (settings.enableActionCut) {
+                    actionsToAdd.push({
+                        label: i.blockMenuCut,
+                        icon: 'scissors',
+                        run: () => cutCurrentBlock(view, line),
+                        failureNotice: i.blockMenuCutFailed,
+                    });
+                }
+                break;
+            case 'delete':
+                if (settings.enableActionDelete) {
+                    actionsToAdd.push({
+                        label: i.blockMenuDelete,
+                        icon: 'trash-2',
+                        warning: true,
+                        run: () => deleteCurrentBlock(view, line),
+                        failureNotice: i.blockMenuDeleteFailed,
+                    });
+                }
+                break;
+        }
+    }
+
+    if (actionsToAdd.length > 0) {
+        menu.addSeparator();
+        for (const action of actionsToAdd) {
+            addActionItem(menu, action);
+        }
+    }
 
     const doc = showMenuAt(menu, view, event);
 

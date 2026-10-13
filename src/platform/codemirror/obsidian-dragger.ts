@@ -1,3 +1,4 @@
+import { setIcon } from 'obsidian';
 import { EditorState, StateField, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import {
@@ -12,9 +13,11 @@ import {
     sourceHighlightDecoration,
     sourceLineFromInput as handleSourceLineFromInput,
     type CodeMirrorGeometryOptions,
+    type GutterBlock,
     type MdDraggerCodeMirrorOptions,
 } from 'md-dragger/adapter/codemirror';
 import {
+    BlockType,
     detectBlock,
     isLineNumberInRanges,
     selectionLineRanges,
@@ -65,7 +68,7 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
         listIndentWidthPx: (view) => listIndentStepPx(view),
         contentLeft: (view) => view.dom.querySelector<HTMLElement>('.cm-line')!.getBoundingClientRect().left,
         handle: {
-            render: (doc) => createObsidianHandle(doc),
+            render: (doc, block) => createObsidianHandle(doc, block),
             side: plugin.settings.handleGutterPosition === 'right' ? 'after' : 'before',
         },
         // Obsidian's Live Preview renders tables as HTML widgets; clicking a
@@ -170,10 +173,9 @@ function syncHandleGeometry(): Extension {
                         const collapseIndicator = view.dom.querySelector<HTMLElement>(
                             '.cm-fold-indicator .collapse-indicator',
                         );
-                        const collapseLeft = collapseIndicator?.getBoundingClientRect().left;
-                        const collapseDistance = collapseLeft !== undefined ? lineLeft - collapseLeft : 0;
-                        const collapseIndicatorOffset =
-                            collapseDistance > 0 && collapseDistance <= 36 ? collapseDistance : 0;
+                        const collapseIndicatorOffset = collapseIndicator
+                            ? collapseIndicator.getBoundingClientRect().width
+                            : 0;
 
                         const cardGutterLeft =
                             gutter && view.dom.ownerDocument.defaultView?.frameElement != null
@@ -230,13 +232,63 @@ function listIndentStepPx(view: EditorView): number {
     return em * parseFloat(cs.fontSize);
 }
 
-function createObsidianHandle(doc: Document): HTMLElement {
+function blockMenuIcon(block: GutterBlock): string {
+    if (block.marker?.kind === 'heading') {
+        return block.marker.level ? `heading-${block.marker.level}` : 'heading';
+    }
+    if (block.marker?.kind === 'list') {
+        if (block.marker.checked !== undefined) return 'list-checks';
+        if (block.marker.markerType === 'ordered') return 'list-ordered';
+        return 'list';
+    }
+    if (block.marker?.kind === 'callout') {
+        return 'message-square';
+    }
+    if (block.marker?.kind === 'fence') {
+        return block.marker.fence === 'math' ? 'sigma' : 'code';
+    }
+    if (block.marker?.kind === 'hr') {
+        return 'minus';
+    }
+    switch (block.type) {
+        case BlockType.Paragraph:
+            return 'pilcrow';
+        case BlockType.Heading:
+            return 'heading';
+        case BlockType.ListItem:
+            return 'list';
+        case BlockType.Blockquote:
+            return 'quote';
+        case BlockType.CodeBlock:
+            return 'code';
+        case BlockType.MathBlock:
+            return 'sigma';
+        case BlockType.Table:
+            return 'table';
+        case BlockType.Callout:
+            return 'message-square';
+        case BlockType.HorizontalRule:
+            return 'minus';
+        default:
+            return 'pilcrow';
+    }
+}
+
+function createObsidianHandle(doc: Document, block: GutterBlock): HTMLElement {
     const handle = doc.win.createDiv();
     handle.className = HANDLE_CLASS;
+    const capsule = doc.win.createDiv();
+    capsule.className = 'd-handle-capsule';
+    const badge = doc.win.createSpan();
+    badge.className = 'd-handle-badge';
+    badge.setAttribute('aria-hidden', 'true');
+    setIcon(badge, blockMenuIcon(block));
+    capsule.appendChild(badge);
     const core = doc.win.createSpan();
     core.className = 'd-handle-core';
     core.setAttribute('aria-hidden', 'true');
-    handle.appendChild(core);
+    capsule.appendChild(core);
+    handle.appendChild(capsule);
     return handle;
 }
 

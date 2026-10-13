@@ -17,7 +17,7 @@ import { DEFAULT_BLOCK_MENU_ORDERS } from './block-menu-items';
  */
 
 const SCHEMA_VERSION_KEY = 'schemaVersion';
-const CURRENT_SCHEMA_VERSION = 13;
+const CURRENT_SCHEMA_VERSION = 15;
 
 type RawSettings = Record<string, unknown>;
 
@@ -174,6 +174,34 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
         }
         return next;
     },
+    // v13 -> v14: add actions list to blockMenuOrders.
+    (data) => {
+        const next = { ...data };
+        if (isRecord(next.blockMenuOrders) && !('actions' in next.blockMenuOrders)) {
+            next.blockMenuOrders = {
+                ...next.blockMenuOrders,
+                actions: ['copy-id', 'copy', 'cut', 'delete'],
+            };
+        }
+        return next;
+    },
+    // v14 -> v15: migrate copy-id to copy-link.
+    (data) => {
+        const next = { ...data };
+        if (isRecord(next.blockMenuOrders) && Array.isArray(next.blockMenuOrders.actions)) {
+            next.blockMenuOrders = {
+                ...next.blockMenuOrders,
+                actions: (next.blockMenuOrders.actions as unknown[]).map((id: unknown) =>
+                    id === 'copy-id' ? 'copy-link' : (id as string),
+                ),
+            };
+        }
+        if ('enableActionCopyId' in next) {
+            next.enableActionCopyLink = next.enableActionCopyId;
+            delete next.enableActionCopyId;
+        }
+        return next;
+    },
 ];
 
 function isRecord(value: unknown): value is RawSettings {
@@ -228,6 +256,11 @@ export function migrateSettings(saved: unknown): DragNDropSettings {
         ...data,
         [SCHEMA_VERSION_KEY]: CURRENT_SCHEMA_VERSION,
     };
+    if (isRecord(merged.blockMenuOrders) && Array.isArray(merged.blockMenuOrders.actions)) {
+        merged.blockMenuOrders.actions = (merged.blockMenuOrders.actions as unknown[]).map((id: unknown) =>
+            id === 'copy-id' ? 'copy-link' : (id as string),
+        );
+    }
     const expectedOrders = { ...DEFAULT_BLOCK_MENU_ORDERS, custom: customStyleIds(merged.customBlockStyles) };
     const orders: unknown = merged.blockMenuOrders;
     if (!isRecord(orders) || Object.keys(orders).length !== Object.keys(expectedOrders).length) {

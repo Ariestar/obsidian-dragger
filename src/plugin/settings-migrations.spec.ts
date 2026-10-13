@@ -5,16 +5,16 @@ import { DEFAULT_BLOCK_MENU_ORDERS } from './block-menu-items';
 
 describe('migrateSettings', () => {
     it('returns full defaults for empty/absent data', () => {
-        expect(migrateSettings(null)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 13 });
-        expect(migrateSettings(undefined)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 13 });
-        expect(migrateSettings({})).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 13 });
+        expect(migrateSettings(null)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 15 });
+        expect(migrateSettings(undefined)).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 15 });
+        expect(migrateSettings({})).toEqual({ ...DEFAULT_SETTINGS, schemaVersion: 15 });
     });
 
     it('preserves user values and backfills new fields from defaults', () => {
         const result = migrateSettings({ handleSize: 32, handleVisibility: 'always' });
         expect(result.handleSize).toBe(32);
         expect(result.handleVisibility).toBe('always');
-        expect(result.schemaVersion).toBe(13);
+        expect(result.schemaVersion).toBe(15);
     });
 
     it('migrates legacy alwaysShowHandles -> handleVisibility', () => {
@@ -56,7 +56,7 @@ describe('migrateSettings', () => {
 
         expect(result.autoScrollEdgeZonePx).toBe(DEFAULT_SETTINGS.autoScrollEdgeZonePx);
         expect(result.autoScrollMaxSpeedPx).toBe(DEFAULT_SETTINGS.autoScrollMaxSpeedPx);
-        expect(result.schemaVersion).toBe(13);
+        expect(result.schemaVersion).toBe(15);
     });
 
     it('preserves custom auto-scroll values during default migration', () => {
@@ -100,7 +100,7 @@ describe('migrateSettings', () => {
         });
 
         expect(result.mouseRangeSelectLongPressMs).toBe(DEFAULT_SETTINGS.mouseRangeSelectLongPressMs);
-        expect(result.schemaVersion).toBe(13);
+        expect(result.schemaVersion).toBe(15);
     });
 
     it('preserves custom desktop range-select long-press values during default migration', () => {
@@ -110,7 +110,7 @@ describe('migrateSettings', () => {
         });
 
         expect(result.mouseRangeSelectLongPressMs).toBe(420);
-        expect(result.schemaVersion).toBe(13);
+        expect(result.schemaVersion).toBe(15);
     });
 
     it('migrates previous 500ms multi-select default to the longer current default', () => {
@@ -119,14 +119,14 @@ describe('migrateSettings', () => {
             mouseRangeSelectLongPressMs: 500,
         });
         expect(result.mouseRangeSelectLongPressMs).toBe(DEFAULT_SETTINGS.mouseRangeSelectLongPressMs);
-        expect(result.schemaVersion).toBe(13);
+        expect(result.schemaVersion).toBe(15);
     });
 
     it('does not re-run v0 migrations when already at current version', () => {
         // legacy field present but version already current: left untouched, not migrated
-        const result = migrateSettings({ schemaVersion: 13, alwaysShowHandles: true });
+        const result = migrateSettings({ schemaVersion: 15, alwaysShowHandles: true });
         expect(result.handleVisibility).toBe(DEFAULT_SETTINGS.handleVisibility);
-        expect(result.schemaVersion).toBe(13);
+        expect(result.schemaVersion).toBe(15);
     });
 
     it('migrates the previous handle offset default to zero', () => {
@@ -139,14 +139,14 @@ describe('migrateSettings', () => {
     it('migrates legacy settings without customBlockStyles to have default styles', () => {
         const result = migrateSettings({ schemaVersion: 7, handleSize: 20 });
         expect(result.customBlockStyles).toEqual(DEFAULT_SETTINGS.customBlockStyles);
-        expect(result.schemaVersion).toBe(13);
+        expect(result.schemaVersion).toBe(15);
     });
 
     it('preserves existing customBlockStyles when already present', () => {
         const custom = [{ id: 'my-style', label: 'My Style', icon: 'star', template: '::: ${content}' }];
         const result = migrateSettings({ schemaVersion: 7, customBlockStyles: custom });
         expect(result.customBlockStyles).toEqual(custom);
-        expect(result.schemaVersion).toBe(13);
+        expect(result.schemaVersion).toBe(15);
     });
 
     it('starts with no custom styles', () => {
@@ -158,7 +158,7 @@ describe('migrateSettings', () => {
         const result = migrateSettings({ schemaVersion: 9, customBlockStyles: custom });
         expect(result.blockMenuOrders.root).toEqual(DEFAULT_BLOCK_MENU_ORDERS.root);
         expect(result.customBlockStyles).toEqual(custom);
-        expect(result.schemaVersion).toBe(13);
+        expect(result.schemaVersion).toBe(15);
     });
 
     it('preserves saved menu order and does not share mutable defaults across loads', () => {
@@ -178,7 +178,57 @@ describe('migrateSettings', () => {
             blockMenuOrder: ['delete', 'copy', 'separator', ...types, 'cut'],
         });
         expect(result.blockMenuOrders.root).toEqual(types);
-        expect(result.schemaVersion).toBe(13);
+        expect(result.schemaVersion).toBe(15);
+    });
+
+    it('migrates v13 data by adding actions list to blockMenuOrders', () => {
+        const v13 = {
+            schemaVersion: 13,
+            blockMenuOrders: {
+                root: [...DEFAULT_BLOCK_MENU_ORDERS.root],
+                heading: [...DEFAULT_BLOCK_MENU_ORDERS.heading],
+                list: [...DEFAULT_BLOCK_MENU_ORDERS.list],
+                callout: [...DEFAULT_BLOCK_MENU_ORDERS.callout],
+                custom: [],
+            },
+        };
+        const result = migrateSettings(v13);
+        expect(result.blockMenuOrders.actions).toEqual(DEFAULT_BLOCK_MENU_ORDERS.actions);
+        expect(result.schemaVersion).toBe(15);
+    });
+
+    it('migrates legacy copy-id in actions list to copy-link', () => {
+        const legacy = {
+            schemaVersion: 14,
+            enableActionCopyId: false,
+            blockMenuOrders: {
+                ...DEFAULT_BLOCK_MENU_ORDERS,
+                actions: ['delete', 'copy-id', 'copy', 'cut'],
+            },
+        };
+        const result = migrateSettings(legacy);
+        expect(result.blockMenuOrders.actions).toEqual(['delete', 'copy-link', 'copy', 'cut']);
+        expect(result.enableActionCopyLink).toBe(false);
+        expect(result.schemaVersion).toBe(15);
+    });
+
+    it('successfully migrates vault data with schemaVersion 14 and copy-id', () => {
+        const data = {
+            schemaVersion: 14,
+            enableActionCopyId: true,
+            blockMenuOrders: {
+                root: [...DEFAULT_BLOCK_MENU_ORDERS.root],
+                heading: [...DEFAULT_BLOCK_MENU_ORDERS.heading],
+                list: [...DEFAULT_BLOCK_MENU_ORDERS.list],
+                callout: [...DEFAULT_BLOCK_MENU_ORDERS.callout],
+                custom: [],
+                actions: ['copy-id', 'copy', 'cut', 'delete'],
+            },
+        };
+        const result = migrateSettings(data);
+        expect(result.blockMenuOrders.actions).toEqual(['copy-link', 'copy', 'cut', 'delete']);
+        expect(result.enableActionCopyLink).toBe(true);
+        expect(result.schemaVersion).toBe(15);
     });
 
     it.each([
@@ -221,7 +271,7 @@ describe('migrateSettings', () => {
             });
             expect(result.customBlockStyles).toEqual([style, custom]);
             expect(result.blockMenuOrders.custom).toEqual([style.id, custom.id]);
-            expect(result.schemaVersion).toBe(13);
+            expect(result.schemaVersion).toBe(15);
             expect(migrateSettings(result)).toEqual(result);
         }
     });
@@ -283,6 +333,6 @@ describe('migrateSettings', () => {
     it('drops removed cross-file drag setting', () => {
         const result = migrateSettings({ schemaVersion: 3, enableCrossFileDrag: true });
         expect('enableCrossFileDrag' in result).toBe(false);
-        expect(result.schemaVersion).toBe(13);
+        expect(result.schemaVersion).toBe(15);
     });
 });

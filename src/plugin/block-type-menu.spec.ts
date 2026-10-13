@@ -17,7 +17,7 @@ import { selectTranslations } from './i18n';
 import { DragNDropSettingTab } from './settings';
 import { migrateSettings } from './settings-migrations';
 import { DEFAULT_SETTINGS } from './settings-types';
-import { getBlockMenuEntries } from './block-menu-items';
+import { DEFAULT_BLOCK_MENU_ORDERS, getBlockMenuEntries } from './block-menu-items';
 import type DragNDropPlugin from './main';
 
 const mock = vi.hoisted(() => ({
@@ -103,6 +103,7 @@ vi.mock('obsidian', () => ({
 
 vi.mock('./block-type-commands', () => ({
     convertCurrentBlockType: mock.convert,
+    copyBlockLink: () => false,
     copyCurrentBlock: () => false,
     cutCurrentBlock: () => false,
     deleteCurrentBlock: () => false,
@@ -142,6 +143,7 @@ describe('block menu translations', () => {
             i.blockMenuMathBlock,
             i.blockMenuCustom,
             '',
+            i.blockMenuCopyLink,
             i.blockMenuCopy,
             i.blockMenuCut,
             i.blockMenuDelete,
@@ -283,7 +285,13 @@ describe('block menu translations', () => {
             i.blockMenuParagraph,
             i.blockMenuHeading,
         ]);
-        expect(titles(root).slice(-4)).toEqual(['', i.blockMenuCopy, i.blockMenuCut, i.blockMenuDelete]);
+        expect(titles(root).slice(-5)).toEqual([
+            '',
+            i.blockMenuCopyLink,
+            i.blockMenuCopy,
+            i.blockMenuCut,
+            i.blockMenuDelete,
+        ]);
         if (mobile) {
             root[0].click();
             expect(titles(mock.menus.at(-1)!)).toEqual([i.blockMenuBack, 'My style']);
@@ -470,5 +478,92 @@ describe('block menu translations', () => {
         expect(migrateSettings(plugin.settings)).toEqual(plugin.settings);
         await Promise.resolve();
         expect(plugin.saveSettings).toHaveBeenCalledOnce();
+    });
+
+    it('filters action items according to enableAction* settings', () => {
+        mock.language = 'en';
+        const i = selectTranslations(mock.language);
+        const settings = migrateSettings({
+            enableActionCopyLink: true,
+            enableActionCopy: false,
+            enableActionCut: false,
+            enableActionDelete: true,
+        });
+        openBlockTypeMenu(view, new MouseEvent('click'), settings, 1);
+        const root = mock.menus[0];
+        expect(titles(root).slice(-3)).toEqual(['', i.blockMenuCopyLink, i.blockMenuDelete]);
+    });
+
+    it('omits separator when all action items are disabled', () => {
+        mock.language = 'en';
+        const settings = migrateSettings({
+            enableActionCopyLink: false,
+            enableActionCopy: false,
+            enableActionCut: false,
+            enableActionDelete: false,
+        });
+        openBlockTypeMenu(view, new MouseEvent('click'), settings, 1);
+        const root = mock.menus[0];
+        expect(titles(root)).not.toContain('');
+    });
+
+    it('renders both conversions and actions as reorderable lists with headings', async () => {
+        mock.language = 'zh-cn';
+        const i = selectTranslations(mock.language);
+        const plugin = {
+            settings: migrateSettings({}),
+            saveSettings: vi.fn(async () => undefined),
+        };
+        const tab = new DragNDropSettingTab({} as App, plugin as unknown as DragNDropPlugin);
+        const page = tab
+            .getSettingDefinitions()
+            .find(
+                (item) => 'type' in item && item.type === 'page' && item.name === i.headingBlockMenu,
+            ) as SettingDefinitionPage;
+
+        const conversionsList = page.items![0] as SettingDefinitionList;
+        expect(conversionsList.type).toBe('list');
+        expect(conversionsList.heading).toBe(i.headingBlockConversions);
+        expect(conversionsList.onReorder).toBeDefined();
+
+        const actionsList = page.items![1] as SettingDefinitionList;
+        expect(actionsList.type).toBe('list');
+        expect(actionsList.heading).toBe(i.headingBlockActions);
+        expect(actionsList.onReorder).toBeDefined();
+        expect(actionsList.items!.map((item) => item.name)).toEqual([
+            i.actionCopyLink,
+            i.actionCopy,
+            i.actionCut,
+            i.actionDelete,
+        ]);
+        for (const item of actionsList.items!) {
+            expect((item as { icon?: string }).icon).toBeDefined();
+        }
+
+        actionsList.onReorder!(3, 0);
+        await Promise.resolve();
+        expect(plugin.saveSettings).toHaveBeenCalledOnce();
+        expect(plugin.settings.blockMenuOrders.actions).toEqual(['delete', 'copy-link', 'copy', 'cut']);
+    });
+
+    it('respects reordered actions list in blockMenuOrders', () => {
+        mock.language = 'en';
+        const i = selectTranslations(mock.language);
+        const settings = migrateSettings({
+            schemaVersion: 15,
+            blockMenuOrders: {
+                ...DEFAULT_BLOCK_MENU_ORDERS,
+                actions: ['delete', 'copy-link', 'copy', 'cut'],
+            },
+        });
+        openBlockTypeMenu(view, new MouseEvent('click'), settings, 1);
+        const root = mock.menus[0];
+        expect(titles(root).slice(-5)).toEqual([
+            '',
+            i.blockMenuDelete,
+            i.blockMenuCopyLink,
+            i.blockMenuCopy,
+            i.blockMenuCut,
+        ]);
     });
 });

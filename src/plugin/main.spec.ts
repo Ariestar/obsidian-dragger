@@ -7,6 +7,7 @@ import DragNDropPlugin from './main';
 
 vi.mock('obsidian', () => ({
     Platform: { isMobile: false },
+    setIcon: (el: HTMLElement, iconId: string) => el.setAttribute('data-icon', iconId),
     MarkdownView: class {},
     Plugin: class {
         app: App;

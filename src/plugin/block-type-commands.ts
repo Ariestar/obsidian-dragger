@@ -1,6 +1,15 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { detectBlock, planConvert, planDelete, selectOne, type ConvertTo, type Block } from 'md-dragger/domain';
+import { editorInfoField } from 'obsidian';
+import {
+    detectBlock,
+    planConvert,
+    planDelete,
+    selectOne,
+    type ConvertTo,
+    type Block,
+    BlockType,
+} from 'md-dragger/domain';
 
 export function convertCurrentBlockType(view: EditorView, conversion: ConvertTo, lineNumber?: number): boolean {
     const block = getBlockAt(view, lineNumber);
@@ -35,6 +44,46 @@ export function deleteCurrentBlock(view: EditorView, lineNumber?: number): boole
         scrollIntoView: false,
     });
     return true;
+}
+
+export async function copyBlockLink(view: EditorView, lineNumber?: number): Promise<string | null> {
+    const block = getBlockAt(view, lineNumber);
+    if (!block) return null;
+    const endLine = view.state.doc.line(block.lines.endLine);
+    const match = endLine.text.match(/(?:^|\s)\^([a-zA-Z0-9-]+)$/);
+    let id: string;
+    let change: { from: number; insert: string } | undefined;
+    if (match) {
+        id = match[1];
+    } else {
+        id = Math.random().toString(36).slice(2, 8);
+        const insert = block.type === BlockType.CodeBlock ? `\n^${id}` : ` ^${id}`;
+        change = { from: endLine.to, insert };
+    }
+
+    const info = view.state.field(editorInfoField, false);
+    let linkText: string;
+    if (info?.file && info.app?.fileManager) {
+        linkText = info.app.fileManager.generateMarkdownLink(info.file, '', `#^${id}`);
+    } else if (info?.file?.basename) {
+        linkText = `[[${info.file.basename}#^${id}]]`;
+    } else {
+        linkText = `[[#^${id}]]`;
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.clipboard) return null;
+    try {
+        await navigator.clipboard.writeText(linkText);
+        if (change) {
+            view.dispatch({
+                changes: change,
+                scrollIntoView: false,
+            });
+        }
+        return linkText;
+    } catch {
+        return null;
+    }
 }
 
 export async function copyCurrentBlock(view: EditorView, lineNumber?: number): Promise<boolean> {
