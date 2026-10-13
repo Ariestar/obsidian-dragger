@@ -9,6 +9,7 @@ vi.mock('obsidian', () => ({
         isDesktop: true,
         isDesktopApp: true,
     },
+    setIcon: (el: HTMLElement, iconId: string) => el.setAttribute('data-icon', iconId),
 }));
 
 if (typeof window !== 'undefined') {

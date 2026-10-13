@@ -2,7 +2,7 @@
 
 .md-dragger-handle {
     position: relative;
-    width: var(--d-handle-size, 20px);
+    width: max-content;
     height: var(--d-handle-size, 20px);
     display: flex;
     align-items: center;
@@ -11,11 +11,56 @@
     opacity: 0;
     transition: none;
     color: var(--d-handle-color, var(--interactive-accent));
-    border-radius: 999px;
+    border-radius: var(--radius-s, 4px);
     z-index: 3;
     border: 0;
     background: transparent;
     padding: 0;
+}
+
+.d-handle-capsule {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: max(var(--d-handle-size, 20px), 22px);
+    box-sizing: border-box;
+    padding: 0 5px;
+    border-radius: var(--radius-s, 4px);
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    flex-shrink: 0;
+    white-space: nowrap;
+    margin-inline-end: 6px;
+}
+
+.md-dragger-handle:hover .d-handle-capsule {
+    border-color: var(--interactive-accent);
+}
+
+.md-dragger-handle.is-selected .d-handle-capsule {
+    border-color: var(--interactive-accent);
+    background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-primary));
+}
+
+.d-handle-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    user-select: none;
+    pointer-events: none;
+    line-height: 1;
+}
+
+.d-handle-badge svg {
+    width: 12px;
+    height: 12px;
+    stroke-width: 2px;
+}
+
+.md-dragger-handle:hover .d-handle-badge {
+    color: var(--text-normal);
 }
 
 .markdown-source-view.mod-cm6 .cm-editor.d-root-editor .cm-gutters {
@@ -75,6 +120,8 @@
    (wrapped lines stay below it). 1lh is the line-height already on the cell. */
 .markdown-source-view.mod-cm6 .cm-editor.d-root-editor .cm-gutter.md-dragger-gutter .cm-gutterElement > .md-dragger-handle {
     display: flex;
+    width: max-content;
+    max-width: none;
     align-items: center;
     justify-content: center;
     height: 1lh;

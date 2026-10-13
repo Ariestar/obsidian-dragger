@@ -6,7 +6,10 @@ import { openBlockTypeMenu } from './block-type-menu';
 import { registerMobileToolbarCommands } from './mobile-toolbar-commands';
 import { DEFAULT_SETTINGS } from './settings-types';
 
-vi.mock('obsidian', () => ({ Platform: { isMobile: true } }));
+vi.mock('obsidian', () => ({
+    Platform: { isMobile: true },
+    setIcon: (el: HTMLElement, iconId: string) => el.setAttribute('data-icon', iconId),
+}));
 vi.mock('./block-type-menu', () => ({ openBlockTypeMenu: vi.fn() }));
 
 afterEach(() => {
