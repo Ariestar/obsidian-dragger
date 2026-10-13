@@ -227,6 +227,29 @@ describe('block type conversion', () => {
         expect(writeText).toHaveBeenCalledWith('[[My Note#^my-id]]');
     });
 
+    it('leaves document unchanged when clipboard write fails', async () => {
+        const view = createMutableView('alpha\nbeta', 0);
+        const writeText = mockClipboard().mockRejectedValue(new Error('Permission denied'));
+
+        const link = await copyBlockLink(view);
+
+        expect(link).toBeNull();
+        expect(writeText).toHaveBeenCalledOnce();
+        expect(view.state.doc.toString()).toBe('alpha\nbeta');
+    });
+
+    it('places block ID on a new line when copying a fenced code block link', async () => {
+        const view = createMutableView('```ts\nconsole.log(1);\n```', 0);
+        const writeText = mockClipboard();
+
+        const link = await copyBlockLink(view);
+
+        expect(link).toMatch(/^\[\[#\^[a-z0-9]{6}\]\]$/);
+        expect(writeText).toHaveBeenCalledWith(link);
+        const id = link?.slice(4, -2);
+        expect(view.state.doc.toString()).toBe(`\`\`\`ts\nconsole.log(1);\n\`\`\`\n^${id}`);
+    });
+
     it('cuts the current block text to the clipboard and deletes it', async () => {
         const view = createMutableView('alpha\nbeta', 0);
         const writeText = mockClipboard();

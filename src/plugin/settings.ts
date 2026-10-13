@@ -396,7 +396,9 @@ export class DragNDropSettingTab extends PluginSettingTab {
                     setting.addToggle((toggle) => {
                         toggle.setValue(Boolean(this.plugin.settings[def.key])).onChange((value) => {
                             (this.plugin.settings as unknown as Record<string, unknown>)[def.key] = value;
-                            void this.plugin.saveSettings();
+                            void this.plugin.saveSettings().catch((error: unknown) => {
+                                console.error('Dragger: failed to save settings', error);
+                            });
                         });
                     });
                 },
