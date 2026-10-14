@@ -34,13 +34,21 @@ function makeView(doc: string, settingsOverrides?: Partial<ObsidianDraggerHost['
     });
 }
 
-function pointer(type: string, x: number, y: number): PointerEvent {
+function pointer(
+    type: string,
+    x: number,
+    y: number,
+    modifiers?: { ctrlKey?: boolean; altKey?: boolean; metaKey?: boolean },
+): PointerEvent {
     const event = new PointerEvent(type, {
         pointerId: 1,
         clientX: x,
         clientY: y,
         buttons: type === 'pointerup' ? 0 : 1,
         bubbles: true,
+        ctrlKey: modifiers?.ctrlKey,
+        altKey: modifiers?.altKey,
+        metaKey: modifiers?.metaKey,
     });
     Object.defineProperty(event, 'view', { value: window });
     return event;
@@ -151,6 +159,23 @@ describe('platform/codemirror drag paint', () => {
         await nextFrame();
 
         expect(view.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBeGreaterThan(0);
+        view.destroy();
+    });
+
+    it('only highlights the single line list item when ctrl/cmd is held on drag start', async () => {
+        const view = makeView('- parent\n    - child');
+        await nextFrame();
+
+        const handle = view.dom.querySelector<HTMLElement>('.md-dragger-handle');
+        expect(handle).not.toBeNull();
+        if (!handle) return;
+
+        handle.dispatchEvent(pointer('pointerdown', 0, 0, { ctrlKey: true }));
+        window.dispatchEvent(pointer('pointermove', 0, 0, { ctrlKey: true }));
+        window.dispatchEvent(pointer('pointermove', 12, 12, { ctrlKey: true }));
+        await nextFrame();
+
+        expect(view.dom.querySelectorAll('.cm-line.md-dragger-drag-source').length).toBe(1);
         view.destroy();
     });
 
