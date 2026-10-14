@@ -207,7 +207,7 @@ export function getBlockMenuEntries(settings: BlockMenuSettings): BlockMenuEntry
         },
         comment: {
             id: 'comment',
-            target: { template: '%%\n${content}\n%%' },
+            target: { type: BlockType.Comment },
             label: i.blockMenuComment,
             icon: 'message-square-dashed',
         },

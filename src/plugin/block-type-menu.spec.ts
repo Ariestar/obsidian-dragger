@@ -18,6 +18,7 @@ import { DragNDropSettingTab } from './settings';
 import { migrateSettings } from './settings-migrations';
 import { DEFAULT_SETTINGS } from './settings-types';
 import { DEFAULT_BLOCK_MENU_ORDERS, getBlockMenuEntries } from './block-menu-items';
+import { BlockType } from 'md-dragger/domain';
 import type DragNDropPlugin from './main';
 
 const mock = vi.hoisted(() => ({
@@ -187,7 +188,7 @@ describe('block menu translations', () => {
         root[7].click();
         expect(mock.convert).toHaveBeenLastCalledWith(view, { template: '```mermaid\n${content}\n```' }, 1);
         root[8].click();
-        expect(mock.convert).toHaveBeenLastCalledWith(view, { template: '%%\n${content}\n%%' }, 1);
+        expect(mock.convert).toHaveBeenLastCalledWith(view, { type: BlockType.Comment }, 1);
         root[9].click();
         expect(titles(mock.menus.at(-1)!)).toEqual([i.blockMenuBack, 'My style']);
     });
