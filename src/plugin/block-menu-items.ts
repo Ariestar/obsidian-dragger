@@ -115,7 +115,18 @@ const BUILTIN_OPTIONS: Record<'heading' | 'list' | 'callout', BuiltinOption[]> =
     ],
 };
 export const DEFAULT_BLOCK_MENU_ORDERS = {
-    root: ['paragraph', 'heading', 'list', 'quote', 'callout', 'code-block', 'math-block', 'custom'],
+    root: [
+        'paragraph',
+        'heading',
+        'list',
+        'quote',
+        'callout',
+        'code-block',
+        'math-block',
+        'mermaid',
+        'comment',
+        'custom',
+    ],
     heading: BUILTIN_OPTIONS.heading.map((option) => option.id),
     list: BUILTIN_OPTIONS.list.map((option) => option.id),
     callout: BUILTIN_OPTIONS.callout.map((option) => option.id),
@@ -187,6 +198,18 @@ export function getBlockMenuEntries(settings: BlockMenuSettings): BlockMenuEntry
             target: { type: BlockType.MathBlock },
             label: i.blockMenuMathBlock,
             icon: 'sigma',
+        },
+        mermaid: {
+            id: 'mermaid',
+            target: { template: '```mermaid\n${content}\n```' },
+            label: i.blockMenuMermaid,
+            icon: 'workflow',
+        },
+        comment: {
+            id: 'comment',
+            target: { template: '%%\n${content}\n%%' },
+            label: i.blockMenuComment,
+            icon: 'message-square-dashed',
         },
         custom: {
             id: 'custom',

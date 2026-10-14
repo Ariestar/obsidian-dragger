@@ -26,6 +26,8 @@ export const ru: ZhCnStrings = {
     blockMenuCustom: 'Пользовательские',
     blockMenuCodeBlock: 'Блок кода',
     blockMenuMathBlock: 'Блок формулы',
+    blockMenuMermaid: 'Диаграмма Mermaid',
+    blockMenuComment: 'Комментарий',
     blockMenuCopyLink: 'Копировать ссылку на блок',
     blockMenuCopy: 'Копировать блок',
     blockMenuCut: 'Вырезать блок',

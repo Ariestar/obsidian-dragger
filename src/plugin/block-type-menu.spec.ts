@@ -141,6 +141,8 @@ describe('block menu translations', () => {
             i.blockMenuCallout,
             i.blockMenuCodeBlock,
             i.blockMenuMathBlock,
+            i.blockMenuMermaid,
+            i.blockMenuComment,
             i.blockMenuCustom,
             '',
             i.blockMenuCopyLink,
@@ -183,6 +185,10 @@ describe('block menu translations', () => {
         callouts[5].click();
         expect(mock.convert).toHaveBeenLastCalledWith(view, { template: '> [!tip]\n${content}', linePrefix: '> ' }, 1);
         root[7].click();
+        expect(mock.convert).toHaveBeenLastCalledWith(view, { template: '```mermaid\n${content}\n```' }, 1);
+        root[8].click();
+        expect(mock.convert).toHaveBeenLastCalledWith(view, { template: '%%\n${content}\n%%' }, 1);
+        root[9].click();
         expect(titles(mock.menus.at(-1)!)).toEqual([i.blockMenuBack, 'My style']);
     });
 
@@ -214,7 +220,7 @@ describe('block menu translations', () => {
             i.blockMenuCalloutExample,
             i.blockMenuCalloutQuote,
         ]);
-        root[7].dispatchEvent(new MouseEvent('pointerenter'));
+        root[9].dispatchEvent(new MouseEvent('pointerenter'));
         expect(titles(Array.from(document.querySelectorAll<HTMLElement>('.d-block-type-flyout-item')))).toEqual([
             'My style',
         ]);
@@ -277,19 +283,21 @@ describe('block menu translations', () => {
             i.blockMenuCallout,
             i.blockMenuCodeBlock,
             i.blockMenuMathBlock,
+            i.blockMenuMermaid,
+            i.blockMenuComment,
             i.blockMenuCustom,
         ]);
-        for (const index of [0, 3, 5, 6]) {
+        for (const index of [0, 3, 5, 6, 7, 8]) {
             expect((list.items![index] as { icon?: string }).icon).toBeDefined();
         }
         expect(list.onDelete).toBeUndefined();
         expect(page.desc).toBeUndefined();
-        for (const index of [1, 2, 4, 7]) {
+        for (const index of [1, 2, 4, 9]) {
             const groupPage = list.items![index] as SettingDefinitionPage;
             expect(groupPage.items).toBeDefined();
             expect(groupPage.desc).toBeUndefined();
         }
-        list.onReorder!(7, 0);
+        list.onReorder!(9, 0);
         list.onReorder!(5, 1);
         await Promise.resolve();
         expect(plugin.saveSettings).toHaveBeenCalledTimes(2);
@@ -466,7 +474,7 @@ describe('block menu translations', () => {
         const list = () => {
             const page = tab.getSettingDefinitions()[2] as SettingDefinitionPage;
             const root = page.items![0] as SettingDefinitionList;
-            const custom = root.items![7] as SettingDefinitionPage;
+            const custom = root.items![9] as SettingDefinitionPage;
             return custom.items![0] as SettingDefinitionList;
         };
         list().onReorder!(0, 1);
@@ -488,7 +496,7 @@ describe('block menu translations', () => {
         const tab = new DragNDropSettingTab({} as App, plugin as unknown as DragNDropPlugin);
         const page = tab.getSettingDefinitions()[2] as SettingDefinitionPage;
         const root = page.items![0] as SettingDefinitionList;
-        const childPage = root.items![7] as SettingDefinitionPage;
+        const childPage = root.items![9] as SettingDefinitionPage;
         const childList = childPage.items![0] as SettingDefinitionList;
         childList.addItem!.action(document.createElement('div'));
         const style = { ...mock.modal!.style, label: 'New style' };

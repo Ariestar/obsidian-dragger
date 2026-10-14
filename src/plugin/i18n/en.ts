@@ -26,6 +26,8 @@ export const en: ZhCnStrings = {
     blockMenuCustom: 'Custom',
     blockMenuCodeBlock: 'Code block',
     blockMenuMathBlock: 'Math block',
+    blockMenuMermaid: 'Mermaid diagram',
+    blockMenuComment: 'Comment',
     blockMenuCopyLink: 'Copy block link',
     blockMenuCopy: 'Copy block',
     blockMenuCut: 'Cut block',

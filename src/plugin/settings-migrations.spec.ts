@@ -231,11 +231,12 @@ describe('migrateSettings', () => {
         expect(result.schemaVersion).toBe(16);
     });
 
-    it('migrates v15 data by adding new callout items to blockMenuOrders', () => {
+    it('migrates v15 data by adding new block items to blockMenuOrders', () => {
+        const v15Root = ['paragraph', 'heading', 'list', 'quote', 'callout', 'code-block', 'math-block', 'custom'];
         const data = {
             schemaVersion: 15,
             blockMenuOrders: {
-                root: [...DEFAULT_BLOCK_MENU_ORDERS.root],
+                root: [...v15Root],
                 heading: [...DEFAULT_BLOCK_MENU_ORDERS.heading],
                 list: [...DEFAULT_BLOCK_MENU_ORDERS.list],
                 callout: ['callout-note', 'callout-tip', 'callout-warning'],
@@ -244,6 +245,7 @@ describe('migrateSettings', () => {
             },
         };
         const result = migrateSettings(data);
+        expect(result.blockMenuOrders.root).toEqual([...v15Root, 'mermaid', 'comment']);
         expect(result.blockMenuOrders.callout).toEqual([
             'callout-note',
             'callout-tip',

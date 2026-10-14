@@ -202,19 +202,24 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
         }
         return next;
     },
-    // v15 -> v16: expand built-in callouts list in blockMenuOrders.
+    // v15 -> v16: expand built-in callouts and block types in blockMenuOrders.
     (data) => {
         const next = { ...data };
-        if (isRecord(next.blockMenuOrders) && Array.isArray(next.blockMenuOrders.callout)) {
-            const rawCallouts = (next.blockMenuOrders.callout as unknown[]).filter(
-                (id): id is string => typeof id === 'string',
-            );
-            const existing = new Set(rawCallouts);
-            const callout = [...rawCallouts, ...DEFAULT_BLOCK_MENU_ORDERS.callout.filter((id) => !existing.has(id))];
-            next.blockMenuOrders = {
-                ...next.blockMenuOrders,
-                callout,
-            };
+        if (isRecord(next.blockMenuOrders)) {
+            const orders = { ...next.blockMenuOrders };
+            if (Array.isArray(orders.root)) {
+                const rawRoot = (orders.root as unknown[]).filter((id): id is string => typeof id === 'string');
+                const existing = new Set(rawRoot);
+                const addedRoot = ['mermaid', 'comment'].filter((id) => !existing.has(id));
+                orders.root = [...rawRoot, ...addedRoot];
+            }
+            if (Array.isArray(orders.callout)) {
+                const rawCallouts = (orders.callout as unknown[]).filter((id): id is string => typeof id === 'string');
+                const existing = new Set(rawCallouts);
+                const addedCallouts = DEFAULT_BLOCK_MENU_ORDERS.callout.filter((id) => !existing.has(id));
+                orders.callout = [...rawCallouts, ...addedCallouts];
+            }
+            next.blockMenuOrders = orders;
         }
         return next;
     },

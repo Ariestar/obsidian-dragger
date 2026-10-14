@@ -24,6 +24,8 @@ export const zhCn = {
     blockMenuCustom: '自定义',
     blockMenuCodeBlock: '代码块',
     blockMenuMathBlock: '公式块',
+    blockMenuMermaid: 'Mermaid 图表',
+    blockMenuComment: '注释',
     blockMenuCopyLink: '复制块链接',
     blockMenuCopy: '复制块',
     blockMenuCut: '剪切块',
