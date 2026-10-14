@@ -17,7 +17,7 @@ import { DEFAULT_BLOCK_MENU_ORDERS } from './block-menu-items';
  */
 
 const SCHEMA_VERSION_KEY = 'schemaVersion';
-const CURRENT_SCHEMA_VERSION = 15;
+const CURRENT_SCHEMA_VERSION = 16;
 
 type RawSettings = Record<string, unknown>;
 
@@ -199,6 +199,22 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
         if ('enableActionCopyId' in next) {
             next.enableActionCopyLink = next.enableActionCopyId;
             delete next.enableActionCopyId;
+        }
+        return next;
+    },
+    // v15 -> v16: expand built-in callouts list in blockMenuOrders.
+    (data) => {
+        const next = { ...data };
+        if (isRecord(next.blockMenuOrders) && Array.isArray(next.blockMenuOrders.callout)) {
+            const rawCallouts = (next.blockMenuOrders.callout as unknown[]).filter(
+                (id): id is string => typeof id === 'string',
+            );
+            const existing = new Set(rawCallouts);
+            const callout = [...rawCallouts, ...DEFAULT_BLOCK_MENU_ORDERS.callout.filter((id) => !existing.has(id))];
+            next.blockMenuOrders = {
+                ...next.blockMenuOrders,
+                callout,
+            };
         }
         return next;
     },

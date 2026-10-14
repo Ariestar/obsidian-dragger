@@ -167,10 +167,20 @@ describe('block menu translations', () => {
         expect(titles(callouts)).toEqual([
             i.blockMenuBack,
             i.blockMenuCalloutNote,
+            i.blockMenuCalloutAbstract,
+            i.blockMenuCalloutInfo,
+            i.blockMenuCalloutTodo,
             i.blockMenuCalloutTip,
+            i.blockMenuCalloutSuccess,
+            i.blockMenuCalloutQuestion,
             i.blockMenuCalloutWarning,
+            i.blockMenuCalloutFailure,
+            i.blockMenuCalloutDanger,
+            i.blockMenuCalloutBug,
+            i.blockMenuCalloutExample,
+            i.blockMenuCalloutQuote,
         ]);
-        callouts[2].click();
+        callouts[5].click();
         expect(mock.convert).toHaveBeenLastCalledWith(view, { template: '> [!tip]\n${content}', linePrefix: '> ' }, 1);
         root[7].click();
         expect(titles(mock.menus.at(-1)!)).toEqual([i.blockMenuBack, 'My style']);
@@ -191,8 +201,18 @@ describe('block menu translations', () => {
         root[4].dispatchEvent(new MouseEvent('pointerenter'));
         expect(titles(Array.from(document.querySelectorAll<HTMLElement>('.d-block-type-flyout-item')))).toEqual([
             i.blockMenuCalloutNote,
+            i.blockMenuCalloutAbstract,
+            i.blockMenuCalloutInfo,
+            i.blockMenuCalloutTodo,
             i.blockMenuCalloutTip,
+            i.blockMenuCalloutSuccess,
+            i.blockMenuCalloutQuestion,
             i.blockMenuCalloutWarning,
+            i.blockMenuCalloutFailure,
+            i.blockMenuCalloutDanger,
+            i.blockMenuCalloutBug,
+            i.blockMenuCalloutExample,
+            i.blockMenuCalloutQuote,
         ]);
         root[7].dispatchEvent(new MouseEvent('pointerenter'));
         expect(titles(Array.from(document.querySelectorAll<HTMLElement>('.d-block-type-flyout-item')))).toEqual([
