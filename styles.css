@@ -345,6 +345,11 @@ body.d-dragging * {
     cursor: grabbing;
 }
 
+body.d-dragging.d-dragging-copy,
+body.d-dragging.d-dragging-copy * {
+    cursor: copy;
+}
+
 body.d-dragging .cm-line:hover {
     background-color: transparent;
 }

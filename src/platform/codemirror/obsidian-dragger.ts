@@ -21,6 +21,7 @@ import {
     detectBlock,
     isLineNumberInRanges,
     selectionLineRanges,
+    selectOne,
     type DropPosition,
     type LineRange,
 } from 'md-dragger/domain';
@@ -31,6 +32,7 @@ import { openBlockTypeMenu } from '../../plugin/block-type-menu';
 import {
     CARD_EDITOR_ATTR,
     DRAGGING_BODY_CLASS,
+    DRAGGING_COPY_BODY_CLASS,
     MOBILE_GESTURE_LOCK_CLASS,
     ROOT_EDITOR_CLASS,
 } from '../../shared/dom-selectors';
@@ -97,6 +99,17 @@ export function dragHandleExtension(plugin: ObsidianDraggerHost): Extension {
         // after Obsidian moves the editor into a card iframe or a pop-out window.
         ux: (view) => ({
             gesture: () => gestureConfig(plugin),
+            selectionFromInput: (input, anchorBlock) => {
+                const singleLineModifier = input.modifiers?.ctrlKey || input.modifiers?.metaKey;
+                if (singleLineModifier && anchorBlock.type === BlockType.ListItem) {
+                    const line = anchorBlock.lines.startLine;
+                    return selectOne({
+                        type: anchorBlock.type,
+                        lines: { startLine: line, endLine: line },
+                    });
+                }
+                return null;
+            },
             modules: [
                 autoScroll(
                     scrollPort(() => view.dom.ownerDocument),
@@ -568,6 +581,7 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
                 // final state; always clear the dragging class so the cursor
                 // never stays stuck in grab mode.
                 this.view.dom.ownerDocument.body.classList.remove(DRAGGING_BODY_CLASS);
+                this.view.dom.ownerDocument.body.classList.remove(DRAGGING_COPY_BODY_CLASS);
                 this.view.dom.removeEventListener('pointerdown', this.onPointerDown, true);
                 this.view.dom.removeEventListener('contextmenu', this.onContextMenu, true);
             }
@@ -578,6 +592,15 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
                         const t = output.state.type;
                         this.setLock(t !== 'idle');
                         this.view.dom.ownerDocument.body.classList.toggle(DRAGGING_BODY_CLASS, t === 'dragging');
+                        if (t !== 'dragging') {
+                            this.view.dom.ownerDocument.body.classList.remove(DRAGGING_COPY_BODY_CLASS);
+                        }
+                    }
+                    if (output.type === 'drag_over') {
+                        this.view.dom.ownerDocument.body.classList.toggle(
+                            DRAGGING_COPY_BODY_CLASS,
+                            output.drop.mode === 'copy',
+                        );
                     }
                     if (output.type === 'cancelled' && output.reason === 'press_cancelled') {
                         const press = this.lastPress;
@@ -595,8 +618,9 @@ function gestureShell(plugin: ObsidianDraggerHost): Extension {
                             });
                         }
                     }
-                    if (output.type === 'dropped' || output.type === 'terminal') {
+                    if (output.type === 'dropped' || output.type === 'terminal' || output.type === 'cancelled') {
                         this.lastPress = null;
+                        this.view.dom.ownerDocument.body.classList.remove(DRAGGING_COPY_BODY_CLASS);
                     }
                 }
             }

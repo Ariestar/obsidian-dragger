@@ -2,6 +2,7 @@ export const ROOT_EDITOR_CLASS = 'd-root-editor';
 // On an editor inside a frame (a canvas card), with --d-gutter-left.
 export const CARD_EDITOR_ATTR = 'data-d-card-editor';
 export const DRAGGING_BODY_CLASS = 'd-dragging';
+export const DRAGGING_COPY_BODY_CLASS = 'd-dragging-copy';
 export const MOBILE_GESTURE_LOCK_CLASS = 'd-mobile-gesture-lock';
 
 export const DRAG_SOURCE_STYLE_ATTR = 'data-d-drag-source-style';
