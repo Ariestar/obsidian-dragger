@@ -17,7 +17,7 @@ import { DEFAULT_BLOCK_MENU_ORDERS } from './block-menu-items';
  */
 
 const SCHEMA_VERSION_KEY = 'schemaVersion';
-const CURRENT_SCHEMA_VERSION = 15;
+const CURRENT_SCHEMA_VERSION = 16;
 
 type RawSettings = Record<string, unknown>;
 
@@ -199,6 +199,27 @@ const MIGRATIONS: Array<(data: RawSettings) => RawSettings> = [
         if ('enableActionCopyId' in next) {
             next.enableActionCopyLink = next.enableActionCopyId;
             delete next.enableActionCopyId;
+        }
+        return next;
+    },
+    // v15 -> v16: expand built-in callouts and block types in blockMenuOrders.
+    (data) => {
+        const next = { ...data };
+        if (isRecord(next.blockMenuOrders)) {
+            const orders = { ...next.blockMenuOrders };
+            if (Array.isArray(orders.root)) {
+                const rawRoot = (orders.root as unknown[]).filter((id): id is string => typeof id === 'string');
+                const existing = new Set(rawRoot);
+                const addedRoot = ['mermaid', 'comment'].filter((id) => !existing.has(id));
+                orders.root = [...rawRoot, ...addedRoot];
+            }
+            if (Array.isArray(orders.callout)) {
+                const rawCallouts = (orders.callout as unknown[]).filter((id): id is string => typeof id === 'string');
+                const existing = new Set(rawCallouts);
+                const addedCallouts = DEFAULT_BLOCK_MENU_ORDERS.callout.filter((id) => !existing.has(id));
+                orders.callout = [...rawCallouts, ...addedCallouts];
+            }
+            next.blockMenuOrders = orders;
         }
         return next;
     },

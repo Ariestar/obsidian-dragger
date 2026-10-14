@@ -280,6 +280,8 @@ function blockMenuIcon(block: GutterBlock): string {
             return 'table';
         case BlockType.Callout:
             return 'message-square';
+        case BlockType.Comment:
+            return 'message-square-dashed';
         case BlockType.HorizontalRule:
             return 'minus';
         default:
