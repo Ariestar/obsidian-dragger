@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { dragHandleExtension, type ObsidianDraggerHost } from './obsidian-dragger';
 import { DEFAULT_SETTINGS } from '../../plugin/settings-types';
 
@@ -297,6 +297,36 @@ describe('platform/codemirror drag paint', () => {
         expect(badge1?.getAttribute('data-icon')).toBe('pilcrow');
         expect(handles[1].querySelector('.d-handle-core')).not.toBeNull();
 
+        view.destroy();
+    });
+
+    it('publishes the list indent step as a view CSS variable', async () => {
+        const view = makeView('- a\n    - b');
+        view.dispatch({ changes: { from: 0, insert: 'x' } });
+        await nextFrame();
+
+        // 0.5625em × 4 at the 16px test font.
+        expect(view.dom.style.getPropertyValue('--d-list-indent-step')).toBe('36px');
+        view.destroy();
+    });
+
+    it('does not read computed style while updates are applied', async () => {
+        const view = makeView('- a\n    - b');
+        await nextFrame();
+
+        const spy = vi.spyOn(window, 'getComputedStyle');
+        for (let i = 0; i < 20; i++) {
+            view.dispatch({ changes: { from: view.state.doc.length, insert: 'x' } });
+        }
+        const readsDuringUpdates = spy.mock.calls.length;
+        spy.mockRestore();
+
+        expect(readsDuringUpdates).toBe(0);
+
+        // The step is still published, from the measure phase of the next frame.
+        view.contentDOM.style.setProperty('--indent-size', '2');
+        await nextFrame();
+        expect(view.dom.style.getPropertyValue('--d-list-indent-step')).toBe('18px');
         view.destroy();
     });
 });

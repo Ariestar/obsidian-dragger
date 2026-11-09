@@ -426,6 +426,13 @@ function selectionPaint(): Extension {
             class {
                 private selectedRanges: LineRange[] = [];
                 private indentStepSet = false;
+                // Computed style is read in CodeMirror's measure phase, batched
+                // with its own geometry reads; the write lands after all reads.
+                private readonly indentStepMeasure = {
+                    key: this,
+                    read: (view: EditorView) => `${listIndentStepPx(view)}px`,
+                    write: (step: string, view: EditorView) => view.dom.style.setProperty('--d-list-indent-step', step),
+                };
 
                 constructor(private readonly view: EditorView) {}
 
@@ -451,7 +458,7 @@ function selectionPaint(): Extension {
                     // the decoration only carries the nesting level.
                     if (!this.indentStepSet || update.geometryChanged) {
                         this.indentStepSet = true;
-                        this.view.dom.style.setProperty('--d-list-indent-step', `${listIndentStepPx(this.view)}px`);
+                        this.view.requestMeasure(this.indentStepMeasure);
                     }
                     this.syncSelectedHandles();
                 }
