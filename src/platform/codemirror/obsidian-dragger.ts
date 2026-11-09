@@ -326,8 +326,11 @@ function gestureConfig(plugin: ObsidianDraggerHost) {
 }
 
 // The drop seam is a plain CM6 line decoration built by the adapter
-// (dropSeamDecoration) on the seam row — above the first line, or below the
-// previous line. The row itself is untouched — zero layout impact — and it
+// (dropSeamDecoration) on the row the engine's seamRow gives — at the top of the
+// first line or of a gap's first blank line, otherwise below the previous line,
+// or, for a line cut from a paragraph or quote, wherever its drop zone puts it
+// (across the middle of a gap's one blank line). The row itself is untouched —
+// zero layout impact — and it
 // rides the editor's render pipeline like the source highlight, so scrolling
 // repaints it with the text flow. The visible line is drawn by an
 // overflowing ::before/::after pseudo-element (styled by the protocol class
