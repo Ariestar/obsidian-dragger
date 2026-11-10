@@ -36,6 +36,7 @@ export function deleteCurrentBlock(view: EditorView, lineNumber?: number): boole
     const result = planDelete({
         doc: view.state.doc,
         selection: selectOne(block),
+        tabSize: view.state.facet(EditorState.tabSize),
     });
     if ('type' in result) return false;
 

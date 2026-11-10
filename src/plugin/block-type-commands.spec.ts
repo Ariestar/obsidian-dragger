@@ -165,6 +165,15 @@ describe('block type conversion', () => {
         expect(view.state.doc.toString()).toBe('alpha\ngamma');
     });
 
+    it('reads list nesting with the editor tab size when deleting', () => {
+        const view = createMutableView('- a\n\t- b\n\n- c', 4, EditorState.tabSize.of(4));
+
+        const changed = deleteCurrentBlock(view);
+
+        expect(changed).toBe(true);
+        expect(view.state.doc.toString()).toBe('- a\n\n- c');
+    });
+
     it('deletes the last block and its leading newline', () => {
         const view = createMutableView('alpha\nbeta', 6);
 
